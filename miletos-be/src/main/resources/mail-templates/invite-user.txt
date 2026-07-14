@@ -1,0 +1,8 @@
+Hello {{firstName}},
+
+You have been invited to Miletos.
+
+Please use the link below to set your password:
+{{inviteLink}}
+
+This invite link expires in 24 hours.

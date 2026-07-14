@@ -1,0 +1,15 @@
+.icon {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  background-color: currentColor;
+  mask-image: var(--icon-url);
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: contain;
+  -webkit-mask-image: var(--icon-url);
+  -webkit-mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+}

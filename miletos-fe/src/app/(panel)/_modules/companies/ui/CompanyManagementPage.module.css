@@ -1,0 +1,836 @@
+.companyManagement {
+  position: relative;
+  min-height: 100vh;
+  padding: 34px 40px 64px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(75, 70, 255, 0.12), transparent 32rem),
+    radial-gradient(circle at 100% 100%, rgba(20, 184, 212, 0.08), transparent 30rem),
+    linear-gradient(135deg, #f6f7ff 0%, #fbfcff 52%, #f0f4ff 100%);
+}
+
+.companyManagement__shell {
+  width: min(1420px, 100%);
+  margin: 0 auto;
+  animation: pageEnter 240ms ease both;
+}
+
+.companyManagement__header {
+  display: flex;
+  gap: 32px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 26px;
+  padding: 4px 2px 20px;
+  border-bottom: 1px solid rgba(75, 70, 255, 0.1);
+}
+
+.companyManagement__eyebrow,
+.companyManagement__cardEyebrow {
+  margin: 0 0 8px;
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.companyManagement__title {
+  margin: 0;
+  color: var(--color-text);
+  font-size: clamp(42px, 5.4vw, 70px);
+  line-height: 0.94;
+  letter-spacing: -0.062em;
+}
+
+.companyManagement__description {
+  max-width: 780px;
+  margin: 18px 0 0;
+  color: var(--color-muted);
+  font-size: 16px;
+  line-height: 1.65;
+}
+
+.companyManagement__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.companyManagement__link {
+  min-height: 46px;
+  padding: 0 18px;
+  display: inline-flex;
+  gap: 9px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 24px rgba(31, 35, 71, 0.06);
+  font-size: 14px;
+  font-weight: 850;
+  text-decoration: none;
+  transition:
+    border-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.companyManagement__link:hover {
+  border-color: var(--color-primary-border);
+  color: var(--color-primary);
+  box-shadow: 0 12px 30px rgba(75, 70, 255, 0.11);
+  transform: translateY(-2px);
+}
+
+.companyManagement__hero {
+  min-height: 420px;
+  display: grid;
+  grid-template-columns: minmax(0, 0.82fr) minmax(520px, 1.18fr);
+  gap: 34px;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 38px 42px;
+  border: 1px solid rgba(75, 70, 255, 0.15);
+  border-radius: 34px;
+  background:
+    radial-gradient(circle at 12% 16%, rgba(255, 187, 74, 0.12), transparent 20rem),
+    linear-gradient(135deg, #f9f6ff 0%, #ffffff 52%, #edf8ff 100%);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.companyManagement__heroContent {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  gap: 18px;
+}
+
+.companyManagement__heroBadge {
+  width: fit-content;
+  min-height: 36px;
+  padding: 0 13px;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid rgba(75, 70, 255, 0.16);
+  border-radius: 999px;
+  color: var(--color-primary);
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 10px 28px rgba(75, 70, 255, 0.09);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.companyManagement__heroTitle {
+  max-width: 610px;
+  margin: 0;
+  color: var(--color-text);
+  font-size: clamp(34px, 4vw, 56px);
+  line-height: 0.98;
+  letter-spacing: -0.058em;
+}
+
+.companyManagement__heroDescription {
+  max-width: 610px;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 1.7;
+}
+
+.companyManagement__heroTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.companyManagement__heroTags span {
+  min-height: 34px;
+  padding: 0 12px;
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  border: 1px solid rgba(75, 70, 255, 0.12);
+  border-radius: 999px;
+  color: #454560;
+  background: rgba(255, 255, 255, 0.68);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.companyManagement__heroImageFrame {
+  min-width: 0;
+  min-height: 350px;
+  display: grid;
+  align-items: center;
+  border-radius: 30px;
+  overflow: hidden;
+}
+
+.companyManagement__heroImage {
+  width: 113%;
+  max-width: none;
+  height: auto;
+  margin-left: -5%;
+  filter: drop-shadow(0 24px 42px rgba(40, 36, 148, 0.2));
+}
+
+.companyManagement__metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.companyManagement__metrics article {
+  min-height: 124px;
+  padding: 20px;
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  border: 1px solid rgba(75, 70, 255, 0.13);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow-sm);
+}
+
+.companyManagement__metrics article > span,
+.companyManagement__cardIcon,
+.companyManagement__companyIcon,
+.companyManagement__deleteIcon {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(75, 70, 255, 0.14);
+  border-radius: 15px;
+  color: var(--color-primary);
+  background: linear-gradient(135deg, rgba(75, 70, 255, 0.13), rgba(20, 184, 212, 0.08));
+}
+
+.companyManagement__metrics p {
+  margin: 0 0 5px;
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.companyManagement__metrics strong {
+  display: block;
+  color: var(--color-text);
+  font-size: 26px;
+  letter-spacing: -0.045em;
+}
+
+.companyManagement__metrics small {
+  display: block;
+  margin-top: 5px;
+  color: var(--color-subtle);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.companyManagement__workspaceGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(340px, 0.95fr);
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.companyManagement__card {
+  padding: 28px;
+  border: 1px solid rgba(75, 70, 255, 0.13);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: var(--shadow-card);
+}
+
+.companyManagement__cardHeader {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.companyManagement__cardTitle {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 25px;
+  letter-spacing: -0.04em;
+}
+
+.companyManagement__sectionDescription,
+.companyManagement__notice {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.companyManagement__form {
+  display: grid;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.companyManagement__editForm {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(180px, 1fr) auto;
+  gap: 16px;
+  align-items: end;
+}
+
+.companyManagement__editForm > .companyManagement__error {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.companyManagement__field {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.companyManagement__label {
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.companyManagement__input,
+.companyManagement__toolbar input,
+.companyManagement__toolbar select {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 14px;
+  color: var(--color-text);
+  background: var(--color-surface-soft);
+  outline: none;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.companyManagement__input:hover,
+.companyManagement__toolbar input:hover,
+.companyManagement__toolbar select:hover {
+  border-color: #adb5d2;
+  background: #ffffff;
+}
+
+.companyManagement__input:focus,
+.companyManagement__toolbar input:focus,
+.companyManagement__toolbar select:focus {
+  border-color: var(--color-primary);
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(75, 70, 255, 0.12);
+}
+
+.companyManagement__submit.companyManagement__submit {
+  width: 100%;
+  min-height: 50px;
+}
+
+.companyManagement__safetyCard {
+  background: linear-gradient(135deg, #211c79 0%, #322aa9 56%, #174b8b 100%);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.companyManagement__safetyCard .companyManagement__cardEyebrow {
+  color: #a5eaff;
+}
+
+.companyManagement__safetyCard .companyManagement__cardTitle {
+  color: #ffffff;
+}
+
+.companyManagement__safetyCard .companyManagement__cardIcon {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.companyManagement__guidanceList {
+  display: grid;
+  gap: 11px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.companyManagement__guidanceList li {
+  min-height: 74px;
+  padding: 14px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 17px;
+  color: #b8b5ff;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.companyManagement__guidanceList h3,
+.companyManagement__guidanceList p {
+  display: block;
+  margin: 0;
+}
+
+.companyManagement__guidanceList h3 {
+  color: #ffffff;
+  font-size: 13px;
+}
+
+.companyManagement__guidanceList p {
+  margin: 4px 0 0;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.companyManagement__tableCard {
+  padding: 30px;
+}
+
+.companyManagement__sectionHeader {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.companyManagement__toolbar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(190px, 0.34fr) auto;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 20px;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  background: var(--color-surface-soft);
+}
+
+.companyManagement__searchField {
+  position: relative;
+  display: block;
+  color: var(--color-muted);
+}
+
+.companyManagement__searchField > svg {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: 14px;
+  transform: translateY(-50%);
+}
+
+.companyManagement__searchField input {
+  padding-left: 43px;
+}
+
+.companyManagement__filterField {
+  display: grid;
+  gap: 6px;
+}
+
+.companyManagement__filterField > span {
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.companyManagement__resultCount {
+  min-height: 48px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  color: var(--color-muted);
+  background: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.companyManagement__tableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+}
+
+.companyManagement__table {
+  width: 100%;
+  min-width: 1040px;
+  border-collapse: collapse;
+}
+
+.companyManagement__table th {
+  padding: 14px 16px;
+  color: var(--color-muted);
+  background: #f6f7fc;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.companyManagement__table td {
+  padding: 16px;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+.companyManagement__table tbody tr {
+  background: #ffffff;
+  transition: background 160ms ease;
+}
+
+.companyManagement__table tbody tr:hover {
+  background: #fbfbff;
+}
+
+.companyManagement__companyCell {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.companyManagement__companyIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
+}
+
+.companyManagement__companyCell strong {
+  display: block;
+  font-size: 14px;
+}
+
+.companyManagement__mutedId {
+  display: block;
+  margin: 5px 0 0;
+  color: var(--color-subtle);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.companyManagement__statusBadge {
+  width: fit-content;
+  min-height: 29px;
+  padding: 0 10px;
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.companyManagement__statusBadge > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.companyManagement__statusBadgeActive {
+  border: 1px solid #abefc6;
+  color: var(--color-success);
+  background: var(--color-success-soft);
+}
+
+.companyManagement__statusBadgeDisabled {
+  border: 1px solid #fedf89;
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
+}
+
+.companyManagement__date {
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.companyManagement__tableLink {
+  min-height: 38px;
+  padding: 0 12px;
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  border: 1px solid rgba(75, 70, 255, 0.14);
+  border-radius: 12px;
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+  font-size: 12px;
+  font-weight: 900;
+  text-decoration: none;
+  transition:
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.companyManagement__tableLink:hover {
+  background: rgba(75, 70, 255, 0.14);
+  transform: translateY(-1px);
+}
+
+.companyManagement__rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.companyManagement__rowActions button {
+  min-height: 40px;
+  padding: 0 13px;
+}
+
+.companyManagement__dangerGhostButton.companyManagement__dangerGhostButton {
+  border-color: #fecdca;
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+.companyManagement__dangerButton.companyManagement__dangerButton {
+  background: linear-gradient(135deg, #d92d20, #b42318);
+  box-shadow: 0 14px 30px rgba(180, 35, 24, 0.22);
+}
+
+.companyManagement__deleteBox {
+  margin-bottom: 18px;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  border: 1px solid #fecdca;
+  border-radius: 18px;
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+.companyManagement__deleteIcon {
+  color: var(--color-danger);
+  background: #ffffff;
+  border-color: #fecdca;
+}
+
+.companyManagement__deleteBox h3 {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 14px;
+}
+
+.companyManagement__deleteBox p {
+  margin: 5px 0 0;
+  color: #7a271a;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.companyManagement__pagination {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+.companyManagement__paginationText {
+  min-height: 44px;
+  padding: 0 14px;
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 13px;
+  color: var(--color-muted);
+  background: var(--color-surface-soft);
+  font-size: 12px;
+}
+
+.companyManagement__emptyState {
+  min-height: 150px;
+  margin-top: 16px;
+  padding: 24px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: 20px;
+  color: var(--color-primary);
+  background: var(--color-surface-soft);
+  text-align: center;
+}
+
+.companyManagement__emptyState h3,
+.companyManagement__emptyState p {
+  display: block;
+  margin: 0;
+}
+
+.companyManagement__emptyState h3 {
+  color: var(--color-text);
+  font-size: 16px;
+}
+
+.companyManagement__emptyState p {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.companyManagement__error,
+.companyManagement__success {
+  margin: 14px 0;
+  padding: 13px 15px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.companyManagement__error {
+  border: 1px solid #fecdca;
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+.companyManagement__success {
+  border: 1px solid #abefc6;
+  color: var(--color-success);
+  background: var(--color-success-soft);
+}
+
+.companyManagement__fieldError {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+@media (max-width: 1160px) {
+  .companyManagement__hero {
+    grid-template-columns: minmax(0, 0.9fr) minmax(430px, 1.1fr);
+  }
+
+  .companyManagement__metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 920px) {
+  .companyManagement {
+    padding: 24px 22px 48px;
+  }
+
+  .companyManagement__header,
+  .companyManagement__sectionHeader {
+    flex-direction: column;
+  }
+
+  .companyManagement__actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .companyManagement__hero,
+  .companyManagement__workspaceGrid,
+  .companyManagement__editForm {
+    grid-template-columns: 1fr;
+  }
+
+  .companyManagement__editForm .companyManagement__rowActions {
+    justify-content: flex-start;
+  }
+
+  .companyManagement__heroImageFrame {
+    min-height: 300px;
+  }
+
+  .companyManagement__toolbar {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .companyManagement__resultCount {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 660px) {
+  .companyManagement {
+    padding: 18px 14px 36px;
+  }
+
+  .companyManagement__actions,
+  .companyManagement__metrics,
+  .companyManagement__toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .companyManagement__actions {
+    display: grid;
+  }
+
+  .companyManagement__link {
+    width: 100%;
+  }
+
+  .companyManagement__hero {
+    padding: 24px 20px;
+    border-radius: 26px;
+  }
+
+  .companyManagement__heroTitle {
+    font-size: clamp(34px, 11vw, 48px);
+  }
+
+  .companyManagement__heroImageFrame {
+    min-height: 230px;
+  }
+
+  .companyManagement__card,
+  .companyManagement__tableCard {
+    padding: 20px;
+  }
+
+  .companyManagement__deleteBox {
+    grid-template-columns: 1fr;
+  }
+
+  .companyManagement__deleteBox .companyManagement__rowActions {
+    justify-content: flex-start;
+  }
+
+  .companyManagement__pagination {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .companyManagement__paginationText {
+    justify-content: center;
+  }
+}

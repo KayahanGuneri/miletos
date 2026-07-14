@@ -1,0 +1,180 @@
+# ============================================================
+# JAVA / SPRING BOOT
+# ============================================================
+
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+.mvn/timing.properties
+
+# Gradle
+.gradle/
+**/build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Java compiled files
+*.class
+*.jar
+*.war
+*.ear
+
+# Java runtime and crash files
+hs_err_pid*
+replay_pid*
+*.hprof
+
+# Spring Boot generated files
+spring-shell.log
+
+
+# ============================================================
+# JAVASCRIPT / TYPESCRIPT / NODE.JS
+# ============================================================
+
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+.pnp.cjs
+
+# Package manager caches
+.npm/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnpm-store/
+
+# Next.js
+.next/
+out/
+
+# React / Vite / general frontend builds
+dist/
+coverage/
+.cache/
+.parcel-cache/
+.turbo/
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+
+# ============================================================
+# ENVIRONMENT FILES
+# ============================================================
+
+.env
+.env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production
+.env.production.local
+
+# Keep example environment files
+!.env.example
+!.env.*.example
+
+
+# ============================================================
+# LOG FILES
+# ============================================================
+
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+
+# ============================================================
+# IDE / EDITOR
+# ============================================================
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Eclipse / Spring Tool Suite
+.classpath
+.project
+.settings/
+.springBeans
+.sts4-cache/
+.factorypath
+
+# Visual Studio Code
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.example.json
+
+
+# ============================================================
+# OPERATING SYSTEM
+# ============================================================
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+.directory
+.Trash-*
+
+
+# ============================================================
+# TEMPORARY / BACKUP FILES
+# ============================================================
+
+*.tmp
+*.temp
+*.swp
+*.swo
+*.bak
+*.backup
+*.orig
+*.rej
+
+tmp/
+temp/
+
+
+# ============================================================
+# LOCAL DATA / UPLOADS
+# ============================================================
+
+uploads/
+storage/
+local-data/
+
+
+# ============================================================
+# TEST AND TOOL OUTPUTS
+# ============================================================
+
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+.nyc_output/
+eslint-report.*
