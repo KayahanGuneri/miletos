@@ -1,0 +1,65 @@
+.button {
+  min-height: 46px;
+  padding: 0 20px;
+  display: inline-flex;
+  gap: 9px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 850;
+  letter-spacing: -0.01em;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.button:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+  transform: none;
+}
+
+.button--primary {
+  color: #ffffff;
+  background: linear-gradient(135deg, #5a55ff 0%, #3730e8 100%);
+  box-shadow: var(--shadow-primary);
+}
+
+.button--primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #4c47f7 0%, #2d27cf 100%);
+  box-shadow: 0 19px 42px rgba(75, 70, 255, 0.3);
+}
+
+.button--secondary {
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.9);
+  border-color: var(--color-border);
+  box-shadow: 0 8px 24px rgba(31, 35, 71, 0.06);
+}
+
+.button--secondary:hover:not(:disabled) {
+  border-color: var(--color-primary-border);
+  color: var(--color-primary);
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgba(75, 70, 255, 0.11);
+}
+
+@media (max-width: 720px) {
+  .button {
+    width: 100%;
+  }
+}

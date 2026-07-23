@@ -1,0 +1,215 @@
+.inviteUserForm {
+  padding: 30px;
+  border: 1px solid rgba(75, 70, 255, 0.13);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: var(--shadow-card);
+}
+
+.inviteUserForm__intro {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 22px;
+}
+
+.inviteUserForm__introIcon {
+  width: 48px;
+  height: 48px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(75, 70, 255, 0.14);
+  border-radius: 15px;
+  color: var(--color-primary);
+  background: linear-gradient(135deg, rgba(75, 70, 255, 0.13), rgba(20, 184, 212, 0.08));
+}
+
+.inviteUserForm__eyebrow {
+  margin: 0 0 6px;
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.inviteUserForm__title {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 25px;
+  letter-spacing: -0.04em;
+}
+
+.inviteUserForm__description {
+  max-width: 700px;
+  margin: 7px 0 0;
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.inviteUserForm__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.inviteUserForm__field {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.inviteUserForm__fieldFull {
+  grid-column: 1 / -1;
+}
+
+.inviteUserForm__label {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.inviteUserForm__input,
+.inviteUserForm__select {
+  width: 100%;
+  min-height: 50px;
+  padding: 0 15px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 14px;
+  color: var(--color-text);
+  background: var(--color-surface-soft);
+  outline: none;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.inviteUserForm__input:hover,
+.inviteUserForm__select:hover {
+  border-color: #adb5d2;
+  background: #ffffff;
+}
+
+.inviteUserForm__input:focus,
+.inviteUserForm__select:focus {
+  border-color: var(--color-primary);
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(75, 70, 255, 0.12);
+}
+
+.inviteUserForm__input:disabled,
+.inviteUserForm__select:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.inviteUserForm__roleHint {
+  padding: 13px 14px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  border: 1px solid rgba(75, 70, 255, 0.13);
+  border-radius: 15px;
+  color: var(--color-primary);
+  background: linear-gradient(135deg, rgba(75, 70, 255, 0.07), rgba(20, 184, 212, 0.035));
+}
+
+.inviteUserForm__roleHint strong,
+.inviteUserForm__roleHint small {
+  display: block;
+}
+
+.inviteUserForm__roleHint strong {
+  color: var(--color-text);
+  font-size: 12px;
+}
+
+.inviteUserForm__roleHint small {
+  margin-top: 4px;
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.inviteUserForm__actions {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--color-border);
+}
+
+.inviteUserForm__companyContext {
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.inviteUserForm__companyContext strong {
+  color: var(--color-text);
+}
+
+.inviteUserForm__submit.inviteUserForm__submit {
+  min-width: 190px;
+  min-height: 50px;
+}
+
+.inviteUserForm__error,
+.inviteUserForm__success {
+  margin-bottom: 16px;
+  padding: 13px 15px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.inviteUserForm__error {
+  border: 1px solid #fecdca;
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+.inviteUserForm__success {
+  border: 1px solid #abefc6;
+  color: var(--color-success);
+  background: var(--color-success-soft);
+}
+
+.inviteUserForm__fieldError {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+@media (max-width: 720px) {
+  .inviteUserForm {
+    padding: 20px;
+  }
+
+  .inviteUserForm__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .inviteUserForm__fieldFull {
+    grid-column: auto;
+  }
+
+  .inviteUserForm__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .inviteUserForm__submit.inviteUserForm__submit {
+    width: 100%;
+  }
+}

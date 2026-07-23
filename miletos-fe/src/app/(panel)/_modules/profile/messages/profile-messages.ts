@@ -1,0 +1,41 @@
+export const profileMessages = {
+  page: {
+    eyebrow: "Account settings",
+    title: "Profile & security",
+    description:
+      "Review your authenticated identity, keep your profile image current and manage your password securely.",
+  },
+  common: {
+    notAssigned: "Not assigned",
+    emailUnavailable: "Email unavailable",
+    validationFailed: "The form could not be validated.",
+  },
+  photo: {
+    title: "Profile photo",
+    eyebrow: "Personalization",
+    chooseFile: "Choose a profile image",
+    supportedTypes: "PNG, JPEG or WEBP. Select a clear square image for the best result.",
+    browse: "Browse file",
+    submit: "Update profile photo",
+    submitting: "Uploading photo...",
+    success: "Profile photo has been updated successfully.",
+    forbidden: "Profile photo update is only available for active completed accounts.",
+    required: "Please select a profile photo first.",
+    unsupportedType: "Only PNG, JPEG and WEBP profile photos are supported.",
+  },
+  password: {
+    title: "Change password",
+    eyebrow: "Credentials",
+    current: "Current password",
+    next: "New password",
+    confirm: "Confirm new password",
+    submit: "Change password",
+    submitting: "Changing password...",
+    success: "Password changed successfully.",
+    forbidden: "Password change is only available for active completed accounts.",
+    currentRequired: "Current password is required.",
+    newRequired: "New password is required.",
+    confirmRequired: "Please confirm the new password.",
+    mismatch: "New passwords do not match.",
+  },
+} as const;
