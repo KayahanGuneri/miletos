@@ -1,0 +1,1927 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Miletos Workflow Runtime API",
+    "version": "1.0.0",
+    "description": "Internal Go runtime API for synchronous and asynchronous workflow execution and execution observability."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8081",
+      "description": "Local runtime"
+    }
+  ],
+  "tags": [
+    {
+      "name": "System"
+    },
+    {
+      "name": "Plugins"
+    },
+    {
+      "name": "Executions"
+    },
+    {
+      "name": "Observability"
+    },
+    {
+      "name": "Documentation"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "operationId": "getHealth",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RequestID"
+          },
+          {
+            "$ref": "#/components/parameters/CorrelationID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Process is alive",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "operationId": "getReadiness",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RequestID"
+          },
+          {
+            "$ref": "#/components/parameters/CorrelationID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Runtime dependencies are ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessReport"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "One or more runtime dependencies are not ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessReport"
+                }
+              }
+            }
+          },
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "tags": [
+          "Documentation"
+        ],
+        "operationId": "getOpenAPI",
+        "responses": {
+          "200": {
+            "description": "Authoritative checked-in OpenAPI document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          }
+        }
+      }
+    },
+    "/swagger/": {
+      "get": {
+        "tags": [
+          "Documentation"
+        ],
+        "operationId": "getSwaggerUI",
+        "responses": {
+          "200": {
+            "description": "Swagger UI when MILETOS_RUNTIME_SWAGGER_ENABLED=true",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/plugins": {
+      "get": {
+        "tags": [
+          "Plugins"
+        ],
+        "operationId": "listPlugins",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RequestID"
+          },
+          {
+            "$ref": "#/components/parameters/CorrelationID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deterministic plugin catalog",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PluginListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/executions/sync": {
+      "post": {
+        "tags": [
+          "Executions"
+        ],
+        "operationId": "executeSync",
+        "description": "Executes a workflow locally and waits for a terminal domain result.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CompanyID"
+          },
+          {
+            "$ref": "#/components/parameters/RequestID"
+          },
+          {
+            "$ref": "#/components/parameters/CorrelationID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecutionRequestBody"
+              },
+              "example": {
+                "definition": {
+                  "id": "workflow-sync-example",
+                  "name": "Sync Example",
+                  "revision": 1,
+                  "nodes": [
+                    {
+                      "id": "source",
+                      "pluginType": "core.static-input",
+                      "pluginVersion": "v1",
+                      "configuration": {
+                        "value": {
+                          "message": "hello"
+                        }
+                      },
+                      "position": {
+                        "x": 100,
+                        "y": 120
+                      }
+                    },
+                    {
+                      "id": "terminal",
+                      "pluginType": "core.terminal",
+                      "pluginVersion": "v1",
+                      "configuration": {},
+                      "position": {
+                        "x": 420,
+                        "y": 120
+                      }
+                    }
+                  ],
+                  "edges": [
+                    {
+                      "id": "edge-1",
+                      "sourceNodeId": "source",
+                      "sourceOutputPort": "output",
+                      "targetNodeId": "terminal",
+                      "targetInputPort": "input"
+                    }
+                  ],
+                  "metadata": {
+                    "purpose": "swagger-example"
+                  }
+                },
+                "initialVariables": {}
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Terminal synchronous execution result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/executions/async": {
+      "post": {
+        "tags": [
+          "Executions"
+        ],
+        "operationId": "executeAsync",
+        "description": "Durably accepts asynchronous workflow execution after persistence and initial outbox creation.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CompanyID"
+          },
+          {
+            "$ref": "#/components/parameters/RequestID"
+          },
+          {
+            "$ref": "#/components/parameters/CorrelationID"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecutionRequestBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Asynchronous execution durably accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/executions": {
+      "get": {
+        "tags": [
+          "Executions"
+        ],
+        "operationId": "listExecutions",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CompanyID"
+          },
+          {
+            "$ref": "#/components/parameters/RequestID"
+          },
+          {
+            "$ref": "#/components/parameters/CorrelationID"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/After"
+          },
+          {
+            "$ref": "#/components/parameters/WorkflowID"
+          },
+          {
+            "$ref": "#/components/parameters/ExecutionStatus"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tenant-scoped execution page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionPageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/executions/{executionId}": {
+      "get": {
+        "tags": [
+          "Executions"
+        ],
+        "operationId": "getExecution",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ExecutionID"
+          },
+          {
+            "$ref": "#/components/parameters/CompanyID"
+          },
+          {
+            "$ref": "#/components/parameters/RequestID"
+          },
+          {
+            "$ref": "#/components/parameters/CorrelationID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Execution detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionSummaryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          }
+        }
+      }
+    },
+    "/api/v1/executions/{executionId}/definition": {
+      "get": {
+        "tags": [
+          "Observability"
+        ],
+        "operationId": "getExecutionDefinition",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ExecutionID"
+          },
+          {
+            "$ref": "#/components/parameters/CompanyID"
+          },
+          {
+            "$ref": "#/components/parameters/RequestID"
+          },
+          {
+            "$ref": "#/components/parameters/CorrelationID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Immutable definition snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionDefinitionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          }
+        }
+      }
+    },
+    "/api/v1/executions/{executionId}/nodes": {
+      "get": {
+        "tags": [
+          "Observability"
+        ],
+        "operationId": "listExecutionNodes",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ExecutionID"
+          },
+          {
+            "$ref": "#/components/parameters/CompanyID"
+          },
+          {
+            "$ref": "#/components/parameters/RequestID"
+          },
+          {
+            "$ref": "#/components/parameters/CorrelationID"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/After"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Node execution page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeExecutionPageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          }
+        }
+      }
+    },
+    "/api/v1/executions/{executionId}/events": {
+      "get": {
+        "tags": [
+          "Observability"
+        ],
+        "operationId": "listExecutionEvents",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ExecutionID"
+          },
+          {
+            "$ref": "#/components/parameters/CompanyID"
+          },
+          {
+            "$ref": "#/components/parameters/RequestID"
+          },
+          {
+            "$ref": "#/components/parameters/CorrelationID"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/After"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Execution event page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionEventPageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          }
+        }
+      }
+    },
+    "/api/v1/executions/{executionId}/logs": {
+      "get": {
+        "tags": [
+          "Observability"
+        ],
+        "operationId": "listExecutionLogs",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ExecutionID"
+          },
+          {
+            "$ref": "#/components/parameters/CompanyID"
+          },
+          {
+            "$ref": "#/components/parameters/RequestID"
+          },
+          {
+            "$ref": "#/components/parameters/CorrelationID"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/After"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Safe execution log page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionLogPageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          }
+        }
+      }
+    },
+    "/api/v1/executions/{executionId}/errors": {
+      "get": {
+        "tags": [
+          "Observability"
+        ],
+        "operationId": "listExecutionErrors",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ExecutionID"
+          },
+          {
+            "$ref": "#/components/parameters/CompanyID"
+          },
+          {
+            "$ref": "#/components/parameters/RequestID"
+          },
+          {
+            "$ref": "#/components/parameters/CorrelationID"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/After"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Structured safe execution error page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionErrorPageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Internal service token supplied by the trusted control-plane caller. The credential is never embedded in this specification."
+      }
+    },
+    "parameters": {
+      "CompanyID": {
+        "name": "X-Miletos-Company-ID",
+        "in": "header",
+        "required": true,
+        "description": "Trusted tenant context supplied after internal service authentication. It is not end-user authorization.",
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "RequestID": {
+        "name": "X-Request-ID",
+        "in": "header",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "CorrelationID": {
+        "name": "X-Correlation-ID",
+        "in": "header",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "description": "Company-scoped idempotency key for asynchronous execution.",
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "ExecutionID": {
+        "name": "executionId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 50
+        }
+      },
+      "After": {
+        "name": "after",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "WorkflowID": {
+        "name": "workflowId",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "ExecutionStatus": {
+        "name": "status",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "CREATED",
+            "VALIDATING",
+            "REJECTED",
+            "QUEUED",
+            "RUNNING",
+            "SUCCEEDED",
+            "FAILED",
+            "CANCELLED",
+            "TIMED_OUT"
+          ]
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Invalid request",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/APIErrorResponse"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Missing or invalid internal service authentication",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/APIErrorResponse"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Resource not found or not visible in the trusted company scope",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/APIErrorResponse"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Idempotency conflict",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/APIErrorResponse"
+            }
+          }
+        }
+      },
+      "MethodNotAllowed": {
+        "description": "HTTP method is not supported",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/APIErrorResponse"
+            }
+          }
+        }
+      },
+      "PayloadTooLarge": {
+        "description": "Request body exceeds the configured limit",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/APIErrorResponse"
+            }
+          }
+        }
+      },
+      "UnsupportedMediaType": {
+        "description": "Content-Type must be application/json",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/APIErrorResponse"
+            }
+          }
+        }
+      },
+      "ServiceUnavailable": {
+        "description": "Required runtime dependency is unavailable",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/APIErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "HealthResponse": {
+        "type": "object",
+        "required": [
+          "status",
+          "service",
+          "version"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "UP"
+          },
+          "service": {
+            "type": "string",
+            "example": "miletos-go"
+          },
+          "version": {
+            "type": "string",
+            "example": "development"
+          }
+        }
+      },
+      "ReadinessCheck": {
+        "type": "object",
+        "required": [
+          "name",
+          "status"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": [
+              "postgresql",
+              "plugins",
+              "kafka"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "UP",
+              "DOWN",
+              "DISABLED"
+            ]
+          }
+        }
+      },
+      "ReadinessReport": {
+        "type": "object",
+        "required": [
+          "status",
+          "checks"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "READY",
+              "NOT_READY"
+            ]
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReadinessCheck"
+            }
+          }
+        }
+      },
+      "ErrorDetail": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "nodeId": {
+            "type": "string"
+          },
+          "edgeId": {
+            "type": "string"
+          },
+          "pluginType": {
+            "type": "string"
+          },
+          "pluginVersion": {
+            "type": "string"
+          },
+          "expected": {
+            "type": "string"
+          },
+          "actual": {
+            "type": "string"
+          },
+          "cyclePath": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "APIErrorResponse": {
+        "type": "object",
+        "required": [
+          "timestamp",
+          "status",
+          "code",
+          "message"
+        ],
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "details": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ErrorDetail"
+            }
+          }
+        }
+      },
+      "WorkflowNodePositionRequest": {
+        "type": "object",
+        "required": [
+          "x",
+          "y"
+        ],
+        "properties": {
+          "x": {
+            "type": "number",
+            "format": "double"
+          },
+          "y": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "WorkflowNodeRequest": {
+        "type": "object",
+        "required": [
+          "id",
+          "pluginType",
+          "pluginVersion"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "pluginType": {
+            "type": "string"
+          },
+          "pluginVersion": {
+            "type": "string"
+          },
+          "configuration": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "position": {
+            "$ref": "#/components/schemas/WorkflowNodePositionRequest"
+          }
+        }
+      },
+      "WorkflowEdgeRequest": {
+        "type": "object",
+        "required": [
+          "id",
+          "sourceNodeId",
+          "sourceOutputPort",
+          "targetNodeId",
+          "targetInputPort"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "sourceNodeId": {
+            "type": "string"
+          },
+          "sourceOutputPort": {
+            "type": "string"
+          },
+          "targetNodeId": {
+            "type": "string"
+          },
+          "targetInputPort": {
+            "type": "string"
+          }
+        }
+      },
+      "WorkflowDefinitionRequest": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "revision",
+          "nodes",
+          "edges"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowNodeRequest"
+            }
+          },
+          "edges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowEdgeRequest"
+            }
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "ExecutionRequestBody": {
+        "type": "object",
+        "required": [
+          "definition"
+        ],
+        "properties": {
+          "definition": {
+            "$ref": "#/components/schemas/WorkflowDefinitionRequest"
+          },
+          "initialVariables": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        }
+      },
+      "ExecutionResponse": {
+        "type": "object",
+        "required": [
+          "executionId",
+          "workflowId",
+          "workflowRevision",
+          "mode",
+          "status",
+          "correlationId",
+          "createdAt"
+        ],
+        "properties": {
+          "executionId": {
+            "type": "string"
+          },
+          "workflowId": {
+            "type": "string"
+          },
+          "workflowRevision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "SYNC",
+              "ASYNC"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "scheduledRoots": {
+            "type": "integer"
+          }
+        }
+      },
+      "ExecutionSummaryResponse": {
+        "type": "object",
+        "required": [
+          "executionId",
+          "workflowId",
+          "workflowRevision",
+          "mode",
+          "status",
+          "correlationId",
+          "createdAt",
+          "updatedAt",
+          "isStalled"
+        ],
+        "properties": {
+          "executionId": {
+            "type": "string"
+          },
+          "workflowId": {
+            "type": "string"
+          },
+          "workflowRevision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "validatingAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "queuedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "isStalled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ExecutionPageResponse": {
+        "type": "object",
+        "required": [
+          "items",
+          "next",
+          "hasNext"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExecutionSummaryResponse"
+            }
+          },
+          "next": {
+            "type": "string"
+          },
+          "hasNext": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ExecutionDefinitionResponse": {
+        "type": "object",
+        "required": [
+          "executionId",
+          "snapshotId",
+          "workflowId",
+          "workflowRevision",
+          "workflowName",
+          "definition",
+          "createdAt"
+        ],
+        "properties": {
+          "executionId": {
+            "type": "string"
+          },
+          "snapshotId": {
+            "type": "string"
+          },
+          "workflowId": {
+            "type": "string"
+          },
+          "workflowRevision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "workflowName": {
+            "type": "string"
+          },
+          "definition": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PayloadSummary": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "artifactId": {
+            "type": "string"
+          },
+          "checksum": {
+            "type": "string"
+          },
+          "metadataKeys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "FailureSummary": {
+        "type": "object",
+        "required": [
+          "category",
+          "code",
+          "message",
+          "retryable"
+        ],
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "NodeExecutionResponse": {
+        "type": "object",
+        "required": [
+          "nodeExecutionId",
+          "workflowExecutionId",
+          "nodeId",
+          "pluginType",
+          "pluginVersion",
+          "status",
+          "attempt",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "nodeExecutionId": {
+            "type": "string"
+          },
+          "workflowExecutionId": {
+            "type": "string"
+          },
+          "nodeId": {
+            "type": "string"
+          },
+          "pluginType": {
+            "type": "string"
+          },
+          "pluginVersion": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "attempt": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "readyAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "queuedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "inputSummary": {
+            "$ref": "#/components/schemas/PayloadSummary"
+          },
+          "outputSummary": {
+            "$ref": "#/components/schemas/PayloadSummary"
+          },
+          "failureSummary": {
+            "$ref": "#/components/schemas/FailureSummary"
+          }
+        }
+      },
+      "NodeExecutionPageResponse": {
+        "type": "object",
+        "required": [
+          "items",
+          "next",
+          "hasNext"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NodeExecutionResponse"
+            }
+          },
+          "next": {
+            "type": "string"
+          },
+          "hasNext": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ExecutionMetadata": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string"
+          },
+          "workflowRevision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "stalled": {
+            "type": "boolean"
+          },
+          "failureCategory": {
+            "type": "string"
+          },
+          "failureCode": {
+            "type": "string"
+          },
+          "nodeId": {
+            "type": "string"
+          },
+          "pluginType": {
+            "type": "string"
+          },
+          "pluginVersion": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      },
+      "ExecutionEventResponse": {
+        "type": "object",
+        "required": [
+          "eventId",
+          "workflowExecutionId",
+          "sequenceNumber",
+          "type",
+          "metadata",
+          "createdAt"
+        ],
+        "properties": {
+          "eventId": {
+            "type": "string"
+          },
+          "workflowExecutionId": {
+            "type": "string"
+          },
+          "nodeExecutionId": {
+            "type": "string"
+          },
+          "sequenceNumber": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "type": {
+            "type": "string"
+          },
+          "previousStatus": {
+            "type": "string"
+          },
+          "newStatus": {
+            "type": "string"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "causationId": {
+            "type": "string"
+          },
+          "safeMessage": {
+            "type": "string"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ExecutionMetadata"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ExecutionEventPageResponse": {
+        "type": "object",
+        "required": [
+          "items",
+          "next",
+          "hasNext"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExecutionEventResponse"
+            }
+          },
+          "next": {
+            "type": "string"
+          },
+          "hasNext": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ExecutionLogResponse": {
+        "type": "object",
+        "required": [
+          "logId",
+          "workflowExecutionId",
+          "sequenceNumber",
+          "level",
+          "message",
+          "metadata",
+          "createdAt"
+        ],
+        "properties": {
+          "logId": {
+            "type": "string"
+          },
+          "workflowExecutionId": {
+            "type": "string"
+          },
+          "nodeExecutionId": {
+            "type": "string"
+          },
+          "sequenceNumber": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "level": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ExecutionMetadata"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ExecutionLogPageResponse": {
+        "type": "object",
+        "required": [
+          "items",
+          "next",
+          "hasNext"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExecutionLogResponse"
+            }
+          },
+          "next": {
+            "type": "string"
+          },
+          "hasNext": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ExecutionErrorSafeDetails": {
+        "type": "object",
+        "properties": {
+          "issueCount": {
+            "type": "string"
+          },
+          "structuralIssueCount": {
+            "type": "string"
+          },
+          "pluginIssueCount": {
+            "type": "string"
+          },
+          "engineIssueCount": {
+            "type": "string"
+          },
+          "failedNodeCount": {
+            "type": "string"
+          },
+          "skippedNodeCount": {
+            "type": "string"
+          },
+          "pendingNodeCount": {
+            "type": "string"
+          },
+          "readyNodeCount": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExecutionErrorResponse": {
+        "type": "object",
+        "required": [
+          "errorId",
+          "workflowExecutionId",
+          "category",
+          "code",
+          "safeMessage",
+          "retryable",
+          "details",
+          "createdAt"
+        ],
+        "properties": {
+          "errorId": {
+            "type": "string"
+          },
+          "workflowExecutionId": {
+            "type": "string"
+          },
+          "nodeExecutionId": {
+            "type": "string"
+          },
+          "relatedEventId": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "safeMessage": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "details": {
+            "$ref": "#/components/schemas/ExecutionErrorSafeDetails"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ExecutionErrorPageResponse": {
+        "type": "object",
+        "required": [
+          "items",
+          "next",
+          "hasNext"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExecutionErrorResponse"
+            }
+          },
+          "next": {
+            "type": "string"
+          },
+          "hasNext": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PluginPortResponse": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "PluginEdgeConstraintResponse": {
+        "type": "object",
+        "required": [
+          "minimum",
+          "unlimited"
+        ],
+        "properties": {
+          "minimum": {
+            "type": "integer"
+          },
+          "maximum": {
+            "type": "integer",
+            "nullable": true
+          },
+          "unlimited": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PluginPolicyResponse": {
+        "type": "object",
+        "required": [
+          "defaultCapacity",
+          "overflowStrategy"
+        ],
+        "properties": {
+          "defaultCapacity": {
+            "type": "integer"
+          },
+          "overflowStrategy": {
+            "type": "string"
+          }
+        }
+      },
+      "PluginDescriptor": {
+        "type": "object",
+        "required": [
+          "type",
+          "version",
+          "displayName",
+          "inputPorts",
+          "outputPorts",
+          "inputEdgeConstraint",
+          "outputEdgeConstraint",
+          "queuePolicy",
+          "cachePolicy",
+          "distribution"
+        ],
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "inputPorts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PluginPortResponse"
+            }
+          },
+          "outputPorts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PluginPortResponse"
+            }
+          },
+          "inputEdgeConstraint": {
+            "$ref": "#/components/schemas/PluginEdgeConstraintResponse"
+          },
+          "outputEdgeConstraint": {
+            "$ref": "#/components/schemas/PluginEdgeConstraintResponse"
+          },
+          "queuePolicy": {
+            "$ref": "#/components/schemas/PluginPolicyResponse"
+          },
+          "cachePolicy": {
+            "$ref": "#/components/schemas/PluginPolicyResponse"
+          },
+          "distribution": {
+            "type": "string"
+          }
+        }
+      },
+      "PluginListResponse": {
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PluginDescriptor"
+            }
+          },
+          "count": {
+            "type": "integer"
+          }
+        }
+      }
+    }
+  }
+}
