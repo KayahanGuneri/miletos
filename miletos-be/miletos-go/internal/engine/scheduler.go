@@ -2,440 +2,330 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"miletos-go/internal/engine/runtime"
-	"miletos-go/internal/features/execution"
-	"miletos-go/internal/features/workflow"
-	"sort"
+
+	"miletos-go/internal/engine/modules"
+	"miletos-go/internal/model"
+	"miletos-go/internal/queue"
+	"miletos-go/internal/repository"
 )
 
-type nodeReadinessState string
-
-const (
-	nodeReadinessReady      nodeReadinessState = "READY"
-	nodeReadinessWaiting    nodeReadinessState = "WAITING"
-	nodeReadinessBlocked    nodeReadinessState = "BLOCKED"
-	nodeReadinessIneligible nodeReadinessState = "INELIGIBLE"
-)
-
-type nodeReadinessAssessment struct {
-	state                 nodeReadinessState
-	blockingUpstreamNodes []workflow.NodeID
+type Scheduler struct {
+	workflows  *repository.WorkflowRepository
+	executions *repository.ExecutionRepository
+	queue      queue.Queue
+	topic      string
+	registry   *NodeRegistry
 }
 
-func (assessment nodeReadinessAssessment) IsReady() bool {
-	return assessment.state == nodeReadinessReady
+func NewScheduler(
+	workflows *repository.WorkflowRepository,
+	executions *repository.ExecutionRepository,
+	nodeQueue queue.Queue,
+	topic string,
+	registries ...*NodeRegistry,
+) *Scheduler {
+	scheduler := &Scheduler{
+		workflows: workflows, executions: executions, queue: nodeQueue, topic: topic,
+	}
+	if len(registries) > 0 {
+		scheduler.registry = registries[0]
+	}
+	return scheduler
 }
-func (assessment nodeReadinessAssessment) IsWaiting() bool {
-	return assessment.state == nodeReadinessWaiting
+
+func (scheduler *Scheduler) Activate(
+	ctx context.Context,
+	execution model.Execution,
+	initialVariables map[string]any,
+) (int, error) {
+	persisted, err := scheduler.executions.FindByID(ctx, execution.CompanyID, execution.ID)
+	if err != nil {
+		return 0, fmt.Errorf("load execution for scheduling: %w", err)
+	}
+	if isTerminalExecutionStatus(persisted.Status) {
+		return 0, nil
+	}
+	if scheduler.queue == nil {
+		return 0, fmt.Errorf("asynchronous execution is unavailable")
+	}
+	snapshot, err := scheduler.workflows.FindByExecutionID(ctx, persisted.CompanyID, persisted.ID)
+	if err != nil {
+		return 0, fmt.Errorf("load workflow for scheduling: %w", err)
+	}
+	if err := scheduler.executions.MarkExecutionQueued(ctx, persisted.ID); err != nil {
+		return 0, err
+	}
+	return scheduler.scheduleReady(ctx, persisted, snapshot.Workflow, initialVariables)
 }
-func (assessment nodeReadinessAssessment) IsBlocked() bool {
-	return assessment.state == nodeReadinessBlocked
-}
-func (assessment nodeReadinessAssessment) IsIneligible() bool {
-	return assessment.state == nodeReadinessIneligible
-}
-func (assessment nodeReadinessAssessment) BlockingUpstreamNodes() []workflow.NodeID {
-	if len(assessment.blockingUpstreamNodes) == 0 {
+
+func (scheduler *Scheduler) CompleteNode(ctx context.Context, job model.NodeJob) error {
+	execution, err := scheduler.executions.FindByID(ctx, job.CompanyID, job.ExecutionID)
+	if err != nil {
+		return fmt.Errorf("load execution after node completion: %w", err)
+	}
+	if isTerminalExecutionStatus(execution.Status) {
 		return nil
 	}
-	copied := make(
-		[]workflow.NodeID, len(assessment.blockingUpstreamNodes))
-	copy(copied,
-		assessment.blockingUpstreamNodes)
-	return copied
+	snapshot, err := scheduler.workflows.FindByExecutionID(ctx, job.CompanyID, job.ExecutionID)
+	if err != nil {
+		return fmt.Errorf("load workflow after node completion: %w", err)
+	}
+	scheduled, err := scheduler.scheduleReady(ctx, execution, snapshot.Workflow, nil)
+	if err != nil || scheduled > 0 {
+		return err
+	}
+	return scheduler.Finalize(ctx, execution, snapshot.Workflow)
 }
-func assessNodeReadiness(prepared *preparedExecution, nodeID workflow.NodeID,
-) (nodeReadinessAssessment, error,
-) {
-	if prepared == nil {
-		return nodeReadinessAssessment{},
-			newValidationError("preparedExecution", "must not be nil")
+
+func isTerminalExecutionStatus(status string) bool {
+	switch status {
+	case model.ExecutionSucceeded, model.ExecutionFailed, model.ExecutionCancelled,
+		model.ExecutionRejected, model.ExecutionTimedOut:
+		return true
+	default:
+		return false
 	}
-	if prepared.executionContext == nil {
-		return nodeReadinessAssessment{}, newValidationError(
-			"preparedExecution.executionContext", "must not be nil")
-	}
-	if _, exists := prepared.plan.graph.Node(nodeID); !exists {
-		return nodeReadinessAssessment{}, newValidationError("nodeID",
-			fmt.Sprintf("node %q is not present in the execution plan", nodeID.String()))
-	}
-	nodeExecution, exists := prepared.nodeExecutionsByNode[nodeID]
-	if !exists || nodeExecution == nil {
-		return nodeReadinessAssessment{},
-			fmt.Errorf("node execution for node %s is unavailable", nodeID)
-	}
-	if nodeExecution.Status() != execution.NodeExecutionStatusPending {
-		return nodeReadinessAssessment{
-			state: nodeReadinessIneligible}, nil
-	}
-	incomingEdges := prepared.plan.graph.IncomingEdges(nodeID)
-	if len(incomingEdges) == 0 {
-		return nodeReadinessAssessment{
-			state: nodeReadinessReady}, nil
-	}
-	sort.Slice(incomingEdges,
-		func(left int, right int) bool {
-			return incomingEdges[left].ID().
-				String() < incomingEdges[right].ID().
-				String()
-		})
-	waiting := false
-	blockingNodes := make([]workflow.NodeID, 0)
-	for _, edge := range incomingEdges {
-		sourceNodeID := edge.SourceNodeID()
-		sourceExecution, exists :=
-			prepared.nodeExecutionsByNode[sourceNodeID]
-		if !exists || sourceExecution == nil {
-			return nodeReadinessAssessment{}, fmt.Errorf("source node execution %s for edge %s is unavailable",
-				sourceNodeID, edge.ID())
+}
+
+func (scheduler *Scheduler) Blocked(
+	workflow model.Workflow,
+	nodeID string,
+	failed map[string]bool,
+) bool {
+	for _, predecessorID := range modules.Predecessors(workflow, nodeID) {
+		if failed[predecessorID] {
+			return true
 		}
-		switch sourceExecution.Status() {
-		case execution.NodeExecutionStatusFailed, execution.NodeExecutionStatusSkipped, execution.NodeExecutionStatusCancelled,
-			execution.NodeExecutionStatusTimedOut:
-			blockingNodes = append(
-				blockingNodes, sourceNodeID)
+	}
+	return false
+}
+
+func (scheduler *Scheduler) scheduleReady(
+	ctx context.Context,
+	execution model.Execution,
+	workflow model.Workflow,
+	initialVariables map[string]any,
+) (int, error) {
+	if scheduler.registry != nil {
+		if err := modules.ValidateWorkflowDefinition(
+			workflow,
+			scheduler.registry.Definition,
+			scheduler.registry.HasType,
+			scheduler.registry.ValidateConfiguration,
+		); err != nil {
+			var validationError *modules.WorkflowValidationError
+			if errors.As(err, &validationError) {
+				return 0, &WorkflowValidationError{Issues: validationError.Issues}
+			}
+			return 0, err
+		}
+	}
+	states, err := scheduler.executions.ListAllNodes(ctx, execution.CompanyID, execution.ID)
+	if err != nil {
+		return 0, fmt.Errorf("load node states: %w", err)
+	}
+	byNodeID := make(map[string]model.NodeExecution, len(states))
+	for _, state := range states {
+		byNodeID[state.NodeID] = state
+	}
+	scheduled := 0
+	for _, node := range workflow.Nodes {
+		state := byNodeID[node.ID]
+		predecessors := modules.Predecessors(workflow, node.ID)
+		if state.Status == model.NodeQueued {
+			payload := inputForNode(workflow, node.ID, byNodeID)
+			if len(predecessors) == 0 && initialVariables != nil {
+				payload = initialVariables
+			}
+			job := model.NodeJob{
+				CompanyID: execution.CompanyID, WorkflowID: execution.WorkflowID,
+				ExecutionID: execution.ID, NodeID: node.ID, NodeExecutionID: state.ID,
+				Attempt: state.Attempt, CorrelationID: execution.CorrelationID, Payload: payload,
+			}
+			if err := scheduler.push(ctx, job); err != nil {
+				return scheduled, err
+			}
+			scheduled++
 			continue
-		case execution.NodeExecutionStatusSucceeded:
-			edgeRuntime, exists, err := prepared.executionContext.Edge(
-				edge.ID())
-			if err != nil {
-				return nodeReadinessAssessment{}, fmt.Errorf("lookup runtime edge %s: %w",
-					edge.ID(), err)
-			}
-			if !exists || edgeRuntime == nil {
-				return nodeReadinessAssessment{}, fmt.Errorf("runtime edge %s is unavailable",
-					edge.ID())
-			}
-			queue := edgeRuntime.Queue()
-			if queue == nil {
-				return nodeReadinessAssessment{}, fmt.Errorf("runtime edge %s contains no queue",
-					edge.ID())
-			}
-			queueLength := queue.Len()
-			switch {
-			case queueLength == 0:
-				waiting = true
-			case queueLength == 1:
-				// The incoming edge is ready for single-shot consumption.
-			default:
-				return nodeReadinessAssessment{},
-					fmt.Errorf("runtime edge %s contains %d payloads; single-shot execution requires exactly one", edge.ID(),
-						queueLength)
-			}
-		default:
-			waiting = true
 		}
-	}
-	if len(blockingNodes) > 0 {
-		sort.Slice(blockingNodes,
-			func(left int, right int) bool {
-				return blockingNodes[left].String() < blockingNodes[right].String()
-			})
-		return nodeReadinessAssessment{state: nodeReadinessBlocked,
-			blockingUpstreamNodes: append([]workflow.NodeID(nil), blockingNodes...,
-			)}, nil
-	}
-	if waiting {
-		return nodeReadinessAssessment{
-			state: nodeReadinessWaiting}, nil
-	}
-	return nodeReadinessAssessment{state: nodeReadinessReady}, nil
-}
-func nextReadyNode(prepared *preparedExecution) (
-	workflow.NodeID, bool, error,
-) {
-	if prepared == nil {
-		return "",
-			false, newValidationError("preparedExecution",
-				"must not be nil")
-	}
-	for _, nodeID := range prepared.plan.topologicalOrder {
-		assessment, err := assessNodeReadiness(
-			prepared, nodeID)
+		if state.Status != model.NodePending {
+			continue
+		}
+		ready := true
+		for _, predecessorID := range predecessors {
+			if byNodeID[predecessorID].Status != model.NodeSucceeded {
+				ready = false
+				break
+			}
+		}
+		if !ready {
+			continue
+		}
+		payload := inputForNode(workflow, node.ID, byNodeID)
+		if len(predecessors) == 0 && initialVariables != nil {
+			payload = initialVariables
+		}
+		queued, changed, err := scheduler.executions.MarkNodeQueued(
+			ctx, execution.CompanyID, execution.ID, node.ID,
+		)
 		if err != nil {
-			return "", false, err
+			return scheduled, err
 		}
-		if assessment.IsReady() {
-			return nodeID, true, nil
+		if !changed {
+			continue
 		}
+		job := model.NodeJob{
+			CompanyID:       execution.CompanyID,
+			WorkflowID:      execution.WorkflowID,
+			ExecutionID:     execution.ID,
+			NodeID:          node.ID,
+			NodeExecutionID: queued.ID,
+			Attempt:         queued.Attempt,
+			CorrelationID:   execution.CorrelationID,
+			Payload:         payload,
+		}
+		if err := scheduler.push(ctx, job); err != nil {
+			if resetErr := scheduler.executions.ResetNodeQueue(
+				ctx, execution.CompanyID, execution.ID, node.ID,
+			); resetErr != nil {
+				return scheduled, fmt.Errorf(
+					"queue node failed and queued state could not be reset: %w",
+					resetErr,
+				)
+			}
+			return scheduled, err
+		}
+		scheduled++
 	}
-	return "", false, nil
+	return scheduled, nil
 }
 
-type outputRoutingOperation struct {
-	edgeID      workflow.EdgeID
-	sourcePort  string
-	edgeRuntime *runtime.EdgeRuntime
-	payload     runtime.Payload
-}
-
-func routeNodeOutputs(prepared *preparedExecution,
-	nodeID workflow.NodeID, result runtime.NodeResult) error {
-	operations, err := buildOutputRoutingOperations(prepared, nodeID,
-		result)
+func (scheduler *Scheduler) Finalize(
+	ctx context.Context,
+	execution model.Execution,
+	workflow model.Workflow,
+) error {
+	states, err := scheduler.executions.ListAllNodes(ctx, execution.CompanyID, execution.ID)
 	if err != nil {
 		return err
 	}
-	for _, operation := range operations {
-		queue := operation.edgeRuntime.Queue()
-		if queue == nil {
-			return fmt.Errorf("runtime edge %s contains no queue during output routing",
-				operation.edgeID)
+	failed := false
+	active := false
+	invalidRetry := false
+	failedNodeIDs := make([]string, 0)
+	byNodeID := make(map[string]model.NodeExecution, len(states))
+	for _, state := range states {
+		byNodeID[state.NodeID] = state
+		switch state.Status {
+		case model.NodeFailed, model.NodeTimedOut, model.NodeCancelled:
+			failed = true
+			failedNodeIDs = append(failedNodeIDs, state.NodeID)
+		case model.NodeQueued, model.NodeRunning:
+			active = true
+		case model.NodeRetryPending:
+			if state.NextAttemptAt == nil {
+				invalidRetry = true
+			} else {
+				active = true
+			}
 		}
-		_, _, err := queue.Push(operation.payload)
-		if err != nil {
-			return fmt.Errorf("route output port %q to edge %s: %w", operation.sourcePort,
-				operation.edgeID, err)
+	}
+	if invalidRetry {
+		return fmt.Errorf("%w: retry-pending node has no retry schedule", repository.ErrStateTransition)
+	}
+	if active {
+		return nil
+	}
+	if failed {
+		blocked := modules.Downstream(workflow, failedNodeIDs)
+		hasUnblockedPending := false
+		for _, state := range states {
+			if state.Status != model.NodePending {
+				continue
+			}
+			if blocked[state.NodeID] {
+				if err := scheduler.executions.MarkNodeSkipped(
+					ctx, execution.CompanyID, execution.ID, state.NodeID,
+				); err != nil {
+					return err
+				}
+			} else {
+				hasUnblockedPending = true
+			}
 		}
+		if hasUnblockedPending {
+			return fmt.Errorf(
+				"%w: execution has schedulable pending nodes",
+				repository.ErrStateTransition,
+			)
+		}
+		return scheduler.executions.Finalize(
+			ctx, execution.ID, model.ExecutionFailed, map[string]any{},
+			map[string]any{"message": "One or more nodes failed"},
+		)
+	}
+	outputs := terminalOutputs(workflow, byNodeID)
+	return scheduler.executions.Finalize(
+		ctx, execution.ID, model.ExecutionSucceeded, outputs, nil,
+	)
+}
+
+func (scheduler *Scheduler) push(ctx context.Context, job model.NodeJob) error {
+	encoded, err := json.Marshal(job)
+	if err != nil {
+		return fmt.Errorf("encode node job: %w", err)
+	}
+	if err := scheduler.queue.Push(ctx, scheduler.topic, job.ExecutionID, encoded); err != nil {
+		return fmt.Errorf("queue node %s: %w", job.NodeID, err)
 	}
 	return nil
 }
-func buildOutputRoutingOperations(prepared *preparedExecution, nodeID workflow.NodeID,
-	result runtime.NodeResult) ([]outputRoutingOperation,
-	error) {
-	if prepared == nil {
-		return nil, newValidationError("preparedExecution", "must not be nil")
-	}
-	if prepared.executionContext == nil {
-		return nil, newValidationError("preparedExecution.executionContext",
-			"must not be nil")
-	}
-	if _, exists := prepared.plan.graph.Node(nodeID); !exists {
-		return nil, newValidationError(
-			"nodeID", fmt.Sprintf("node %q is not present in the execution plan",
-				nodeID.String()))
-	}
-	descriptor, exists := prepared.plan.descriptorsByNode[nodeID]
-	if !exists {
-		return nil, fmt.Errorf("plugin descriptor for node %s is unavailable",
-			nodeID)
-	}
-	if !result.IsValid() {
-		return nil, newValidationError(
-			"nodeResult", "must be valid")
-	}
-	if !result.IsSuccess() {
-		return nil, newValidationError("nodeResult", "must be successful before output routing")
-	}
-	if result.HasTerminalOutput() {
-		if result.HasRoutedOutputs() {
-			return nil, newValidationError(
-				"nodeResult", "must not contain routed outputs and terminal output together")
-		}
-		return nil, nil
-	}
-	outputPorts := result.OutputPorts()
-	if len(outputPorts) == 0 {
-		return nil, nil
-	}
-	sort.Strings(outputPorts)
-	outgoingEdges := prepared.plan.graph.OutgoingEdges(nodeID)
-	sort.Slice(outgoingEdges, func(left int, right int) bool {
-		return outgoingEdges[left].ID().String() < outgoingEdges[right].ID().String()
-	},
-	)
-	operations := make(
-		[]outputRoutingOperation, 0)
-	for _, outputPort := range outputPorts {
-		if !descriptor.HasOutputPort(outputPort) {
-			return nil, fmt.Errorf("node %s returned undeclared output port %q", nodeID,
-				outputPort)
-		}
-		payloads, exists, err := result.OutputPayloads(outputPort)
-		if err != nil {
-			return nil, fmt.Errorf(
-				"read output payloads for node %s port %q: %w", nodeID, outputPort,
-				err)
-		}
-		if !exists {
-			return nil, fmt.Errorf(
-				"node %s output port %q is listed but contains no output entry", nodeID, outputPort,
-			)
-		}
-		if len(payloads) != 1 {
-			return nil, fmt.Errorf("node %s output port %q contains %d payloads; single-shot execution requires exactly one",
-				nodeID, outputPort, len(payloads),
-			)
-		}
-		payload := payloads[0]
-		for _, edge := range outgoingEdges {
-			if edge.SourceOutputPort() != outputPort {
-				continue
-			}
-			edgeRuntime, exists, err := prepared.executionContext.Edge(edge.ID())
-			if err != nil {
-				return nil, fmt.Errorf(
-					"lookup runtime edge %s: %w", edge.ID(), err,
-				)
-			}
-			if !exists || edgeRuntime == nil {
-				return nil, fmt.Errorf("runtime edge %s is unavailable",
-					edge.ID())
-			}
-			if edgeRuntime.SourceNodeID() != nodeID {
-				return nil, fmt.Errorf(
-					"runtime edge %s belongs to source node %s instead of node %s", edge.ID(), edgeRuntime.SourceNodeID(),
-					nodeID)
-			}
-			if edgeRuntime.SourceOutputPort() != outputPort {
-				return nil, fmt.Errorf(
-					"runtime edge %s uses source port %q instead of %q", edge.ID(), edgeRuntime.SourceOutputPort(),
-					outputPort)
-			}
-			if edgeRuntime.TargetNodeID() != edge.TargetNodeID() {
-				return nil, fmt.Errorf(
-					"runtime edge %s target node does not match the execution plan", edge.ID())
-			}
-			if edgeRuntime.TargetInputPort() != edge.TargetInputPort() {
-				return nil, fmt.Errorf("runtime edge %s target port does not match the execution plan", edge.ID())
-			}
-			if edgeRuntime.Queue() == nil {
-				return nil, fmt.Errorf("runtime edge %s contains no queue",
-					edge.ID())
-			}
-			operations = append(operations,
-				outputRoutingOperation{edgeID: edge.ID(), sourcePort: outputPort,
-					edgeRuntime: edgeRuntime, payload: payload},
-			)
-		}
-	}
-	return operations, nil
-}
 
-const (
-	failureCodeNodeExecutionError  = "NODE_EXECUTION_ERROR"
-	failureCodeWorkflowNodeFailure = "WORKFLOW_NODE_FAILURE"
-	failureCodeWorkflowStalled     = "WORKFLOW_STALLED"
-	failureCodeWorkflowCanceled    = "WORKFLOW_CANCELED"
-	failureCodeWorkflowTimedOut    = "WORKFLOW_TIMED_OUT"
-	failureCodeSchedulerInternal   = "SCHEDULER_INTERNAL_ERROR"
-)
-
-func runPreparedExecution(prepared *preparedExecution) (
-	ExecutionResult, error) {
-	if prepared == nil {
-		return ExecutionResult{}, newValidationError(
-			"preparedExecution", "must not be nil")
-	}
-	if prepared.workflowExecution == nil {
-		return ExecutionResult{}, newValidationError("preparedExecution.workflowExecution",
-			"must not be nil")
-	}
-	if prepared.executionContext == nil {
-		return ExecutionResult{},
-			newValidationError("preparedExecution.executionContext", "must not be nil")
-	}
-	if !prepared.dependencies.IsValid() {
-		return ExecutionResult{}, newValidationError(
-			"preparedExecution.dependencies", "must be valid")
-	}
-	if prepared.workflowExecution.Status() !=
-		execution.WorkflowExecutionStatusRunning {
-		return ExecutionResult{}, newValidationError(
-			"preparedExecution.workflowExecution.status", fmt.Sprintf("must be RUNNING; current status is %s",
-				prepared.workflowExecution.Status()))
-	}
-	state := newSchedulerExecutionState()
-	for {
-		contextErr :=
-			prepared.executionContext.Err()
-		if contextErr != nil {
-			return finalizePreparedExecutionForContext(prepared, &state,
-				contextErr)
-		}
-		_, err := skipBlockedPendingNodes(prepared)
-		if err != nil {
-			return failPreparedExecutionWithInternalError(
-				prepared, &state, fmt.Errorf(
-					"propagate blocked node state: %w", err),
-			)
-		}
-		nodeID, ready, err := nextReadyNode(prepared)
-		if err != nil {
-			return failPreparedExecutionWithInternalError(prepared,
-				&state, fmt.Errorf("select next ready node: %w",
-					err))
-		}
-		if ready {
-			result, executionErr := executeReadyNode(prepared,
-				nodeID)
-			started, startedErr := nodeExecutionStarted(prepared,
-				nodeID)
-			if startedErr != nil {
-				return failPreparedExecutionWithInternalError(prepared, &state,
-					fmt.Errorf("inspect execution start for node %s: %w", nodeID,
-						startedErr))
-			}
-			if started {
-				if err := state.recordNodeExecution(nodeID); err != nil {
-					return failPreparedExecutionWithInternalError(prepared, &state,
-						fmt.Errorf("record execution order for node %s: %w", nodeID,
-							err))
-				}
-			}
-			if executionErr != nil {
-				if errors.Is(executionErr,
-					context.DeadlineExceeded) {
-					return finalizePreparedExecutionForContext(
-						prepared, &state, context.DeadlineExceeded,
-					)
-				}
-				if errors.Is(executionErr, context.Canceled) {
-					return finalizePreparedExecutionForContext(prepared,
-						&state, context.Canceled)
-				}
-				/*
-					Preflight baÅŸarÄ±lÄ± olduÄŸu ve node READY seÃ§ildiÄŸi
-					hÃ¢lde node baÅŸlamadan hata oluÅŸmasÄ± scheduler
-					invariant ihlalidir.
-				*/
-				if !started {
-					return failPreparedExecutionWithInternalError(
-						prepared, &state, fmt.Errorf(
-							"node %s failed before its execution started: %w", nodeID, executionErr,
-						))
-				}
-				failure, err := newTechnicalNodeFailure(
-					nodeID, executionErr)
-				if err != nil {
-					return failPreparedExecutionWithInternalError(prepared,
-						&state, fmt.Errorf("create technical failure for node %s: %w",
-							nodeID, err),
-					)
-				}
-				if err := state.recordNodeFailure(nodeID, failure); err != nil {
-					return failPreparedExecutionWithInternalError(prepared,
-						&state, fmt.Errorf("record technical failure for node %s: %w",
-							nodeID, err),
-					)
-				}
-				continue
-			}
-			if !started {
-				return failPreparedExecutionWithInternalError(prepared,
-					&state, fmt.Errorf("node %s returned a result without entering RUNNING state",
-						nodeID))
-			}
-			if err := state.recordNodeResult(
-				nodeID, result); err != nil {
-				return failPreparedExecutionWithInternalError(prepared, &state,
-					fmt.Errorf("record result for node %s: %w", nodeID,
-						err))
-			}
+func inputForNode(
+	workflow model.Workflow,
+	nodeID string,
+	states map[string]model.NodeExecution,
+) any {
+	inputs := make(map[string]any)
+	for _, edge := range workflow.Edges {
+		if edge.TargetNodeID != nodeID {
 			continue
 		}
-		allTerminal, err :=
-			allNodeExecutionsTerminal(prepared)
-		if err != nil {
-			return failPreparedExecutionWithInternalError(prepared,
-				&state, fmt.Errorf("inspect node terminal states: %w",
-					err))
+		output := states[edge.SourceNodeID].Output
+		value := any(output)
+		if unwrapped, exists := output["value"]; exists && len(output) == 1 {
+			value = unwrapped
 		}
-		if allTerminal {
-			return finalizePreparedExecutionFromNodeStates(prepared, &state)
-		}
-		return finalizeStalledPreparedExecution(prepared, &state)
+		inputs[edge.TargetInputPort] = value
 	}
+	if len(inputs) == 1 {
+		for _, value := range inputs {
+			return value
+		}
+	}
+	if len(inputs) == 0 {
+		return nil
+	}
+	return inputs
+}
+
+func terminalOutputs(
+	workflow model.Workflow,
+	states map[string]model.NodeExecution,
+) map[string]any {
+	hasOutgoing := make(map[string]bool)
+	for _, edge := range workflow.Edges {
+		hasOutgoing[edge.SourceNodeID] = true
+	}
+	outputs := make(map[string]any)
+	for _, node := range workflow.Nodes {
+		state := states[node.ID]
+		if !hasOutgoing[node.ID] && state.Status == model.NodeSucceeded {
+			outputs[node.ID] = state.Output
+		}
+	}
+	return outputs
 }

@@ -65,6 +65,12 @@
   gap: 7px;
 }
 
+.executionListPage__filters {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
 .executionListPage__filter span {
   color: var(--color-muted);
   font-size: 10px;
@@ -328,6 +334,12 @@
 
   .executionListPage__filter {
     width: 100%;
+  }
+
+  .executionListPage__filters {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .executionListPage__pagination {

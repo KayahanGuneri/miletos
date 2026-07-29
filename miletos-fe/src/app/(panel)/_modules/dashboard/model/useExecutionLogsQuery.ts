@@ -12,6 +12,7 @@ import { type ApiError, toApiError } from "@/shared/api/api-error";
 interface UseExecutionLogsQueryOptions {
   enabled?: boolean;
   pollingEnabled?: boolean;
+  companyId?: number;
 }
 
 const EXECUTION_RUNTIME_POLL_INTERVAL_MS = 3_000;
@@ -19,14 +20,14 @@ const EXECUTION_RUNTIME_POLL_INTERVAL_MS = 3_000;
 export function useExecutionLogsQuery(
   executionId: string,
   params: CursorPageParams = {},
-  { enabled = true, pollingEnabled = false }: UseExecutionLogsQueryOptions = {},
+  { enabled = true, pollingEnabled = false, companyId }: UseExecutionLogsQueryOptions = {},
 ) {
   return useQuery<ExecutionLogPageResponse, ApiError>({
-    queryKey: executionQueryKeys.logs(executionId, params),
+    queryKey: executionQueryKeys.logs(executionId, params, companyId),
 
     queryFn: async () => {
       try {
-        return await listExecutionLogs(executionId, params);
+        return await listExecutionLogs(executionId, params, companyId);
       } catch (error) {
         throw toApiError(error);
       }
@@ -34,9 +35,7 @@ export function useExecutionLogsQuery(
 
     enabled: enabled && executionId.trim().length > 0,
 
-    refetchInterval: pollingEnabled
-      ? EXECUTION_RUNTIME_POLL_INTERVAL_MS
-      : false,
+    refetchInterval: pollingEnabled ? EXECUTION_RUNTIME_POLL_INTERVAL_MS : false,
 
     refetchIntervalInBackground: false,
   });

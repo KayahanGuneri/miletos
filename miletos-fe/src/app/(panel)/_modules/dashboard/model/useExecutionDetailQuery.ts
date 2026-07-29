@@ -9,20 +9,21 @@ import { type ApiError, toApiError } from "@/shared/api/api-error";
 
 interface UseExecutionDetailQueryOptions {
   enabled?: boolean;
+  companyId?: number;
 }
 
 const EXECUTION_DETAIL_POLL_INTERVAL_MS = 3_000;
 
 export function useExecutionDetailQuery(
   executionId: string,
-  { enabled = true }: UseExecutionDetailQueryOptions = {},
+  { enabled = true, companyId }: UseExecutionDetailQueryOptions = {},
 ) {
   return useQuery<ExecutionSummaryResponse, ApiError>({
-    queryKey: executionQueryKeys.detail(executionId),
+    queryKey: executionQueryKeys.detail(executionId, companyId),
 
     queryFn: async () => {
       try {
-        return await getExecution(executionId);
+        return await getExecution(executionId, companyId);
       } catch (error) {
         throw toApiError(error);
       }

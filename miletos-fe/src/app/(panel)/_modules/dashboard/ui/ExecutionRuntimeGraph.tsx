@@ -9,6 +9,7 @@ interface ExecutionRuntimeGraphProps {
   executionId: string;
   definition: Record<string, unknown>;
   pollingEnabled: boolean;
+  companyId?: number;
 }
 
 const RUNTIME_NODE_PAGE_SIZE = 100;
@@ -17,6 +18,7 @@ export function ExecutionRuntimeGraph({
   executionId,
   definition,
   pollingEnabled,
+  companyId,
 }: ExecutionRuntimeGraphProps) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
@@ -27,13 +29,11 @@ export function ExecutionRuntimeGraph({
     },
     {
       pollingEnabled,
+      companyId,
     },
   );
 
-  const nodeExecutions = useMemo(
-    () => nodesQuery.data?.items ?? [],
-    [nodesQuery.data?.items],
-  );
+  const nodeExecutions = useMemo(() => nodesQuery.data?.items ?? [], [nodesQuery.data?.items]);
 
   const selectedNodeExecution = useMemo(() => {
     if (!selectedNodeId) {
@@ -55,10 +55,7 @@ export function ExecutionRuntimeGraph({
         onNodeSelect={setSelectedNodeId}
       />
 
-      <ExecutionNodeDetail
-        selectedNodeId={selectedNodeId}
-        nodeExecution={selectedNodeExecution}
-      />
+      <ExecutionNodeDetail selectedNodeId={selectedNodeId} nodeExecution={selectedNodeExecution} />
     </>
   );
 }

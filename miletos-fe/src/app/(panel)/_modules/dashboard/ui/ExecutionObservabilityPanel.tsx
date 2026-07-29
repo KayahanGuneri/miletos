@@ -12,6 +12,7 @@ type ObservabilityTab = "events" | "logs" | "errors";
 interface ExecutionObservabilityPanelProps {
   executionId: string;
   pollingEnabled: boolean;
+  companyId?: number;
 }
 
 const OBSERVABILITY_PAGE_SIZE = 50;
@@ -29,6 +30,7 @@ function formatMetadata(metadata: Record<string, unknown>) {
 export function ExecutionObservabilityPanel({
   executionId,
   pollingEnabled,
+  companyId,
 }: ExecutionObservabilityPanelProps) {
   const [activeTab, setActiveTab] = useState<ObservabilityTab>("events");
 
@@ -40,6 +42,7 @@ export function ExecutionObservabilityPanel({
     {
       enabled: activeTab === "events",
       pollingEnabled,
+      companyId,
     },
   );
 
@@ -51,6 +54,7 @@ export function ExecutionObservabilityPanel({
     {
       enabled: activeTab === "logs",
       pollingEnabled,
+      companyId,
     },
   );
 
@@ -62,6 +66,7 @@ export function ExecutionObservabilityPanel({
     {
       enabled: activeTab === "errors",
       pollingEnabled,
+      companyId,
     },
   );
 
@@ -73,17 +78,11 @@ export function ExecutionObservabilityPanel({
 
           <h2>Execution activity</h2>
 
-          <span>
-            Inspect lifecycle events, safe runtime logs and structured execution
-            errors.
-          </span>
+          <span>Inspect lifecycle events, safe runtime logs and structured execution errors.</span>
         </div>
       </header>
 
-      <nav
-        className={styles.executionObservability__tabs}
-        aria-label="Execution observability"
-      >
+      <nav className={styles.executionObservability__tabs} aria-label="Execution observability">
         <button
           type="button"
           aria-pressed={activeTab === "events"}
@@ -129,10 +128,7 @@ export function ExecutionObservabilityPanel({
                 const metadata = formatMetadata(event.metadata);
 
                 return (
-                  <article
-                    key={event.eventId}
-                    className={styles.executionObservability__item}
-                  >
+                  <article key={event.eventId} className={styles.executionObservability__item}>
                     <div className={styles.executionObservability__itemHeader}>
                       <div>
                         <span>Event #{event.sequenceNumber}</span>
@@ -174,9 +170,7 @@ export function ExecutionObservabilityPanel({
 
       {activeTab === "logs" ? (
         <div className={styles.executionObservability__content}>
-          {logsQuery.isPending ? (
-            <ObservabilityState message="Loading runtime logs…" />
-          ) : null}
+          {logsQuery.isPending ? <ObservabilityState message="Loading runtime logs…" /> : null}
 
           {logsQuery.isError ? (
             <ObservabilityState error message={logsQuery.error.message} />
@@ -192,10 +186,7 @@ export function ExecutionObservabilityPanel({
                 const metadata = formatMetadata(log.metadata);
 
                 return (
-                  <article
-                    key={log.logId}
-                    className={styles.executionObservability__item}
-                  >
+                  <article key={log.logId} className={styles.executionObservability__item}>
                     <div className={styles.executionObservability__itemHeader}>
                       <div>
                         <span>Log #{log.sequenceNumber}</span>
@@ -206,9 +197,7 @@ export function ExecutionObservabilityPanel({
                       <time>{formatExecutionDateTime(log.createdAt)}</time>
                     </div>
 
-                    <p className={styles.executionObservability__message}>
-                      {log.message}
-                    </p>
+                    <p className={styles.executionObservability__message}>{log.message}</p>
 
                     {log.nodeExecutionId ? (
                       <small>Node execution: {log.nodeExecutionId}</small>
@@ -263,9 +252,7 @@ export function ExecutionObservabilityPanel({
                     <time>{formatExecutionDateTime(error.createdAt)}</time>
                   </div>
 
-                  <p className={styles.executionObservability__message}>
-                    {error.safeMessage}
-                  </p>
+                  <p className={styles.executionObservability__message}>{error.safeMessage}</p>
 
                   <div className={styles.executionObservability__badges}>
                     <span>Retryable: {error.retryable ? "Yes" : "No"}</span>
@@ -305,10 +292,7 @@ interface ObservabilityStateProps {
   error?: boolean;
 }
 
-function ObservabilityState({
-  message,
-  error = false,
-}: ObservabilityStateProps) {
+function ObservabilityState({ message, error = false }: ObservabilityStateProps) {
   return (
     <div
       className={[

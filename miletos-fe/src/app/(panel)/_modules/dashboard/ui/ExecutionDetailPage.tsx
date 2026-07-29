@@ -12,22 +12,39 @@ import {
 } from "@/app/(panel)/_modules/dashboard/model/execution-status";
 import { useExecutionDefinitionQuery } from "@/app/(panel)/_modules/dashboard/model/useExecutionDefinitionQuery";
 import { useExecutionDetailQuery } from "@/app/(panel)/_modules/dashboard/model/useExecutionDetailQuery";
+import { useAllCompaniesQuery } from "@/app/(panel)/_modules/companies/query/useAllCompaniesQuery";
+import { useCurrentUserQuery } from "@/shared/session/hooks/useCurrentUserQuery";
 import { ExecutionObservabilityPanel } from "./ExecutionObservabilityPanel";
 import { ExecutionRuntimeGraph } from "./ExecutionRuntimeGraph";
 import styles from "./ExecutionDetailPage.module.css";
 
 interface ExecutionDetailPageProps {
   executionId: string;
+  companyId?: number;
 }
 
-export function ExecutionDetailPage({ executionId }: ExecutionDetailPageProps) {
-  const executionQuery = useExecutionDetailQuery(executionId);
-
-  const definitionQuery = useExecutionDefinitionQuery(executionId, {
-    enabled: executionQuery.isSuccess,
+export function ExecutionDetailPage({ executionId, companyId }: ExecutionDetailPageProps) {
+  const currentUserQuery = useCurrentUserQuery();
+  const isSuperAdmin = currentUserQuery.data?.superAdmin === true;
+  const companiesQuery = useAllCompaniesQuery({ enabled: isSuperAdmin });
+  const selectedCompany = companiesQuery.data?.find((company) => company.id === companyId);
+  const hasValidTenant = !isSuperAdmin || Boolean(selectedCompany);
+  const effectiveCompanyId = isSuperAdmin ? selectedCompany?.id : undefined;
+  const queryEnabled = currentUserQuery.isSuccess && hasValidTenant;
+  const executionsHref = effectiveCompanyId
+    ? `/dashboard/executions?companyId=${effectiveCompanyId}`
+    : "/dashboard/executions";
+  const executionQuery = useExecutionDetailQuery(executionId, {
+    enabled: queryEnabled,
+    companyId: effectiveCompanyId,
   });
 
-  if (executionQuery.isPending) {
+  const definitionQuery = useExecutionDefinitionQuery(executionId, {
+    enabled: queryEnabled && executionQuery.isSuccess,
+    companyId: effectiveCompanyId,
+  });
+
+  if (currentUserQuery.isPending || (isSuperAdmin && companiesQuery.isPending)) {
     return (
       <PageShell
         eyebrow="Workflow observability"
@@ -37,10 +54,67 @@ export function ExecutionDetailPage({ executionId }: ExecutionDetailPageProps) {
         <div className={styles.executionDetailPage__state}>
           <strong>Loading execution…</strong>
 
-          <span>
-            Reading the authoritative execution state from the runtime read
-            model.
-          </span>
+          <span>Reading the authoritative execution state from the runtime read model.</span>
+        </div>
+      </PageShell>
+    );
+  }
+
+  if (isSuperAdmin && (!companyId || (companiesQuery.isSuccess && !selectedCompany))) {
+    return (
+      <PageShell
+        eyebrow="Workflow observability"
+        title="Execution detail"
+        description="Workflow executions require a valid tenant selection."
+        actions={
+          <Link className={styles.executionDetailPage__backLink} href="/dashboard/executions">
+            Back to executions
+          </Link>
+        }
+      >
+        <div className={styles.executionDetailPage__state} role="alert">
+          <strong>
+            {companyId ? "Selected company is unavailable." : "Select a company first."}
+          </strong>
+
+          <span>Return to workflow executions and choose an available company.</span>
+        </div>
+      </PageShell>
+    );
+  }
+
+  if (isSuperAdmin && companiesQuery.isError) {
+    return (
+      <PageShell
+        eyebrow="Workflow observability"
+        title="Execution detail"
+        description="The selected tenant could not be verified."
+        actions={
+          <Link className={styles.executionDetailPage__backLink} href="/dashboard/executions">
+            Back to executions
+          </Link>
+        }
+      >
+        <div className={styles.executionDetailPage__state} role="alert">
+          <strong>Companies could not be loaded.</strong>
+
+          <span>{companiesQuery.error.message}</span>
+        </div>
+      </PageShell>
+    );
+  }
+
+  if (executionQuery.isPending) {
+    return (
+      <PageShell
+        eyebrow="Workflow observability"
+        title="Execution detail"
+        description="Loading runtime execution state."
+      >
+        <div className={styles.executionDetailPage__state}>
+          <strong>Loading executionâ€¦</strong>
+
+          <span>Reading the authoritative execution state from the runtime read model.</span>
         </div>
       </PageShell>
     );
@@ -53,10 +127,7 @@ export function ExecutionDetailPage({ executionId }: ExecutionDetailPageProps) {
         title="Execution detail"
         description="The requested execution could not be loaded."
         actions={
-          <Link
-            className={styles.executionDetailPage__backLink}
-            href="/dashboard/executions"
-          >
+          <Link className={styles.executionDetailPage__backLink} href={executionsHref}>
             Back to executions
           </Link>
         }
@@ -100,10 +171,7 @@ export function ExecutionDetailPage({ executionId }: ExecutionDetailPageProps) {
       title="Execution detail"
       description="Inspect the authoritative runtime state and the immutable workflow definition captured for this execution."
       actions={
-        <Link
-          className={styles.executionDetailPage__backLink}
-          href="/dashboard/executions"
-        >
+        <Link className={styles.executionDetailPage__backLink} href={executionsHref}>
           Back to executions
         </Link>
       }
@@ -123,10 +191,7 @@ export function ExecutionDetailPage({ executionId }: ExecutionDetailPageProps) {
         </div>
 
         <div className={styles.executionDetailPage__heroStatus}>
-          <span
-            className={styles.executionDetailPage__status}
-            data-status={execution.status}
-          >
+          <span className={styles.executionDetailPage__status} data-status={execution.status}>
             {formatExecutionStatus(execution.status)}
           </span>
 
@@ -136,10 +201,7 @@ export function ExecutionDetailPage({ executionId }: ExecutionDetailPageProps) {
         </div>
       </section>
 
-      <section
-        className={styles.executionDetailPage__metrics}
-        aria-label="Execution summary"
-      >
+      <section className={styles.executionDetailPage__metrics} aria-label="Execution summary">
         <article>
           <span>Status</span>
 
@@ -310,9 +372,7 @@ export function ExecutionDetailPage({ executionId }: ExecutionDetailPageProps) {
             <div>
               <span>Captured at</span>
 
-              <strong>
-                {formatExecutionDateTime(definitionQuery.data.createdAt)}
-              </strong>
+              <strong>{formatExecutionDateTime(definitionQuery.data.createdAt)}</strong>
             </div>
           </div>
         ) : null}
@@ -323,12 +383,14 @@ export function ExecutionDetailPage({ executionId }: ExecutionDetailPageProps) {
           executionId={execution.executionId}
           definition={definitionQuery.data.definition}
           pollingEnabled={pollingEnabled}
+          companyId={effectiveCompanyId}
         />
       ) : null}
 
       <ExecutionObservabilityPanel
         executionId={execution.executionId}
         pollingEnabled={pollingEnabled}
+        companyId={effectiveCompanyId}
       />
     </PageShell>
   );

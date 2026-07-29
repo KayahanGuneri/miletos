@@ -1,8 +1,4 @@
-import {
-  MarkerType,
-  type CoordinateExtent,
-  type XYPosition,
-} from "@xyflow/react";
+import { MarkerType, type CoordinateExtent, type XYPosition } from "@xyflow/react";
 import {
   type ExecutionGraphEdge,
   type ExecutionGraphModel,
@@ -31,9 +27,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function readString(value: unknown, fallback: string) {
-  return typeof value === "string" && value.trim().length > 0
-    ? value
-    : fallback;
+  return typeof value === "string" && value.trim().length > 0 ? value : fallback;
 }
 
 function readPosition(value: unknown): XYPosition | null {
@@ -103,12 +97,9 @@ function createGraphNode(
 
   const pluginVersion = readString(value.pluginVersion, "unknown");
 
-  const configuration = isRecord(value.configuration)
-    ? value.configuration
-    : {};
+  const configuration = isRecord(value.configuration) ? value.configuration : {};
 
-  const position =
-    readPosition(value.position) ?? createFallbackPosition(index);
+  const position = readPosition(value.position) ?? createFallbackPosition(index);
 
   return {
     id: nodeId,
@@ -145,12 +136,7 @@ function createGraphEdge(
 
   const targetNodeId = readString(value.targetNodeId, "");
 
-  if (
-    !sourceNodeId ||
-    !targetNodeId ||
-    !nodeIds.has(sourceNodeId) ||
-    !nodeIds.has(targetNodeId)
-  ) {
+  if (!sourceNodeId || !targetNodeId || !nodeIds.has(sourceNodeId) || !nodeIds.has(targetNodeId)) {
     return null;
   }
 
@@ -158,15 +144,10 @@ function createGraphEdge(
 
   const targetInputPort = readString(value.targetInputPort, "");
 
-  const edgeId = readString(
-    value.id,
-    `${sourceNodeId}-${targetNodeId}-${index}`,
-  );
+  const edgeId = readString(value.id, `${sourceNodeId}-${targetNodeId}-${index}`);
 
   const portLabel =
-    sourceOutputPort && targetInputPort
-      ? `${sourceOutputPort} → ${targetInputPort}`
-      : undefined;
+    sourceOutputPort && targetInputPort ? `${sourceOutputPort} → ${targetInputPort}` : undefined;
 
   return {
     id: edgeId,
@@ -225,11 +206,7 @@ export function mapExecutionDefinitionToGraph(
 
     const nodeId = readString(node.id, "");
 
-    const graphNode = createGraphNode(
-      node,
-      index,
-      runtimeNodeIndex.get(nodeId),
-    );
+    const graphNode = createGraphNode(node, index, runtimeNodeIndex.get(nodeId));
 
     return graphNode ? [graphNode] : [];
   });

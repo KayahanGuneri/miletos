@@ -1,6 +1,5 @@
 package com.miletos.features.workflowruntime.client;
 
-import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.net.http.HttpTimeoutException;
 import java.util.List;
@@ -103,7 +102,8 @@ public class GoRuntimeClient {
                 new LinkedMultiValueMap<>(),
                 null,
                 companyId,
-                browserHeaders);
+                browserHeaders,
+                true);
     }
 
     public GoRuntimeResponse listExecutions(
@@ -208,6 +208,24 @@ public class GoRuntimeClient {
             JsonNode body,
             String companyId,
             HttpHeaders browserHeaders) {
+        return exchange(
+                method,
+                pathSegments,
+                query,
+                body,
+                companyId,
+                browserHeaders,
+                false);
+    }
+
+    private GoRuntimeResponse exchange(
+            HttpMethod method,
+            List<String> pathSegments,
+            MultiValueMap<String, String> query,
+            JsonNode body,
+            String companyId,
+            HttpHeaders browserHeaders,
+            boolean bodylessPost) {
         if (!configured) {
             throw new WorkflowRuntimeNotConfiguredException();
         }
@@ -223,7 +241,8 @@ public class GoRuntimeClient {
                             headers,
                             browserHeaders,
                             companyId,
-                            body != null));
+                            body != null,
+                            bodylessPost));
 
             if (body != null) {
                 request.body(body);
@@ -231,9 +250,8 @@ public class GoRuntimeClient {
 
             GoRuntimeResponse response = request.exchange(
                     (outgoingRequest, upstreamResponse) -> {
-                        HttpHeaders responseHeaders =
-                                copyAllowedResponseHeaders(
-                                        upstreamResponse.getHeaders());
+                        HttpHeaders responseHeaders = copyAllowedResponseHeaders(
+                                upstreamResponse.getHeaders());
                         byte[] responseBody = StreamUtils.copyToByteArray(
                                 upstreamResponse.getBody());
 
@@ -263,7 +281,8 @@ public class GoRuntimeClient {
             HttpHeaders outgoing,
             HttpHeaders browserHeaders,
             String companyId,
-            boolean hasBody) {
+            boolean hasBody,
+            boolean bodylessPost) {
         FORWARDED_REQUEST_HEADERS.forEach(headerName -> {
             List<String> values = browserHeaders.get(headerName);
 
@@ -278,6 +297,8 @@ public class GoRuntimeClient {
 
         if (hasBody) {
             outgoing.setContentType(MediaType.APPLICATION_JSON);
+        } else if (bodylessPost) {
+            outgoing.setContentLength(0);
         }
 
         outgoing.setBearerAuth(internalServiceToken);

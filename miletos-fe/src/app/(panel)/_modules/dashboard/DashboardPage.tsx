@@ -184,10 +184,7 @@ const DashboardPage = () => {
           </p>
 
           <nav className={styles.dashboardHome__quickActions} aria-label="Dashboard quick actions">
-            <Link
-              className={styles.dashboardHome__quickAction}
-              href="/dashboard/executions"
-            >
+            <Link className={styles.dashboardHome__quickAction} href="/dashboard/executions">
               <span className={styles.dashboardHome__quickActionIcon}>
                 <DashboardIcon name="dashboard" />
               </span>
@@ -195,9 +192,7 @@ const DashboardPage = () => {
               <span className={styles.dashboardHome__quickActionCopy}>
                 <strong>Workflow executions</strong>
 
-                <small>
-                  Monitor runtime status, execution history and observability details.
-                </small>
+                <small>Monitor runtime status, execution history and observability details.</small>
               </span>
 
               <span className={styles.dashboardHome__quickActionArrow}>

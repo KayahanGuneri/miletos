@@ -8,9 +8,7 @@ interface ExecutionNodeDetailProps {
   nodeExecution: NodeExecutionResponse | null;
 }
 
-function formatPayloadSummary(
-  payload: NodeExecutionResponse["inputSummary"] | undefined,
-) {
+function formatPayloadSummary(payload: NodeExecutionResponse["inputSummary"] | undefined) {
   if (!payload) {
     return "Not recorded";
   }
@@ -32,18 +30,13 @@ function formatPayloadSummary(
   return parts.length > 0 ? parts.join(" · ") : "Recorded";
 }
 
-export function ExecutionNodeDetail({
-  selectedNodeId,
-  nodeExecution,
-}: ExecutionNodeDetailProps) {
+export function ExecutionNodeDetail({ selectedNodeId, nodeExecution }: ExecutionNodeDetailProps) {
   if (!selectedNodeId) {
     return (
       <section className={styles.executionNodeDetail__empty}>
         <strong>Select a workflow node.</strong>
 
-        <span>
-          Click a node in the execution graph to inspect its runtime details.
-        </span>
+        <span>Click a node in the execution graph to inspect its runtime details.</span>
       </section>
     );
   }
@@ -54,8 +47,8 @@ export function ExecutionNodeDetail({
         <strong>{selectedNodeId}</strong>
 
         <span>
-          This node exists in the immutable workflow definition, but no runtime
-          execution record is available in the loaded node page.
+          This node exists in the immutable workflow definition, but no runtime execution record is
+          available in the loaded node page.
         </span>
       </section>
     );
@@ -70,10 +63,7 @@ export function ExecutionNodeDetail({
           <h2>{nodeExecution.nodeId}</h2>
         </div>
 
-        <span
-          className={styles.executionNodeDetail__status}
-          data-status={nodeExecution.status}
-        >
+        <span className={styles.executionNodeDetail__status} data-status={nodeExecution.status}>
           {formatExecutionStatus(nodeExecution.status)}
         </span>
       </header>

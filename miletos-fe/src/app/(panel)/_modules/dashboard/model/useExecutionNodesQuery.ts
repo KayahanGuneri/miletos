@@ -12,6 +12,7 @@ import { type ApiError, toApiError } from "@/shared/api/api-error";
 interface UseExecutionNodesQueryOptions {
   enabled?: boolean;
   pollingEnabled?: boolean;
+  companyId?: number;
 }
 
 const EXECUTION_RUNTIME_POLL_INTERVAL_MS = 3_000;
@@ -19,17 +20,14 @@ const EXECUTION_RUNTIME_POLL_INTERVAL_MS = 3_000;
 export function useExecutionNodesQuery(
   executionId: string,
   params: CursorPageParams = {},
-  {
-    enabled = true,
-    pollingEnabled = false,
-  }: UseExecutionNodesQueryOptions = {},
+  { enabled = true, pollingEnabled = false, companyId }: UseExecutionNodesQueryOptions = {},
 ) {
   return useQuery<NodeExecutionPageResponse, ApiError>({
-    queryKey: executionQueryKeys.nodes(executionId, params),
+    queryKey: executionQueryKeys.nodes(executionId, params, companyId),
 
     queryFn: async () => {
       try {
-        return await listExecutionNodes(executionId, params);
+        return await listExecutionNodes(executionId, params, companyId);
       } catch (error) {
         throw toApiError(error);
       }
@@ -37,9 +35,7 @@ export function useExecutionNodesQuery(
 
     enabled: enabled && executionId.trim().length > 0,
 
-    refetchInterval: pollingEnabled
-      ? EXECUTION_RUNTIME_POLL_INTERVAL_MS
-      : false,
+    refetchInterval: pollingEnabled ? EXECUTION_RUNTIME_POLL_INTERVAL_MS : false,
 
     refetchIntervalInBackground: false,
   });

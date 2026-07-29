@@ -8,17 +8,18 @@ import { type ApiError, toApiError } from "@/shared/api/api-error";
 
 interface UseExecutionDefinitionQueryOptions {
   enabled?: boolean;
+  companyId?: number;
 }
 
 export function useExecutionDefinitionQuery(
   executionId: string,
-  { enabled = true }: UseExecutionDefinitionQueryOptions = {},
+  { enabled = true, companyId }: UseExecutionDefinitionQueryOptions = {},
 ) {
   return useQuery<ExecutionDefinitionResponse, ApiError>({
-    queryKey: executionQueryKeys.definition(executionId),
+    queryKey: executionQueryKeys.definition(executionId, companyId),
     queryFn: async () => {
       try {
-        return await getExecutionDefinition(executionId);
+        return await getExecutionDefinition(executionId, companyId);
       } catch (error) {
         throw toApiError(error);
       }

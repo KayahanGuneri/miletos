@@ -39,20 +39,14 @@ export function ExecutionGraph({
     [definition, nodeExecutions],
   );
 
-  const [nodes, setNodes, onNodesChange] = useNodesState<ExecutionGraphNode>(
-    graph.nodes,
-  );
+  const [nodes, setNodes, onNodesChange] = useNodesState<ExecutionGraphNode>(graph.nodes);
 
-  const [edges, setEdges, onEdgesChange] = useEdgesState<ExecutionGraphEdge>(
-    graph.edges,
-  );
+  const [edges, setEdges, onEdgesChange] = useEdgesState<ExecutionGraphEdge>(graph.edges);
 
   useEffect(() => {
     setNodes((currentNodes) =>
       graph.nodes.map((nextNode) => {
-        const currentNode = currentNodes.find(
-          (node) => node.id === nextNode.id,
-        );
+        const currentNode = currentNodes.find((node) => node.id === nextNode.id);
 
         if (!currentNode) {
           return nextNode;
@@ -73,9 +67,7 @@ export function ExecutionGraph({
       <section className={styles.executionGraph__empty}>
         <strong>No workflow graph available.</strong>
 
-        <span>
-          The execution definition does not contain renderable workflow nodes.
-        </span>
+        <span>The execution definition does not contain renderable workflow nodes.</span>
       </section>
     );
   }
@@ -89,8 +81,8 @@ export function ExecutionGraph({
           <h2>Execution graph</h2>
 
           <span>
-            Select a node to inspect its runtime details. Dragging changes only
-            the local dashboard layout.
+            Select a node to inspect its runtime details. Dragging changes only the local dashboard
+            layout.
           </span>
         </div>
 

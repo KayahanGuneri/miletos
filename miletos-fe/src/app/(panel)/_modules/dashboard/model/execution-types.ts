@@ -71,6 +71,7 @@ export interface NodeExecutionResponse {
   queuedAt?: string;
   startedAt?: string;
   finishedAt?: string;
+  nextAttemptAt?: string;
   updatedAt: string;
   inputSummary?: PayloadSummary;
   outputSummary?: PayloadSummary;

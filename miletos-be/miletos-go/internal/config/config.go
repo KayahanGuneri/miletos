@@ -4,233 +4,238 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
-	env "github.com/caarlos0/env/v11"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-const (
-	environmentPrefix                = "MILETOS_RUNTIME_"
-	environmentServiceName           = environmentPrefix + "SERVICE_NAME"
-	environmentEnvironment           = environmentPrefix + "ENVIRONMENT"
-	environmentHTTPHost              = environmentPrefix + "HTTP_HOST"
-	environmentHTTPPort              = environmentPrefix + "HTTP_PORT"
-	environmentHTTPReadHeaderTimeout = environmentPrefix + "HTTP_READ_HEADER_TIMEOUT"
-	environmentHTTPReadTimeout       = environmentPrefix + "HTTP_READ_TIMEOUT"
-	environmentHTTPWriteTimeout      = environmentPrefix + "HTTP_WRITE_TIMEOUT"
-	environmentHTTPIdleTimeout       = environmentPrefix + "HTTP_IDLE_TIMEOUT"
-	environmentShutdownTimeout       = environmentPrefix + "SHUTDOWN_TIMEOUT"
-	environmentLogLevel              = environmentPrefix + "LOG_LEVEL"
-	environmentWorkerConcurrency     = environmentPrefix + "WORKER_CONCURRENCY"
-
-	defaultServiceName       = "miletos-go"
-	defaultEnvironment       = "local"
-	defaultHTTPHost          = "0.0.0.0"
-	defaultHTTPPort          = 8081
-	defaultWorkerConcurrency = 2
-)
-
-const (
-	defaultHTTPReadHeaderTimeout = 5 * time.Second
-	defaultHTTPReadTimeout       = 15 * time.Second
-	defaultHTTPWriteTimeout      = 15 * time.Second
-	defaultHTTPIdleTimeout       = 60 * time.Second
-	defaultShutdownTimeout       = 10 * time.Second
-	defaultLogLevel              = slog.LevelInfo
-)
-
-var configEnvironmentNames = []string{
-	environmentServiceName,
-	environmentEnvironment,
-	environmentHTTPHost,
-	environmentHTTPPort,
-	environmentHTTPReadHeaderTimeout,
-	environmentHTTPReadTimeout,
-	environmentHTTPWriteTimeout,
-	environmentHTTPIdleTimeout,
-	environmentShutdownTimeout,
-	environmentLogLevel,
-	environmentWorkerConcurrency,
-	environmentRetryMaxAttempts,
-	environmentRetryInitialBackoff,
-	environmentRetryMaxBackoff,
-	environmentInterruptedAttemptAuditInterval,
-	environmentKafkaEnabled,
-	environmentKafkaBrokers,
-	environmentKafkaEngineClientID,
-	environmentKafkaWorkerClientID,
-	environmentKafkaCommandTopic,
-	environmentKafkaEventTopic,
-	environmentKafkaWorkerGroupID,
-	environmentKafkaEngineGroupID,
-	environmentKafkaMaxMessageBytes,
-	environmentPostgreSQLHost,
-	environmentPostgreSQLPort,
-	environmentPostgreSQLDatabase,
-	environmentPostgreSQLSchema,
-	environmentPostgreSQLUser,
-	environmentPostgreSQLPassword,
-	environmentPostgreSQLSSLMode,
-	environmentPostgreSQLMaxConnections,
-	environmentPostgreSQLMinConnections,
-	environmentPostgreSQLConnectTimeout,
-	environmentPostgreSQLMigrationsPath,
-}
 
 type Config struct {
-	ServiceName           string        `env:"MILETOS_RUNTIME_SERVICE_NAME"`
-	Environment           string        `env:"MILETOS_RUNTIME_ENVIRONMENT"`
-	HTTPHost              string        `env:"MILETOS_RUNTIME_HTTP_HOST"`
-	HTTPPort              int           `env:"MILETOS_RUNTIME_HTTP_PORT"`
-	HTTPReadHeaderTimeout time.Duration `env:"MILETOS_RUNTIME_HTTP_READ_HEADER_TIMEOUT"`
-	HTTPReadTimeout       time.Duration `env:"MILETOS_RUNTIME_HTTP_READ_TIMEOUT"`
-	HTTPWriteTimeout      time.Duration `env:"MILETOS_RUNTIME_HTTP_WRITE_TIMEOUT"`
-	HTTPIdleTimeout       time.Duration `env:"MILETOS_RUNTIME_HTTP_IDLE_TIMEOUT"`
-	ShutdownTimeout       time.Duration `env:"MILETOS_RUNTIME_SHUTDOWN_TIMEOUT"`
-	LogLevel              slog.Level    `env:"MILETOS_RUNTIME_LOG_LEVEL"`
-	PostgreSQL            PostgreSQLConfig
-	Kafka                 KafkaConfig
-	FaultTolerance        FaultToleranceConfig
-	WorkerConcurrency     int `env:"MILETOS_RUNTIME_WORKER_CONCURRENCY"`
+	ServiceName          string
+	Environment          string
+	HTTPHost             string
+	HTTPPort             int
+	LogLevel             slog.Level
+	PostgreSQLURL        string
+	KafkaEnabled         bool
+	KafkaBrokers         []string
+	KafkaClientID        string
+	KafkaCommandTopic    string
+	KafkaConsumerGroup   string
+	InternalServiceToken string
+	RetryMaxAttempts     int
+	RetryDelay           time.Duration
+	NodeConcurrency      int
 }
 
-type environmentLookup func(string) (string, bool)
+func Load() (Config, error) {
+	httpPort, err := integer("MILETOS_RUNTIME_HTTP_PORT", 8081)
+	if err != nil {
+		return Config{}, err
+	}
+	postgresqlURL, err := databaseURL()
+	if err != nil {
+		return Config{}, err
+	}
+	kafkaEnabled, err := boolean("MILETOS_RUNTIME_KAFKA_ENABLED", false)
+	if err != nil {
+		return Config{}, err
+	}
+	retryMaxAttempts, err := integer("MILETOS_RUNTIME_RETRY_MAX_ATTEMPTS", 3)
+	if err != nil {
+		return Config{}, err
+	}
+	retryDelay, err := duration(
+		"MILETOS_RUNTIME_RETRY_DELAY", 250*time.Millisecond,
+	)
+	if err != nil {
+		return Config{}, err
+	}
+	nodeConcurrency, err := integer("MILETOS_RUNTIME_NODE_CONCURRENCY", 2)
+	if err != nil {
+		return Config{}, err
+	}
 
-func Load() (Config, error) { return load(os.LookupEnv) }
+	configuration := Config{
+		ServiceName:   value("MILETOS_RUNTIME_SERVICE_NAME", "miletos-go"),
+		Environment:   value("MILETOS_RUNTIME_ENVIRONMENT", "local"),
+		HTTPHost:      value("MILETOS_RUNTIME_HTTP_HOST", "0.0.0.0"),
+		HTTPPort:      httpPort,
+		PostgreSQLURL: postgresqlURL,
+		KafkaEnabled:  kafkaEnabled,
+		KafkaBrokers:  commaSeparated("MILETOS_RUNTIME_KAFKA_BROKERS", "127.0.0.1:9092"),
+		KafkaClientID: configuredValue(
+			"MILETOS_RUNTIME_KAFKA_CLIENT_ID", "miletos-go-engine-v1",
+		),
+		KafkaCommandTopic: configuredValue(
+			"MILETOS_RUNTIME_KAFKA_COMMAND_TOPIC", "miletos.workflow.node.commands.v1",
+		),
+		KafkaConsumerGroup: configuredValue(
+			"MILETOS_RUNTIME_KAFKA_CONSUMER_GROUP", "miletos-go-engine-v1",
+		),
+		InternalServiceToken: strings.TrimSpace(os.Getenv(
+			"MILETOS_RUNTIME_INTERNAL_SERVICE_TOKEN",
+		)),
+		RetryMaxAttempts: retryMaxAttempts,
+		RetryDelay:       retryDelay,
+		NodeConcurrency:  nodeConcurrency,
+	}
+
+	switch strings.ToLower(configuredValue("MILETOS_RUNTIME_LOG_LEVEL", "info")) {
+	case "debug":
+		configuration.LogLevel = slog.LevelDebug
+	case "info":
+		configuration.LogLevel = slog.LevelInfo
+	case "warn":
+		configuration.LogLevel = slog.LevelWarn
+	case "error":
+		configuration.LogLevel = slog.LevelError
+	default:
+		return Config{}, fmt.Errorf("MILETOS_RUNTIME_LOG_LEVEL must be debug, info, warn, or error")
+	}
+	if configuration.HTTPPort < 1 || configuration.HTTPPort > 65535 {
+		return Config{}, fmt.Errorf("MILETOS_RUNTIME_HTTP_PORT must be between 1 and 65535")
+	}
+	if len(configuration.InternalServiceToken) < 32 {
+		return Config{}, fmt.Errorf("MILETOS_RUNTIME_INTERNAL_SERVICE_TOKEN must contain at least 32 bytes")
+	}
+	if configuration.KafkaEnabled {
+		if len(configuration.KafkaBrokers) == 0 {
+			return Config{}, fmt.Errorf("MILETOS_RUNTIME_KAFKA_BROKERS must not be empty when Kafka is enabled")
+		}
+		if configuration.KafkaClientID == "" {
+			return Config{}, fmt.Errorf("MILETOS_RUNTIME_KAFKA_CLIENT_ID must not be empty when Kafka is enabled")
+		}
+		if configuration.KafkaCommandTopic == "" {
+			return Config{}, fmt.Errorf("MILETOS_RUNTIME_KAFKA_COMMAND_TOPIC must not be empty when Kafka is enabled")
+		}
+		if configuration.KafkaConsumerGroup == "" {
+			return Config{}, fmt.Errorf("MILETOS_RUNTIME_KAFKA_CONSUMER_GROUP must not be empty when Kafka is enabled")
+		}
+	}
+	if configuration.RetryMaxAttempts < 1 {
+		return Config{}, fmt.Errorf("MILETOS_RUNTIME_RETRY_MAX_ATTEMPTS must be positive")
+	}
+	if configuration.RetryDelay <= 0 {
+		return Config{}, fmt.Errorf("MILETOS_RUNTIME_RETRY_DELAY must be positive")
+	}
+	if configuration.RetryMaxAttempts > 32767 {
+		return Config{}, fmt.Errorf("MILETOS_RUNTIME_RETRY_MAX_ATTEMPTS cannot exceed 32767")
+	}
+	if configuration.NodeConcurrency < 2 || configuration.NodeConcurrency > 5 {
+		return Config{}, fmt.Errorf("MILETOS_RUNTIME_NODE_CONCURRENCY must be between 2 and 5")
+	}
+	return configuration, nil
+}
 
 func (configuration Config) HTTPAddress() string {
 	return net.JoinHostPort(configuration.HTTPHost, strconv.Itoa(configuration.HTTPPort))
 }
 
-func load(lookup environmentLookup) (Config, error) {
-	configuration := runtimeConfigDefaults()
-	if err := parseEnvironment(&configuration, lookup, configEnvironmentNames); err != nil {
-		return Config{}, err
+func value(name, fallback string) string {
+	if configured := strings.TrimSpace(os.Getenv(name)); configured != "" {
+		return configured
 	}
-	normalizeConfig(&configuration)
-	if err := validateConfig(configuration); err != nil {
-		return Config{}, err
-	}
-	return configuration, nil
+	return fallback
 }
 
-func runtimeConfigDefaults() Config {
-	return Config{
-		ServiceName:           defaultServiceName,
-		Environment:           defaultEnvironment,
-		HTTPHost:              defaultHTTPHost,
-		HTTPPort:              defaultHTTPPort,
-		HTTPReadHeaderTimeout: defaultHTTPReadHeaderTimeout,
-		HTTPReadTimeout:       defaultHTTPReadTimeout,
-		HTTPWriteTimeout:      defaultHTTPWriteTimeout,
-		HTTPIdleTimeout:       defaultHTTPIdleTimeout,
-		ShutdownTimeout:       defaultShutdownTimeout,
-		LogLevel:              defaultLogLevel,
-		PostgreSQL:            postgreSQLConfigDefaults(),
-		Kafka:                 kafkaConfigDefaults(),
-		FaultTolerance:        faultToleranceConfigDefaults(),
-		WorkerConcurrency:     defaultWorkerConcurrency,
-	}
-}
-
-func parseEnvironment(target any, lookup environmentLookup, names []string) error {
-	if target == nil || lookup == nil {
-		return fmt.Errorf("environment parser dependencies must not be nil")
-	}
-	for _, name := range names {
-		value, exists := lookup(name)
-		if !exists {
-			continue
-		}
-		if name == environmentLogLevel {
-			value = strings.ToLower(strings.TrimSpace(value))
-			switch value {
-			case "debug", "info", "warn", "error":
-			default:
-				return fmt.Errorf(
-					"%s must be one of: debug, info, warn, error",
-					environmentLogLevel,
-				)
-			}
-		}
-		if err := env.ParseWithOptions(target, env.Options{
-			Environment: map[string]string{name: value},
-		}); err != nil {
-			return fmt.Errorf("%s: %w", name, err)
-		}
-	}
-	return nil
-}
-
-func requireEnvironmentSecret(lookup environmentLookup, name string) error {
-	if lookup == nil {
-		return fmt.Errorf("environment lookup must not be nil")
-	}
-	value, exists := lookup(name)
+func configuredValue(name, fallback string) string {
+	configured, exists := os.LookupEnv(name)
 	if !exists {
-		return fmt.Errorf("%s must be set", name)
+		return fallback
 	}
-	if strings.TrimSpace(value) == "" {
-		return fmt.Errorf("%s must not be empty", name)
-	}
-	return nil
+	return strings.TrimSpace(configured)
 }
 
-func normalizeConfig(configuration *Config) {
-	configuration.ServiceName = strings.TrimSpace(configuration.ServiceName)
-	configuration.Environment = strings.TrimSpace(configuration.Environment)
-	configuration.HTTPHost = strings.TrimSpace(configuration.HTTPHost)
-	normalizeKafkaConfig(&configuration.Kafka)
-	normalizePostgreSQLConfig(&configuration.PostgreSQL)
+func integer(name string, fallback int) (int, error) {
+	configured, exists := os.LookupEnv(name)
+	if !exists {
+		return fallback, nil
+	}
+	configured = strings.TrimSpace(configured)
+	parsed, err := strconv.Atoi(configured)
+	if err != nil {
+		return 0, fmt.Errorf("%s must be an integer", name)
+	}
+	return parsed, nil
 }
 
-func validateConfig(configuration Config) error {
-	for name, value := range map[string]string{
-		environmentServiceName: configuration.ServiceName,
-		environmentEnvironment: configuration.Environment,
-		environmentHTTPHost:    configuration.HTTPHost,
-	} {
-		if value == "" {
-			return fmt.Errorf("%s must not be empty", name)
+func boolean(name string, fallback bool) (bool, error) {
+	configured, exists := os.LookupEnv(name)
+	if !exists {
+		return fallback, nil
+	}
+	configured = strings.TrimSpace(configured)
+	parsed, err := strconv.ParseBool(configured)
+	if err != nil {
+		return false, fmt.Errorf("%s must be a boolean", name)
+	}
+	return parsed, nil
+}
+
+func duration(name string, fallback time.Duration) (time.Duration, error) {
+	configured, exists := os.LookupEnv(name)
+	if !exists {
+		return fallback, nil
+	}
+	configured = strings.TrimSpace(configured)
+	parsed, err := time.ParseDuration(configured)
+	if err != nil {
+		return 0, fmt.Errorf("%s must be a duration", name)
+	}
+	return parsed, nil
+}
+
+func commaSeparated(name, fallback string) []string {
+	parts := strings.Split(configuredValue(name, fallback), ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if normalized := strings.TrimSpace(part); normalized != "" {
+			result = append(result, normalized)
 		}
 	}
-	if err := validatePort(environmentHTTPPort, configuration.HTTPPort); err != nil {
-		return err
-	}
-	for name, value := range map[string]time.Duration{
-		environmentHTTPReadHeaderTimeout: configuration.HTTPReadHeaderTimeout,
-		environmentHTTPReadTimeout:       configuration.HTTPReadTimeout,
-		environmentHTTPWriteTimeout:      configuration.HTTPWriteTimeout,
-		environmentHTTPIdleTimeout:       configuration.HTTPIdleTimeout,
-		environmentShutdownTimeout:       configuration.ShutdownTimeout,
-	} {
-		if value <= 0 {
-			return fmt.Errorf("%s must be greater than zero", name)
-		}
-	}
-	switch configuration.LogLevel {
-	case slog.LevelDebug, slog.LevelInfo, slog.LevelWarn, slog.LevelError:
-	default:
-		return fmt.Errorf("%s must be one of: debug, info, warn, error", environmentLogLevel)
-	}
-	if configuration.WorkerConcurrency < 2 || configuration.WorkerConcurrency > 5 {
-		return fmt.Errorf("%s must be between 2 and 5", environmentWorkerConcurrency)
-	}
-	if err := validateFaultToleranceConfig(configuration.FaultTolerance); err != nil {
-		return err
-	}
-	if err := validatePostgreSQLConfig(configuration.PostgreSQL); err != nil {
-		return err
-	}
-	return validateKafkaConfig(configuration.Kafka)
+	return result
 }
 
-func validatePort(name string, value int) error {
-	if value < 1 || value > 65535 {
-		return fmt.Errorf("%s must be between 1 and 65535", name)
+func databaseURL() (string, error) {
+	const urlName = "MILETOS_RUNTIME_POSTGRES_URL"
+	if configured, exists := os.LookupEnv(urlName); exists {
+		configured = strings.TrimSpace(configured)
+		return validateDatabaseURL(configured, urlName)
 	}
-	return nil
+	password := strings.TrimSpace(os.Getenv("MILETOS_RUNTIME_POSTGRES_PASSWORD"))
+	if password == "" {
+		return "", fmt.Errorf(
+			"MILETOS_RUNTIME_POSTGRES_PASSWORD is required when %s is absent",
+			urlName,
+		)
+	}
+	host := value("MILETOS_RUNTIME_POSTGRES_HOST", "127.0.0.1")
+	port := value("MILETOS_RUNTIME_POSTGRES_PORT", "55432")
+	database := value("MILETOS_RUNTIME_POSTGRES_DATABASE", "miletos")
+	user := value("MILETOS_RUNTIME_POSTGRES_USER", "miletos")
+	sslMode := value("MILETOS_RUNTIME_POSTGRES_SSL_MODE", "disable")
+	connection := &url.URL{
+		Scheme: "postgres",
+		User:   url.UserPassword(user, password),
+		Host:   net.JoinHostPort(host, port),
+		Path:   database,
+	}
+	query := connection.Query()
+	query.Set("sslmode", sslMode)
+	connection.RawQuery = query.Encode()
+	return validateDatabaseURL(connection.String(), "PostgreSQL connection configuration")
+}
+
+func validateDatabaseURL(connection, property string) (string, error) {
+	if connection == "" {
+		return "", fmt.Errorf("%s must not be empty", property)
+	}
+	if _, err := pgxpool.ParseConfig(connection); err != nil {
+		return "", fmt.Errorf("%s is invalid", property)
+	}
+	return connection, nil
 }

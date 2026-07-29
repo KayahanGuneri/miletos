@@ -12,20 +12,21 @@ import { type ApiError, toApiError } from "@/shared/api/api-error";
 
 interface UseExecutionsQueryOptions {
   enabled?: boolean;
+  companyId?: number;
 }
 
 const EXECUTION_LIST_POLL_INTERVAL_MS = 5_000;
 
 export function useExecutionsQuery(
   params: ExecutionListParams = {},
-  { enabled = true }: UseExecutionsQueryOptions = {},
+  { enabled = true, companyId }: UseExecutionsQueryOptions = {},
 ) {
   return useQuery<ExecutionPageResponse, ApiError>({
-    queryKey: executionQueryKeys.list(params),
+    queryKey: executionQueryKeys.list(params, companyId),
 
     queryFn: async () => {
       try {
-        return await listExecutions(params);
+        return await listExecutions(params, companyId);
       } catch (error) {
         throw toApiError(error);
       }
