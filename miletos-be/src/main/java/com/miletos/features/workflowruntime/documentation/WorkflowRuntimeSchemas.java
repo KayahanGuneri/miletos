@@ -53,7 +53,8 @@ public final class WorkflowRuntimeSchemas {
             String createdAt,
             String startedAt,
             String finishedAt,
-            Integer scheduledRoots) {
+            Integer scheduledRoots,
+            boolean replayed) {
     }
 
     public record ExecutionPage(
@@ -182,13 +183,12 @@ public final class WorkflowRuntimeSchemas {
             String version,
             String displayName,
             String description,
+            String inputMode,
+            boolean acceptsInitialVariables,
             List<PluginPort> inputPorts,
             List<PluginPort> outputPorts,
             EdgeConstraint inputEdgeConstraint,
-            EdgeConstraint outputEdgeConstraint,
-            Map<String, Object> queuePolicy,
-            Map<String, Object> cachePolicy,
-            String distribution) {
+            EdgeConstraint outputEdgeConstraint) {
     }
 
     public record PluginPage(List<Plugin> items, int count) {
@@ -205,6 +205,39 @@ public final class WorkflowRuntimeSchemas {
             boolean replayed) {
     }
 
+    public record CreateHTTPTriggerRequest(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+                    WorkflowDefinition definition,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+                    String triggerNodeId,
+            @Schema(
+                            requiredMode = Schema.RequiredMode.REQUIRED,
+                            allowableValues = {"GET", "POST", "PUT", "PATCH", "DELETE"})
+                    String method) {
+    }
+
+    public record HTTPTriggerResponse(
+            String triggerId,
+            String workflowId,
+            long workflowRevision,
+            String snapshotId,
+            String triggerNodeId,
+            String httpMethod,
+            String status,
+            String resolvedMode,
+            String createdAt,
+            String updatedAt,
+            String disabledAt) {
+    }
+
+    public record CreateHTTPTriggerResponse(
+            HTTPTriggerResponse trigger,
+            @Schema(
+                    description = "One-time public webhook URL. "
+                            + "It is omitted from Get and Disable responses.")
+                    String publicUrl) {
+    }
+
     public record ApiError(
             String timestamp,
             int status,
@@ -214,6 +247,7 @@ public final class WorkflowRuntimeSchemas {
                             "WORKFLOW_VALIDATION_FAILED",
                             "NOT_FOUND",
                             "IDEMPOTENCY_KEY_REUSED",
+                            "INVALID_EXECUTION_ORIGIN",
                             "RECOVERY_ALREADY_EXISTS",
                             "INTERNAL_SERVER_ERROR"
                     })
@@ -237,6 +271,7 @@ public final class WorkflowRuntimeSchemas {
                             "OUTPUT_EDGE_COUNT_ABOVE_MAXIMUM",
                             "INVALID_PLUGIN_CONFIGURATION",
                             "CYCLE_DETECTED",
+                            "INITIAL_VARIABLES_NOT_ACCEPTED",
                             "INVALID_WORKFLOW_DEFINITION"
                     })
             String code,

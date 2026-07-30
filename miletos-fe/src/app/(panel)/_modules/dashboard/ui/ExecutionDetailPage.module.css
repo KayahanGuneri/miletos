@@ -352,3 +352,19 @@
     text-align: left;
   }
 }
+.executionDetailPage__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.executionDetailPage__runError {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid color-mix(in srgb, #dc2626 35%, transparent);
+  border-radius: 0.75rem;
+  color: #991b1b;
+  background: color-mix(in srgb, #fee2e2 70%, transparent);
+}

@@ -6,14 +6,16 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.MultiValueMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.miletos.features.company.exception.CompanyNotFoundException;
 import com.miletos.features.company.exception.CompanyOperationForbiddenException;
 import com.miletos.features.company.repository.CompanyRepository;
 import com.miletos.features.user.repository.entity.User;
-import com.miletos.features.workflowruntime.client.GoRuntimeClient;
-import com.miletos.features.workflowruntime.client.GoRuntimeResponse;
+import com.miletos.features.workflowruntime.client.WorkflowRuntimeGrpcClient;
+import com.miletos.features.workflowruntime.client.WorkflowRuntimeResponse;
 import com.miletos.features.workflowruntime.exception.CompanyContextRequiredException;
 import com.miletos.security.AuthenticatedActorResolver;
 
@@ -21,139 +23,220 @@ import com.miletos.security.AuthenticatedActorResolver;
 public class WorkflowRuntimeService {
 
         private static final String COMPANY_HEADER = "X-Miletos-Company-ID";
+        private static final Logger LOGGER =
+                        LoggerFactory.getLogger(WorkflowRuntimeService.class);
 
         private final AuthenticatedActorResolver authenticatedActorResolver;
         private final CompanyRepository companyRepository;
-        private final GoRuntimeClient goRuntimeClient;
+        private final WorkflowRuntimeGrpcClient runtimeClient;
+        private final ExecutionPolicyResolver executionPolicyResolver;
 
         @Autowired
         public WorkflowRuntimeService(
                         AuthenticatedActorResolver authenticatedActorResolver,
                         CompanyRepository companyRepository,
-                        GoRuntimeClient goRuntimeClient) {
+                        WorkflowRuntimeGrpcClient runtimeClient,
+                        ExecutionPolicyResolver executionPolicyResolver) {
                 this.authenticatedActorResolver = authenticatedActorResolver;
                 this.companyRepository = companyRepository;
-                this.goRuntimeClient = goRuntimeClient;
+                this.runtimeClient = runtimeClient;
+                this.executionPolicyResolver = executionPolicyResolver;
         }
 
         public WorkflowRuntimeService(
                         AuthenticatedActorResolver authenticatedActorResolver,
-                        GoRuntimeClient goRuntimeClient) {
-                this(authenticatedActorResolver, null, goRuntimeClient);
+                        WorkflowRuntimeGrpcClient runtimeClient) {
+                this(authenticatedActorResolver, null, runtimeClient,
+                                new ExecutionPolicyResolver());
         }
 
-        public GoRuntimeResponse getPlugins(
+        public WorkflowRuntimeResponse getPlugins(
                         String actorEmail,
                         HttpHeaders browserHeaders) {
-                return goRuntimeClient.getPlugins(
+                return runtimeClient.getPlugins(
                                 resolveCompanyId(actorEmail, browserHeaders),
                                 browserHeaders);
         }
 
-        public GoRuntimeResponse executeSync(
+        public WorkflowRuntimeResponse executeSync(
                         String actorEmail,
                         JsonNode body,
                         HttpHeaders browserHeaders) {
-                return goRuntimeClient.executeSync(
+                return execute(
+                                actorEmail,
                                 body,
-                                resolveCompanyId(actorEmail, browserHeaders),
-                                browserHeaders);
+                                browserHeaders,
+                                ExecutionModePolicy.SYNC,
+                                TrustedTriggerType.MANUAL_DIRECT);
         }
 
-        public GoRuntimeResponse executeAsync(
+        public WorkflowRuntimeResponse executeAsync(
                         String actorEmail,
                         JsonNode body,
                         HttpHeaders browserHeaders) {
-                return goRuntimeClient.executeAsync(
+                return execute(
+                                actorEmail,
                                 body,
-                                resolveCompanyId(actorEmail, browserHeaders),
-                                browserHeaders);
+                                browserHeaders,
+                                ExecutionModePolicy.ASYNC,
+                                TrustedTriggerType.MANUAL_DIRECT);
         }
 
-        public GoRuntimeResponse recoverExecution(
+        public WorkflowRuntimeResponse execute(
+                        String actorEmail,
+                        JsonNode body,
+                        HttpHeaders browserHeaders) {
+                return execute(
+                                actorEmail,
+                                body,
+                                browserHeaders,
+                                ExecutionModePolicy.AUTO,
+                                TrustedTriggerType.MANUAL_DIRECT);
+        }
+
+        WorkflowRuntimeResponse execute(
+                        String actorEmail,
+                        JsonNode body,
+                        HttpHeaders browserHeaders,
+                        ExecutionModePolicy policy,
+                        TrustedTriggerType triggerType) {
+                String companyId = resolveCompanyId(actorEmail, browserHeaders);
+                ResolvedExecutionMode mode =
+                                executionPolicyResolver.resolve(policy, triggerType);
+                LOGGER.info(
+                                "Workflow execution mode resolved: companyId={}, triggerType={}, mode={}",
+                                companyId,
+                                triggerType,
+                                mode);
+                return mode == ResolvedExecutionMode.SYNC
+                                ? runtimeClient.executeSync(body, companyId, browserHeaders)
+                                : runtimeClient.executeAsync(body, companyId, browserHeaders);
+        }
+
+        public WorkflowRuntimeResponse recoverExecution(
                         String actorEmail,
                         String executionId,
                         HttpHeaders browserHeaders) {
-                return goRuntimeClient.recoverExecution(
+                return runtimeClient.recoverExecution(
                                 executionId,
                                 resolveCompanyId(actorEmail, browserHeaders),
                                 browserHeaders);
         }
 
-        public GoRuntimeResponse listExecutions(
+        public WorkflowRuntimeResponse listExecutions(
                         String actorEmail,
                         MultiValueMap<String, String> query,
                         HttpHeaders browserHeaders) {
-                return goRuntimeClient.listExecutions(
+                return runtimeClient.listExecutions(
                                 query,
                                 resolveCompanyId(actorEmail, browserHeaders),
                                 browserHeaders);
         }
 
-        public GoRuntimeResponse getExecution(
+        public WorkflowRuntimeResponse getExecution(
                         String actorEmail,
                         String executionId,
                         HttpHeaders browserHeaders) {
-                return goRuntimeClient.getExecution(
+                return runtimeClient.getExecution(
                                 executionId,
                                 resolveCompanyId(actorEmail, browserHeaders),
                                 browserHeaders);
         }
 
-        public GoRuntimeResponse getExecutionDefinition(
+        public WorkflowRuntimeResponse getExecutionDefinition(
                         String actorEmail,
                         String executionId,
                         HttpHeaders browserHeaders) {
-                return goRuntimeClient.getExecutionDefinition(
+                return runtimeClient.getExecutionDefinition(
                                 executionId,
                                 resolveCompanyId(actorEmail, browserHeaders),
                                 browserHeaders);
         }
 
-        public GoRuntimeResponse getExecutionNodes(
+        public WorkflowRuntimeResponse getExecutionNodes(
                         String actorEmail,
                         String executionId,
                         MultiValueMap<String, String> query,
                         HttpHeaders browserHeaders) {
-                return goRuntimeClient.getExecutionNodes(
+                return runtimeClient.getExecutionNodes(
                                 executionId,
                                 query,
                                 resolveCompanyId(actorEmail, browserHeaders),
                                 browserHeaders);
         }
 
-        public GoRuntimeResponse getExecutionEvents(
+        public WorkflowRuntimeResponse getExecutionEvents(
                         String actorEmail,
                         String executionId,
                         MultiValueMap<String, String> query,
                         HttpHeaders browserHeaders) {
-                return goRuntimeClient.getExecutionEvents(
+                return runtimeClient.getExecutionEvents(
                                 executionId,
                                 query,
                                 resolveCompanyId(actorEmail, browserHeaders),
                                 browserHeaders);
         }
 
-        public GoRuntimeResponse getExecutionLogs(
+        public WorkflowRuntimeResponse getExecutionLogs(
                         String actorEmail,
                         String executionId,
                         MultiValueMap<String, String> query,
                         HttpHeaders browserHeaders) {
-                return goRuntimeClient.getExecutionLogs(
+                return runtimeClient.getExecutionLogs(
                                 executionId,
                                 query,
                                 resolveCompanyId(actorEmail, browserHeaders),
                                 browserHeaders);
         }
 
-        public GoRuntimeResponse getExecutionErrors(
+        public WorkflowRuntimeResponse getExecutionErrors(
                         String actorEmail,
                         String executionId,
                         MultiValueMap<String, String> query,
                         HttpHeaders browserHeaders) {
-                return goRuntimeClient.getExecutionErrors(
+                return runtimeClient.getExecutionErrors(
                                 executionId,
                                 query,
+                                resolveCompanyId(actorEmail, browserHeaders),
+                                browserHeaders);
+        }
+
+        public WorkflowRuntimeResponse createHTTPTrigger(
+                        String actorEmail,
+                        JsonNode body,
+                        HttpHeaders browserHeaders) {
+                String companyId = resolveCompanyId(actorEmail, browserHeaders);
+                ResolvedExecutionMode resolvedMode = executionPolicyResolver.resolve(
+                                ExecutionModePolicy.AUTO,
+                                TrustedTriggerType.HTTP_WEBHOOK);
+                if (resolvedMode != ResolvedExecutionMode.ASYNC) {
+                        throw new IllegalStateException(
+                                        "HTTP webhook execution policy must resolve to ASYNC");
+                }
+                LOGGER.info(
+                                "HTTP trigger execution mode resolved: companyId={}, triggerType={}, mode={}",
+                                companyId,
+                                TrustedTriggerType.HTTP_WEBHOOK,
+                                resolvedMode);
+                return runtimeClient.createHTTPTrigger(body, companyId, browserHeaders);
+        }
+
+        public WorkflowRuntimeResponse getHTTPTrigger(
+                        String actorEmail,
+                        String triggerId,
+                        HttpHeaders browserHeaders) {
+                return runtimeClient.getHTTPTrigger(
+                                triggerId,
+                                resolveCompanyId(actorEmail, browserHeaders),
+                                browserHeaders);
+        }
+
+        public WorkflowRuntimeResponse disableHTTPTrigger(
+                        String actorEmail,
+                        String triggerId,
+                        HttpHeaders browserHeaders) {
+                return runtimeClient.disableHTTPTrigger(
+                                triggerId,
                                 resolveCompanyId(actorEmail, browserHeaders),
                                 browserHeaders);
         }

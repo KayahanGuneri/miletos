@@ -2,23 +2,23 @@ package com.miletos.features.workflowruntime.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
-import org.springframework.web.client.RestClient;
+
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
 
 @Configuration
 public class WorkflowRuntimeClientConfig {
 
-        @Bean
-        RestClient workflowRuntimeRestClient(
-                        RestClient.Builder builder,
-                        WorkflowRuntimeProperties properties) {
-                SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-                requestFactory.setConnectTimeout(properties.connectTimeout());
-                requestFactory.setReadTimeout(properties.readTimeout());
+    @Bean(destroyMethod = "shutdown")
+    ManagedChannel workflowRuntimeChannel(WorkflowRuntimeProperties properties) {
+        return buildChannel(ManagedChannelBuilder.forAddress(
+                properties.grpcHost(), properties.grpcPort()));
+    }
 
-                return builder
-                                .baseUrl(properties.normalizedBaseUrl())
-                                .requestFactory(requestFactory)
-                                .build();
-        }
+    static ManagedChannel buildChannel(ManagedChannelBuilder<?> builder) {
+        return builder
+                .usePlaintext()
+                .disableRetry()
+                .build();
+    }
 }

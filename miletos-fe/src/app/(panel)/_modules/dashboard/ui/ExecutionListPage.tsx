@@ -3,17 +3,26 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { Box } from "@/components/lib/box/Box";
+import Button from "@/components/lib/button/Button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/lib/table/Table";
+import { Typography } from "@/components/lib/typography/Typography";
 import { PageShell } from "@/components/layout/page-shell/PageShell";
 import {
-  formatExecutionDateTime,
-  shortenExecutionId,
-} from "@/app/(panel)/_modules/dashboard/model/execution-formatters";
-import {
   EXECUTION_STATUSES,
+  formatExecutionDateTime,
   formatExecutionStatus,
-} from "@/app/(panel)/_modules/dashboard/model/execution-status";
-import { type ExecutionStatus } from "@/app/(panel)/_modules/dashboard/model/execution-types";
-import { useExecutionsQuery } from "@/app/(panel)/_modules/dashboard/model/useExecutionsQuery";
+  shortenExecutionId,
+} from "@/app/(panel)/_modules/dashboard/utils/execution-formatters";
+import { type ExecutionStatus } from "@/app/(panel)/_modules/dashboard/types/execution-types";
+import { useExecutionsQuery } from "@/app/(panel)/_modules/dashboard/query/useExecutionsQuery";
 import { useAllCompaniesQuery } from "@/app/(panel)/_modules/companies/query/useAllCompaniesQuery";
 import { useCurrentUserQuery } from "@/shared/session/hooks/useCurrentUserQuery";
 import styles from "./ExecutionListPage.module.css";
@@ -108,7 +117,7 @@ export function ExecutionListPage() {
       title="Workflow executions"
       description="Inspect runtime executions, follow their current status and open historical execution details."
       actions={
-        <button
+        <Button
           className={styles.executionListPage__refreshButton}
           type="button"
           disabled={!hasValidTenant || executionsQuery.isFetching}
@@ -119,25 +128,29 @@ export function ExecutionListPage() {
           }}
         >
           {executionsQuery.isFetching ? "Refreshing…" : "Refresh"}
-        </button>
+        </Button>
       }
     >
       <section className={styles.executionListPage__panel} aria-busy={executionsQuery.isFetching}>
         <header className={styles.executionListPage__toolbar}>
-          <div>
-            <p className={styles.executionListPage__eyebrow}>Runtime activity</p>
+          <Box>
+            <Typography as="p" className={styles.executionListPage__eyebrow}>
+              Runtime activity
+            </Typography>
 
-            <h2 className={styles.executionListPage__title}>Execution history</h2>
+            <Typography as="h2" className={styles.executionListPage__title}>
+              Execution history
+            </Typography>
 
-            <p className={styles.executionListPage__description}>
+            <Typography as="p" className={styles.executionListPage__description}>
               Current execution state comes from the runtime execution read model.
-            </p>
-          </div>
+            </Typography>
+          </Box>
 
-          <div className={styles.executionListPage__filters}>
+          <Box className={styles.executionListPage__filters}>
             {isSuperAdmin ? (
               <label className={styles.executionListPage__filter}>
-                <span>Company</span>
+                <Typography as="span">Company</Typography>
 
                 <select
                   value={selectedCompanyId ?? ""}
@@ -156,7 +169,7 @@ export function ExecutionListPage() {
             ) : null}
 
             <label className={styles.executionListPage__filter}>
-              <span>Status</span>
+              <Typography as="span">Status</Typography>
 
               <select
                 value={statusFilter}
@@ -173,113 +186,121 @@ export function ExecutionListPage() {
                 ))}
               </select>
             </label>
-          </div>
+          </Box>
         </header>
 
         {isSuperAdmin && companiesQuery.isError ? (
-          <div
+          <Box
             className={[styles.executionListPage__state, styles.executionListPage__stateError].join(
               " ",
             )}
             role="alert"
           >
-            <strong>Companies could not be loaded.</strong>
+            <Typography as="strong">Companies could not be loaded.</Typography>
 
-            <span>{companiesQuery.error.message}</span>
-          </div>
+            <Typography as="span">{companiesQuery.error.message}</Typography>
+          </Box>
         ) : null}
 
         {isSuperAdmin && companiesQuery.isPending ? (
-          <div className={styles.executionListPage__state}>
-            <strong>Loading companiesâ€¦</strong>
+          <Box className={styles.executionListPage__state}>
+            <Typography as="strong">Loading companies…</Typography>
 
-            <span>Preparing the tenant selector for workflow execution history.</span>
-          </div>
+            <Typography as="span">
+              Preparing the tenant selector for workflow execution history.
+            </Typography>
+          </Box>
         ) : null}
 
         {isSuperAdmin && companiesQuery.isSuccess && selectedCompanyId === null ? (
-          <div className={styles.executionListPage__state}>
-            <strong>Select a company.</strong>
+          <Box className={styles.executionListPage__state}>
+            <Typography as="strong">Select a company.</Typography>
 
-            <span>Workflow executions are tenant scoped. Choose a company to continue.</span>
-          </div>
+            <Typography as="span">
+              Workflow executions are tenant scoped. Choose a company to continue.
+            </Typography>
+          </Box>
         ) : null}
 
         {isSuperAdmin &&
         companiesQuery.isSuccess &&
         selectedCompanyId !== null &&
         !selectedCompany ? (
-          <div
+          <Box
             className={[styles.executionListPage__state, styles.executionListPage__stateError].join(
               " ",
             )}
             role="alert"
           >
-            <strong>Selected company is unavailable.</strong>
+            <Typography as="strong">Selected company is unavailable.</Typography>
 
-            <span>Choose another company before loading workflow executions.</span>
-          </div>
+            <Typography as="span">
+              Choose another company before loading workflow executions.
+            </Typography>
+          </Box>
         ) : null}
 
         {hasValidTenant && executionsQuery.isPending ? (
-          <div className={styles.executionListPage__state}>
-            <strong>Loading executions…</strong>
+          <Box className={styles.executionListPage__state}>
+            <Typography as="strong">Loading executions…</Typography>
 
-            <span>Reading the current workflow execution page.</span>
-          </div>
+            <Typography as="span">Reading the current workflow execution page.</Typography>
+          </Box>
         ) : null}
 
         {executionsQuery.isError ? (
-          <div
+          <Box
             className={[styles.executionListPage__state, styles.executionListPage__stateError].join(
               " ",
             )}
             role="alert"
           >
-            <strong>Executions could not be loaded.</strong>
+            <Typography as="strong">Executions could not be loaded.</Typography>
 
-            <span>{executionsQuery.error.message}</span>
+            <Typography as="span">{executionsQuery.error.message}</Typography>
 
-            <button
+            <Button
               type="button"
               onClick={() => {
                 void executionsQuery.refetch();
               }}
             >
               Try again
-            </button>
-          </div>
+            </Button>
+          </Box>
         ) : null}
 
         {executionsQuery.isSuccess && executions.length === 0 ? (
-          <div className={styles.executionListPage__state}>
-            <strong>No executions found.</strong>
+          <Box className={styles.executionListPage__state}>
+            <Typography as="strong">No executions found.</Typography>
 
-            <span>No workflow executions match the selected status on this page.</span>
-          </div>
+            <Typography as="span">
+              No workflow executions match the selected status on this page.
+            </Typography>
+          </Box>
         ) : null}
 
         {executionsQuery.isSuccess && executions.length > 0 ? (
           <>
-            <div className={styles.executionListPage__tableViewport}>
-              <table className={styles.executionListPage__table}>
-                <thead>
-                  <tr>
-                    <th>Execution</th>
-                    <th>Workflow</th>
-                    <th>Revision</th>
-                    <th>Mode</th>
-                    <th>Status</th>
-                    <th>Created</th>
-                    <th>Updated</th>
-                    <th>Runtime</th>
-                  </tr>
-                </thead>
+            <Box className={styles.executionListPage__tableViewport}>
+              <Table className={styles.executionListPage__table}>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Execution</TableHead>
+                    <TableHead>Workflow</TableHead>
+                    <TableHead>Revision</TableHead>
+                    <TableHead>Mode</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead>Updated</TableHead>
+                    <TableHead>Runtime</TableHead>
+                  </TableRow>
+                </TableHeader>
 
-                <tbody>
+                <TableBody>
                   {executions.map((execution) => (
-                    <tr key={execution.executionId}>
-                      <td>
+                    <TableRow key={execution.executionId}>
+                      <TableCell>
                         <Link
                           className={styles.executionListPage__executionLink}
                           href={
@@ -292,77 +313,86 @@ export function ExecutionListPage() {
                           {shortenExecutionId(execution.executionId)}
                         </Link>
 
-                        <span
+                        <Typography
+                          as="span"
                           className={styles.executionListPage__correlation}
                           title={execution.correlationId}
                         >
                           Corr. {shortenExecutionId(execution.correlationId)}
-                        </span>
-                      </td>
+                        </Typography>
+                      </TableCell>
 
-                      <td>
-                        <span
+                      <TableCell>
+                        <Typography
+                          as="span"
                           className={styles.executionListPage__workflow}
                           title={execution.workflowId}
                         >
                           {shortenExecutionId(execution.workflowId)}
-                        </span>
-                      </td>
+                        </Typography>
+                      </TableCell>
 
-                      <td>
-                        <span>#{execution.workflowRevision}</span>
-                      </td>
+                      <TableCell>
+                        <Typography as="span">#{execution.workflowRevision}</Typography>
+                      </TableCell>
 
-                      <td>
-                        <span className={styles.executionListPage__mode}>{execution.mode}</span>
-                      </td>
+                      <TableCell>
+                        <Typography as="span" className={styles.executionListPage__mode}>
+                          {execution.mode}
+                        </Typography>
+                      </TableCell>
 
-                      <td>
-                        <span
+                      <TableCell>
+                        <Typography
+                          as="span"
                           className={styles.executionListPage__status}
                           data-status={execution.status}
                         >
                           {formatExecutionStatus(execution.status)}
-                        </span>
-                      </td>
+                        </Typography>
+                      </TableCell>
 
-                      <td>{formatExecutionDateTime(execution.createdAt)}</td>
+                      <TableCell>{formatExecutionDateTime(execution.createdAt)}</TableCell>
 
-                      <td>{formatExecutionDateTime(execution.updatedAt)}</td>
+                      <TableCell>{formatExecutionDateTime(execution.updatedAt)}</TableCell>
 
-                      <td>
+                      <TableCell>
                         {execution.isStalled ? (
-                          <span className={styles.executionListPage__stalled}>Stalled</span>
+                          <Typography as="span" className={styles.executionListPage__stalled}>
+                            Stalled
+                          </Typography>
                         ) : (
-                          <span className={styles.executionListPage__healthy}>Normal</span>
+                          <Typography as="span" className={styles.executionListPage__healthy}>
+                            Normal
+                          </Typography>
                         )}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </TableBody>
+              </Table>
+            </Box>
 
             <footer className={styles.executionListPage__pagination}>
-              <span>Page {cursorHistory.length}</span>
+              <Typography as="span">Page {cursorHistory.length}</Typography>
 
-              <div>
-                <button
+              <Box>
+                <Button
                   type="button"
                   disabled={!canGoPrevious || executionsQuery.isFetching}
                   onClick={handlePreviousPage}
                 >
                   Previous
-                </button>
+                </Button>
 
-                <button
+                <Button
                   type="button"
                   disabled={!canGoNext || executionsQuery.isFetching}
                   onClick={handleNextPage}
                 >
                   Next
-                </button>
-              </div>
+                </Button>
+              </Box>
             </footer>
           </>
         ) : null}

@@ -1,0 +1,19 @@
+#!/usr/bin/env sh
+set -eu
+
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+
+(
+  cd "$ROOT/miletos-be/miletos-go"
+  go fmt ./...
+)
+
+(
+  cd "$ROOT/miletos-be"
+  mvn -DskipTests -Dmaven.test.skip=true spotless:apply
+)
+
+(
+  cd "$ROOT/miletos-fe"
+  npm run format
+)

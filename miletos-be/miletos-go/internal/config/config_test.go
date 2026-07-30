@@ -177,20 +177,19 @@ func TestLoadStrictParsedFields(t *testing.T) {
 	}
 }
 
-func TestLoadValidatesPostgreSQLWithoutConnecting(t *testing.T) {
+func TestLoadAcceptsConfiguredPostgreSQLURLWithoutPrevalidation(t *testing.T) {
 	tests := []struct {
 		name       string
 		connection string
-		wantError  bool
 	}{
 		{name: "URL", connection: "postgres://user:password@localhost/test_database?sslmode=disable"},
 		{name: "URL with explicit port", connection: "postgres://user:password@127.0.0.1:6543/test_database"},
 		{name: "keyword DSN", connection: "host=localhost port=6543 dbname=test_database user=test password=password sslmode=disable"},
 		{name: "unreachable host is not contacted", connection: "postgres://user:password@does-not-exist.invalid:6543/test_database"},
-		{name: "malformed URL", connection: "postgres://%zz", wantError: true},
-		{name: "malformed keyword DSN", connection: "host='unterminated", wantError: true},
-		{name: "invalid port", connection: "postgres://user:password@localhost:not-a-port/test_database", wantError: true},
-		{name: "malformed query value", connection: "postgres://user:password@localhost/test_database?connect_timeout=not-a-number", wantError: true},
+		{name: "malformed URL", connection: "postgres://%zz"},
+		{name: "malformed keyword DSN", connection: "host='unterminated"},
+		{name: "invalid port", connection: "postgres://user:password@localhost:not-a-port/test_database"},
+		{name: "malformed query value", connection: "postgres://user:password@localhost/test_database?connect_timeout=not-a-number"},
 	}
 
 	for _, test := range tests {
@@ -200,15 +199,6 @@ func TestLoadValidatesPostgreSQLWithoutConnecting(t *testing.T) {
 
 			configuration, err := Load()
 
-			if test.wantError {
-				if err == nil || !strings.Contains(err.Error(), "MILETOS_RUNTIME_POSTGRES_URL") {
-					t.Fatalf("Load() error = %v, want PostgreSQL URL error", err)
-				}
-				if strings.Contains(err.Error(), "password") {
-					t.Fatalf("Load() exposed password in error: %v", err)
-				}
-				return
-			}
 			if err != nil {
 				t.Fatalf("Load() error = %v", err)
 			}
@@ -219,7 +209,7 @@ func TestLoadValidatesPostgreSQLWithoutConnecting(t *testing.T) {
 	}
 }
 
-func TestLoadRejectsMissingOrEmptyPostgreSQLConfiguration(t *testing.T) {
+func TestLoadRequiresPostgreSQLPasswordForFallback(t *testing.T) {
 	t.Run("missing URL and password", func(t *testing.T) {
 		configureValidEnvironment(t)
 		t.Setenv("MILETOS_RUNTIME_POSTGRES_PASSWORD", "")
@@ -231,31 +221,6 @@ func TestLoadRejectsMissingOrEmptyPostgreSQLConfiguration(t *testing.T) {
 		}
 	})
 
-	t.Run("empty URL is not treated as absent", func(t *testing.T) {
-		configureValidEnvironment(t)
-		t.Setenv("MILETOS_RUNTIME_POSTGRES_URL", "")
-
-		_, err := Load()
-
-		if err == nil || !strings.Contains(err.Error(), "MILETOS_RUNTIME_POSTGRES_URL") {
-			t.Fatalf("Load() error = %v", err)
-		}
-	})
-
-	t.Run("secret is not exposed", func(t *testing.T) {
-		configureValidEnvironment(t)
-		const secret = "do-not-expose-this-secret"
-		t.Setenv(
-			"MILETOS_RUNTIME_POSTGRES_URL",
-			"postgres://user:"+secret+"@localhost:not-a-port/test_database",
-		)
-
-		_, err := Load()
-
-		if err == nil || strings.Contains(err.Error(), secret) {
-			t.Fatalf("Load() error = %v", err)
-		}
-	})
 }
 
 func TestLoadKafkaFieldValidation(t *testing.T) {

@@ -1,0 +1,317 @@
+syntax = "proto3";
+
+package miletos.runtime.v1;
+
+option java_multiple_files = true;
+option java_package = "com.miletos.features.workflowruntime.grpc.generated";
+option java_outer_classname = "WorkflowRuntimeProto";
+option go_package = "miletos-go/internal/shared/grpc/generated/runtimev1;runtimev1";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+service PluginService {
+  rpc ListPlugins(google.protobuf.Empty) returns (ListPluginsResponse);
+}
+
+service ExecutionService {
+  rpc ExecuteSync(ExecuteRequest) returns (ExecutionResponse);
+  rpc ExecuteAsync(ExecuteRequest) returns (ExecutionResponse);
+  rpc ListExecutions(ListExecutionsRequest) returns (ExecutionPage);
+  rpc GetExecution(GetExecutionRequest) returns (ExecutionSummary);
+  rpc GetExecutionDefinition(GetExecutionRequest) returns (ExecutionDefinition);
+  rpc ListExecutionNodes(ListExecutionResourceRequest) returns (NodeExecutionPage);
+  rpc ListExecutionEvents(ListExecutionResourceRequest) returns (ExecutionEventPage);
+  rpc ListExecutionLogs(ListExecutionResourceRequest) returns (ExecutionLogPage);
+  rpc ListExecutionErrors(ListExecutionResourceRequest) returns (ExecutionErrorPage);
+  rpc RecoverExecution(RecoverExecutionRequest) returns (RecoveryResponse);
+}
+
+service HTTPTriggerService {
+  rpc CreateHTTPTrigger(CreateHTTPTriggerRequest) returns (CreateHTTPTriggerResponse);
+  rpc GetHTTPTrigger(GetHTTPTriggerRequest) returns (HTTPTriggerResponse);
+  rpc DisableHTTPTrigger(DisableHTTPTriggerRequest) returns (HTTPTriggerResponse);
+}
+
+message ValidationIssue {
+  string code = 1;
+  string field = 2;
+  string reason = 3;
+  string node_id = 4;
+  string edge_id = 5;
+  string plugin_type = 6;
+  string plugin_version = 7;
+  string expected = 8;
+  string actual = 9;
+  repeated string cycle_path = 10;
+}
+
+message Port {
+  string name = 1;
+  string display_name = 2;
+  string description = 3;
+}
+
+message EdgeConstraint {
+  uint32 minimum = 1;
+  optional uint32 maximum = 2;
+  bool unlimited = 3;
+}
+
+message Plugin {
+  string type = 1;
+  string version = 2;
+  string display_name = 3;
+  string description = 4;
+  string input_mode = 5;
+  bool accepts_initial_variables = 6;
+  repeated Port input_ports = 7;
+  repeated Port output_ports = 8;
+  EdgeConstraint input_edge_constraint = 9;
+  EdgeConstraint output_edge_constraint = 10;
+}
+
+message ListPluginsResponse {
+  repeated Plugin items = 1;
+  uint32 count = 2;
+}
+
+message NodePosition {
+  double x = 1;
+  double y = 2;
+}
+
+message WorkflowNode {
+  string node_id = 1;
+  string plugin_type = 2;
+  string plugin_version = 3;
+  google.protobuf.Struct configuration = 4;
+  optional NodePosition position = 5;
+}
+
+message WorkflowEdge {
+  string edge_id = 1;
+  string source_node_id = 2;
+  string source_output_port = 3;
+  string target_node_id = 4;
+  string target_input_port = 5;
+}
+
+message WorkflowDefinition {
+  string workflow_id = 1;
+  string name = 2;
+  uint64 workflow_revision = 3;
+  repeated WorkflowNode nodes = 4;
+  repeated WorkflowEdge edges = 5;
+  google.protobuf.Struct metadata = 6;
+}
+
+message ExecuteRequest {
+  WorkflowDefinition definition = 1;
+  google.protobuf.Struct initial_variables = 2;
+}
+
+message ExecutionResponse {
+  string execution_id = 1;
+  string workflow_id = 2;
+  uint64 workflow_revision = 3;
+  string snapshot_id = 4;
+  string mode = 5;
+  string status = 6;
+  string execution_origin = 7;
+  string correlation_id = 8;
+  string request_id = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp started_at = 11;
+  google.protobuf.Timestamp finished_at = 12;
+  uint32 scheduled_roots = 13;
+  bool replayed = 14;
+  google.protobuf.Struct terminal_outputs = 15;
+  google.protobuf.Struct failure_summary = 16;
+}
+
+message ListExecutionsRequest {
+  string workflow_id = 1;
+  string status = 2;
+  string cursor = 3;
+  uint32 limit = 4;
+}
+
+message GetExecutionRequest {
+  string execution_id = 1;
+}
+
+message ListExecutionResourceRequest {
+  string execution_id = 1;
+  string cursor = 2;
+  uint32 limit = 3;
+}
+
+message ExecutionSummary {
+  string execution_id = 1;
+  string workflow_id = 2;
+  uint64 workflow_revision = 3;
+  string snapshot_id = 4;
+  string mode = 5;
+  string status = 6;
+  string execution_origin = 7;
+  string correlation_id = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp validating_at = 10;
+  google.protobuf.Timestamp queued_at = 11;
+  google.protobuf.Timestamp started_at = 12;
+  google.protobuf.Timestamp finished_at = 13;
+  google.protobuf.Timestamp updated_at = 14;
+  google.protobuf.Struct terminal_outputs = 15;
+  google.protobuf.Struct failure_summary = 16;
+  bool is_stalled = 17;
+}
+
+message ExecutionPage {
+  repeated ExecutionSummary items = 1;
+  string cursor = 2;
+  bool has_next = 3;
+}
+
+message ExecutionDefinition {
+  string execution_id = 1;
+  string snapshot_id = 2;
+  string workflow_id = 3;
+  uint64 workflow_revision = 4;
+  string workflow_name = 5;
+  WorkflowDefinition definition = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+message NodeExecution {
+  string node_execution_id = 1;
+  string execution_id = 2;
+  string node_id = 3;
+  string plugin_type = 4;
+  string plugin_version = 5;
+  string status = 6;
+  uint32 attempt = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp ready_at = 9;
+  google.protobuf.Timestamp queued_at = 10;
+  google.protobuf.Timestamp started_at = 11;
+  google.protobuf.Timestamp finished_at = 12;
+  google.protobuf.Timestamp next_attempt_at = 13;
+  google.protobuf.Timestamp updated_at = 14;
+  google.protobuf.Struct input_summary = 15;
+  google.protobuf.Struct output_summary = 16;
+  google.protobuf.Struct failure_summary = 17;
+}
+
+message NodeExecutionPage {
+  repeated NodeExecution items = 1;
+  string cursor = 2;
+  bool has_next = 3;
+}
+
+message ExecutionEvent {
+  string event_id = 1;
+  string execution_id = 2;
+  string node_execution_id = 3;
+  int64 sequence_number = 4;
+  string type = 5;
+  string previous_status = 6;
+  string new_status = 7;
+  string correlation_id = 8;
+  string causation_id = 9;
+  string safe_message = 10;
+  google.protobuf.Struct metadata = 11;
+  google.protobuf.Timestamp created_at = 12;
+}
+
+message ExecutionEventPage {
+  repeated ExecutionEvent items = 1;
+  string cursor = 2;
+  bool has_next = 3;
+}
+
+message ExecutionLog {
+  string log_id = 1;
+  string execution_id = 2;
+  string node_execution_id = 3;
+  int64 sequence_number = 4;
+  string level = 5;
+  string message = 6;
+  google.protobuf.Struct metadata = 7;
+  google.protobuf.Timestamp created_at = 8;
+}
+
+message ExecutionLogPage {
+  repeated ExecutionLog items = 1;
+  string cursor = 2;
+  bool has_next = 3;
+}
+
+message ExecutionError {
+  string error_id = 1;
+  string execution_id = 2;
+  string node_execution_id = 3;
+  string related_event_id = 4;
+  string category = 5;
+  string code = 6;
+  string safe_message = 7;
+  bool retryable = 8;
+  google.protobuf.Struct details = 9;
+  google.protobuf.Timestamp created_at = 10;
+}
+
+message ExecutionErrorPage {
+  repeated ExecutionError items = 1;
+  string cursor = 2;
+  bool has_next = 3;
+}
+
+message RecoverExecutionRequest {
+  string execution_id = 1;
+}
+
+message RecoveryResponse {
+  string source_execution_id = 1;
+  string recovery_execution_id = 2;
+  string status = 3;
+  uint32 preserved_node_count = 4;
+  uint32 scheduled_node_count = 5;
+  uint32 reset_node_count = 6;
+  google.protobuf.Timestamp created_at = 7;
+  bool replayed = 8;
+}
+
+message CreateHTTPTriggerRequest {
+  WorkflowDefinition definition = 1;
+  string trigger_node_id = 2;
+  string http_method = 3;
+  string resolved_mode = 4;
+}
+
+message GetHTTPTriggerRequest {
+  string trigger_id = 1;
+}
+
+message DisableHTTPTriggerRequest {
+  string trigger_id = 1;
+}
+
+message HTTPTriggerResponse {
+  string trigger_id = 1;
+  string workflow_id = 2;
+  uint64 workflow_revision = 3;
+  string snapshot_id = 4;
+  string trigger_node_id = 5;
+  string http_method = 6;
+  string status = 7;
+  string resolved_mode = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+  google.protobuf.Timestamp disabled_at = 11;
+}
+
+message CreateHTTPTriggerResponse {
+  HTTPTriggerResponse trigger = 1;
+  string public_url = 2;
+}

@@ -1,21 +1,25 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Box } from "@/components/lib/box/Box";
+import Button from "@/components/lib/button/Button";
+import { Typography } from "@/components/lib/typography/Typography";
 import { PageShell } from "@/components/layout/page-shell/PageShell";
 import {
   formatExecutionDateTime,
   formatExecutionDuration,
-} from "@/app/(panel)/_modules/dashboard/model/execution-formatters";
-import {
   formatExecutionStatus,
   isTerminalExecutionStatus,
-} from "@/app/(panel)/_modules/dashboard/model/execution-status";
-import { useExecutionDefinitionQuery } from "@/app/(panel)/_modules/dashboard/model/useExecutionDefinitionQuery";
-import { useExecutionDetailQuery } from "@/app/(panel)/_modules/dashboard/model/useExecutionDetailQuery";
+} from "@/app/(panel)/_modules/dashboard/utils/execution-formatters";
+import { useExecutionDefinitionQuery } from "@/app/(panel)/_modules/dashboard/query/useExecutionDefinitionQuery";
+import { useExecutionDetailQuery } from "@/app/(panel)/_modules/dashboard/query/useExecutionDetailQuery";
+import { useRunWorkflowMutation } from "@/app/(panel)/_modules/dashboard/query/useRunWorkflowMutation";
+import { mapDefinitionToRunWorkflowRequest } from "@/app/(panel)/_modules/dashboard/utils/run-workflow-mapper";
 import { useAllCompaniesQuery } from "@/app/(panel)/_modules/companies/query/useAllCompaniesQuery";
 import { useCurrentUserQuery } from "@/shared/session/hooks/useCurrentUserQuery";
-import { ExecutionObservabilityPanel } from "./ExecutionObservabilityPanel";
-import { ExecutionRuntimeGraph } from "./ExecutionRuntimeGraph";
+import { ExecutionObservabilityPanel } from "../components/ExecutionObservabilityPanel";
+import { ExecutionGraph } from "../components/ExecutionGraph";
 import styles from "./ExecutionDetailPage.module.css";
 
 interface ExecutionDetailPageProps {
@@ -24,6 +28,8 @@ interface ExecutionDetailPageProps {
 }
 
 export function ExecutionDetailPage({ executionId, companyId }: ExecutionDetailPageProps) {
+  const router = useRouter();
+  const runWorkflowMutation = useRunWorkflowMutation();
   const currentUserQuery = useCurrentUserQuery();
   const isSuperAdmin = currentUserQuery.data?.superAdmin === true;
   const companiesQuery = useAllCompaniesQuery({ enabled: isSuperAdmin });
@@ -51,11 +57,13 @@ export function ExecutionDetailPage({ executionId, companyId }: ExecutionDetailP
         title="Execution detail"
         description="Loading runtime execution state."
       >
-        <div className={styles.executionDetailPage__state}>
-          <strong>Loading execution…</strong>
+        <Box className={styles.executionDetailPage__state}>
+          <Typography as="strong">Loading execution…</Typography>
 
-          <span>Reading the authoritative execution state from the runtime read model.</span>
-        </div>
+          <Typography as="span">
+            Reading the authoritative execution state from the runtime read model.
+          </Typography>
+        </Box>
       </PageShell>
     );
   }
@@ -72,13 +80,15 @@ export function ExecutionDetailPage({ executionId, companyId }: ExecutionDetailP
           </Link>
         }
       >
-        <div className={styles.executionDetailPage__state} role="alert">
-          <strong>
+        <Box className={styles.executionDetailPage__state} role="alert">
+          <Typography as="strong">
             {companyId ? "Selected company is unavailable." : "Select a company first."}
-          </strong>
+          </Typography>
 
-          <span>Return to workflow executions and choose an available company.</span>
-        </div>
+          <Typography as="span">
+            Return to workflow executions and choose an available company.
+          </Typography>
+        </Box>
       </PageShell>
     );
   }
@@ -95,11 +105,11 @@ export function ExecutionDetailPage({ executionId, companyId }: ExecutionDetailP
           </Link>
         }
       >
-        <div className={styles.executionDetailPage__state} role="alert">
-          <strong>Companies could not be loaded.</strong>
+        <Box className={styles.executionDetailPage__state} role="alert">
+          <Typography as="strong">Companies could not be loaded.</Typography>
 
-          <span>{companiesQuery.error.message}</span>
-        </div>
+          <Typography as="span">{companiesQuery.error.message}</Typography>
+        </Box>
       </PageShell>
     );
   }
@@ -111,11 +121,13 @@ export function ExecutionDetailPage({ executionId, companyId }: ExecutionDetailP
         title="Execution detail"
         description="Loading runtime execution state."
       >
-        <div className={styles.executionDetailPage__state}>
-          <strong>Loading executionâ€¦</strong>
+        <Box className={styles.executionDetailPage__state}>
+          <Typography as="strong">Loading execution…</Typography>
 
-          <span>Reading the authoritative execution state from the runtime read model.</span>
-        </div>
+          <Typography as="span">
+            Reading the authoritative execution state from the runtime read model.
+          </Typography>
+        </Box>
       </PageShell>
     );
   }
@@ -132,26 +144,26 @@ export function ExecutionDetailPage({ executionId, companyId }: ExecutionDetailP
           </Link>
         }
       >
-        <div
+        <Box
           className={[
             styles.executionDetailPage__state,
             styles.executionDetailPage__stateError,
           ].join(" ")}
           role="alert"
         >
-          <strong>Execution could not be loaded.</strong>
+          <Typography as="strong">Execution could not be loaded.</Typography>
 
-          <span>{executionQuery.error.message}</span>
+          <Typography as="span">{executionQuery.error.message}</Typography>
 
-          <button
+          <Button
             type="button"
             onClick={() => {
               void executionQuery.refetch();
             }}
           >
             Try again
-          </button>
-        </div>
+          </Button>
+        </Box>
       </PageShell>
     );
   }
@@ -171,215 +183,262 @@ export function ExecutionDetailPage({ executionId, companyId }: ExecutionDetailP
       title="Execution detail"
       description="Inspect the authoritative runtime state and the immutable workflow definition captured for this execution."
       actions={
-        <Link className={styles.executionDetailPage__backLink} href={executionsHref}>
-          Back to executions
-        </Link>
+        <Box className={styles.executionDetailPage__actions}>
+          <Button
+            type="button"
+            disabled={!definitionQuery.isSuccess || runWorkflowMutation.isPending}
+            onClick={() => {
+              if (!definitionQuery.isSuccess) {
+                return;
+              }
+              runWorkflowMutation.mutate(
+                {
+                  request: mapDefinitionToRunWorkflowRequest(definitionQuery.data.definition),
+                  companyId: effectiveCompanyId,
+                  idempotencyKey: crypto.randomUUID(),
+                },
+                {
+                  onSuccess: (result) => {
+                    const companyQuery = effectiveCompanyId
+                      ? `?companyId=${effectiveCompanyId}`
+                      : "";
+                    router.push(`/dashboard/executions/${result.executionId}${companyQuery}`);
+                  },
+                },
+              );
+            }}
+          >
+            {runWorkflowMutation.isPending ? "Running…" : "Run"}
+          </Button>
+
+          <Link className={styles.executionDetailPage__backLink} href={executionsHref}>
+            Back to executions
+          </Link>
+        </Box>
       }
     >
+      {runWorkflowMutation.isError ? (
+        <Box className={styles.executionDetailPage__runError} role="alert">
+          <Typography as="strong">Workflow could not be started.</Typography>
+
+          <Typography as="span">{runWorkflowMutation.error.message}</Typography>
+        </Box>
+      ) : null}
+
       <section className={styles.executionDetailPage__hero}>
-        <div className={styles.executionDetailPage__heroCopy}>
-          <span className={styles.executionDetailPage__eyebrow}>Execution</span>
+        <Box className={styles.executionDetailPage__heroCopy}>
+          <Typography as="span" className={styles.executionDetailPage__eyebrow}>
+            Execution
+          </Typography>
 
-          <strong className={styles.executionDetailPage__executionId}>
+          <Typography as="strong" className={styles.executionDetailPage__executionId}>
             {execution.executionId}
-          </strong>
+          </Typography>
 
-          <p>
-            Workflow <strong>{execution.workflowId}</strong> revision{" "}
-            <strong>#{execution.workflowRevision}</strong>
-          </p>
-        </div>
+          <Typography as="p">
+            Workflow <Typography as="strong">{execution.workflowId}</Typography> revision{" "}
+            <Typography as="strong">#{execution.workflowRevision}</Typography>
+          </Typography>
+        </Box>
 
-        <div className={styles.executionDetailPage__heroStatus}>
-          <span className={styles.executionDetailPage__status} data-status={execution.status}>
+        <Box className={styles.executionDetailPage__heroStatus}>
+          <Typography
+            as="span"
+            className={styles.executionDetailPage__status}
+            data-status={execution.status}
+          >
             {formatExecutionStatus(execution.status)}
-          </span>
+          </Typography>
 
           {execution.isStalled ? (
-            <span className={styles.executionDetailPage__stalled}>Stalled</span>
+            <Typography as="span" className={styles.executionDetailPage__stalled}>
+              Stalled
+            </Typography>
           ) : null}
-        </div>
+        </Box>
       </section>
 
       <section className={styles.executionDetailPage__metrics} aria-label="Execution summary">
         <article>
-          <span>Status</span>
+          <Typography as="span">Status</Typography>
 
-          <strong>{formatExecutionStatus(execution.status)}</strong>
+          <Typography as="strong">{formatExecutionStatus(execution.status)}</Typography>
         </article>
 
         <article>
-          <span>Mode</span>
+          <Typography as="span">Mode</Typography>
 
-          <strong>{execution.mode}</strong>
+          <Typography as="strong">{execution.mode}</Typography>
         </article>
 
         <article>
-          <span>Revision</span>
+          <Typography as="span">Revision</Typography>
 
-          <strong>#{execution.workflowRevision}</strong>
+          <Typography as="strong">#{execution.workflowRevision}</Typography>
         </article>
 
         <article>
-          <span>Duration</span>
+          <Typography as="span">Duration</Typography>
 
-          <strong>{duration}</strong>
+          <Typography as="strong">{duration}</Typography>
         </article>
       </section>
 
       <section className={styles.executionDetailPage__grid}>
         <article className={styles.executionDetailPage__card}>
           <header className={styles.executionDetailPage__cardHeader}>
-            <div>
-              <p>Runtime identity</p>
+            <Box>
+              <Typography as="p">Runtime identity</Typography>
 
-              <h2>Execution context</h2>
-            </div>
+              <Typography as="h2">Execution context</Typography>
+            </Box>
           </header>
 
           <dl className={styles.executionDetailPage__details}>
-            <div>
+            <Box>
               <dt>Execution ID</dt>
 
               <dd>{execution.executionId}</dd>
-            </div>
+            </Box>
 
-            <div>
+            <Box>
               <dt>Workflow ID</dt>
 
               <dd>{execution.workflowId}</dd>
-            </div>
+            </Box>
 
-            <div>
+            <Box>
               <dt>Correlation ID</dt>
 
               <dd>{execution.correlationId}</dd>
-            </div>
+            </Box>
 
-            <div>
+            <Box>
               <dt>Mode</dt>
 
               <dd>{execution.mode}</dd>
-            </div>
+            </Box>
 
-            <div>
+            <Box>
               <dt>Stalled</dt>
 
               <dd>{execution.isStalled ? "Yes" : "No"}</dd>
-            </div>
+            </Box>
           </dl>
         </article>
 
         <article className={styles.executionDetailPage__card}>
           <header className={styles.executionDetailPage__cardHeader}>
-            <div>
-              <p>Lifecycle</p>
+            <Box>
+              <Typography as="p">Lifecycle</Typography>
 
-              <h2>Runtime timestamps</h2>
-            </div>
+              <Typography as="h2">Runtime timestamps</Typography>
+            </Box>
           </header>
 
           <dl className={styles.executionDetailPage__details}>
-            <div>
+            <Box>
               <dt>Created</dt>
 
               <dd>{formatExecutionDateTime(execution.createdAt)}</dd>
-            </div>
+            </Box>
 
-            <div>
+            <Box>
               <dt>Validating</dt>
 
               <dd>{formatExecutionDateTime(execution.validatingAt)}</dd>
-            </div>
+            </Box>
 
-            <div>
+            <Box>
               <dt>Queued</dt>
 
               <dd>{formatExecutionDateTime(execution.queuedAt)}</dd>
-            </div>
+            </Box>
 
-            <div>
+            <Box>
               <dt>Started</dt>
 
               <dd>{formatExecutionDateTime(execution.startedAt)}</dd>
-            </div>
+            </Box>
 
-            <div>
+            <Box>
               <dt>Finished</dt>
 
               <dd>{formatExecutionDateTime(execution.finishedAt)}</dd>
-            </div>
+            </Box>
 
-            <div>
+            <Box>
               <dt>Updated</dt>
 
               <dd>{formatExecutionDateTime(execution.updatedAt)}</dd>
-            </div>
+            </Box>
           </dl>
         </article>
       </section>
 
       <section className={styles.executionDetailPage__definition}>
         <header className={styles.executionDetailPage__cardHeader}>
-          <div>
-            <p>Historical execution truth</p>
+          <Box>
+            <Typography as="p">Historical execution truth</Typography>
 
-            <h2>Definition snapshot</h2>
-          </div>
+            <Typography as="h2">Definition snapshot</Typography>
+          </Box>
         </header>
 
         {definitionQuery.isPending ? (
-          <div className={styles.executionDetailPage__definitionState}>
+          <Box className={styles.executionDetailPage__definitionState}>
             Loading immutable definition snapshot…
-          </div>
+          </Box>
         ) : null}
 
         {definitionQuery.isError ? (
-          <div
+          <Box
             className={[
               styles.executionDetailPage__definitionState,
               styles.executionDetailPage__definitionStateError,
             ].join(" ")}
           >
-            <strong>Definition snapshot could not be loaded.</strong>
+            <Typography as="strong">Definition snapshot could not be loaded.</Typography>
 
-            <span>{definitionQuery.error.message}</span>
-          </div>
+            <Typography as="span">{definitionQuery.error.message}</Typography>
+          </Box>
         ) : null}
 
         {definitionQuery.isSuccess ? (
-          <div className={styles.executionDetailPage__definitionGrid}>
-            <div>
-              <span>Workflow name</span>
+          <Box className={styles.executionDetailPage__definitionGrid}>
+            <Box>
+              <Typography as="span">Workflow name</Typography>
 
-              <strong>{definitionQuery.data.workflowName}</strong>
-            </div>
+              <Typography as="strong">{definitionQuery.data.workflowName}</Typography>
+            </Box>
 
-            <div>
-              <span>Snapshot ID</span>
+            <Box>
+              <Typography as="span">Snapshot ID</Typography>
 
-              <strong title={definitionQuery.data.snapshotId}>
+              <Typography as="strong" title={definitionQuery.data.snapshotId}>
                 {definitionQuery.data.snapshotId}
-              </strong>
-            </div>
+              </Typography>
+            </Box>
 
-            <div>
-              <span>Revision</span>
+            <Box>
+              <Typography as="span">Revision</Typography>
 
-              <strong>#{definitionQuery.data.workflowRevision}</strong>
-            </div>
+              <Typography as="strong">#{definitionQuery.data.workflowRevision}</Typography>
+            </Box>
 
-            <div>
-              <span>Captured at</span>
+            <Box>
+              <Typography as="span">Captured at</Typography>
 
-              <strong>{formatExecutionDateTime(definitionQuery.data.createdAt)}</strong>
-            </div>
-          </div>
+              <Typography as="strong">
+                {formatExecutionDateTime(definitionQuery.data.createdAt)}
+              </Typography>
+            </Box>
+          </Box>
         ) : null}
       </section>
 
       {definitionQuery.isSuccess ? (
-        <ExecutionRuntimeGraph
+        <ExecutionGraph
           executionId={execution.executionId}
           definition={definitionQuery.data.definition}
           pollingEnabled={pollingEnabled}

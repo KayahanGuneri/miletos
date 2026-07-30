@@ -8,7 +8,11 @@
   type ExecutionPageResponse,
   type ExecutionSummaryResponse,
   type NodeExecutionPageResponse,
-} from "@/app/(panel)/_modules/dashboard/model/execution-types";
+} from "@/app/(panel)/_modules/dashboard/types/execution-types";
+import {
+  type RunWorkflowRequest,
+  type RunWorkflowResponse,
+} from "@/app/(panel)/_modules/dashboard/types/execution-types";
 import { httpClient } from "@/shared/api/http-client";
 
 const EXECUTIONS_PATH = "/api/v1/executions";
@@ -21,6 +25,21 @@ export async function listExecutions(params: ExecutionListParams = {}, companyId
   const response = await httpClient.get<ExecutionPageResponse>(EXECUTIONS_PATH, {
     params,
     headers: tenantHeaders(companyId),
+  });
+
+  return response.data;
+}
+
+export async function runWorkflow(
+  request: RunWorkflowRequest,
+  idempotencyKey: string,
+  companyId?: number,
+) {
+  const response = await httpClient.post<RunWorkflowResponse>(EXECUTIONS_PATH, request, {
+    headers: {
+      ...tenantHeaders(companyId),
+      "Idempotency-Key": idempotencyKey,
+    },
   });
 
   return response.data;

@@ -1,6 +1,7 @@
 package com.miletos.features.workflowruntime.controller;
 
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.util.MultiValueMap;
@@ -14,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.miletos.features.workflowruntime.client.GoRuntimeResponse;
+import com.miletos.features.workflowruntime.client.WorkflowRuntimeResponse;
 import com.miletos.features.workflowruntime.documentation.WorkflowRuntimeSchemas;
 import com.miletos.features.workflowruntime.service.WorkflowRuntimeService;
 import com.miletos.security.authorization.Authorize;
@@ -29,7 +30,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping(value = "/api/v1", produces = MediaType.APPLICATION_JSON_VALUE)
 @RequiredArgsConstructor
 public class WorkflowRuntimeController {
 
@@ -39,11 +40,11 @@ public class WorkflowRuntimeController {
         @GetMapping("/plugins")
         @Operation(summary = "List workflow runtime node plugins")
         @ApiResponses({
-                        @ApiResponse(responseCode = "200", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.PluginPage.class))),
-                        @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "503", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
+                        @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.PluginPage.class))),
+                        @ApiResponse(responseCode = "401", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "403", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "500", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "503", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
         })
         public ResponseEntity<byte[]> getPlugins(
                         @AuthenticationPrincipal(expression = "subject") String actorEmail,
@@ -56,17 +57,75 @@ public class WorkflowRuntimeController {
         }
 
         @Authorize
+        @PostMapping("/executions")
+        @Operation(
+                        summary = "Run a workflow using the centralized execution policy",
+                        description = "Dashboard runs use trusted MANUAL_DIRECT context. AUTO "
+                                        + "resolves to SYNC; trusted event, schedule, background, "
+                                        + "and HTTP webhook contexts resolve to ASYNC.",
+                        parameters = {
+                                        @Parameter(
+                                                        name = "Idempotency-Key",
+                                                        description = "Required company-scoped command identity. "
+                                                                        + "The resolved mode remains stable on replay.",
+                                                        required = true,
+                                                        in = ParameterIn.HEADER,
+                                                        schema = @Schema(type = "string"))
+                        })
+        @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                        required = true,
+                        content = @Content(
+                                        mediaType = "application/json",
+                                        schema = @Schema(implementation = WorkflowRuntimeSchemas.ExecutionRequest.class)))
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Completed SYNC execution",
+                                        content = @Content(mediaType = "application/json",
+                                                        schema = @Schema(implementation = WorkflowRuntimeSchemas.ExecutionResponse.class))),
+                        @ApiResponse(responseCode = "202", description = "Accepted ASYNC execution",
+                                        content = @Content(mediaType = "application/json",
+                                                        schema = @Schema(implementation = WorkflowRuntimeSchemas.ExecutionResponse.class))),
+                        @ApiResponse(responseCode = "400",
+                                        content = @Content(mediaType = "application/json",
+                                                        schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "401",
+                                        content = @Content(mediaType = "application/json",
+                                                        schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "403",
+                                        content = @Content(mediaType = "application/json",
+                                                        schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "409",
+                                        content = @Content(mediaType = "application/json",
+                                                        schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "422",
+                                        content = @Content(mediaType = "application/json",
+                                                        schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "503",
+                                        content = @Content(mediaType = "application/json",
+                                                        schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
+        })
+        public ResponseEntity<byte[]> execute(
+                        @AuthenticationPrincipal(expression = "subject") String actorEmail,
+                        @RequestBody JsonNode body,
+                        @RequestHeader HttpHeaders browserHeaders) {
+                return toResponseEntity(
+                                workflowRuntimeService.execute(
+                                                actorEmail,
+                                                body,
+                                                browserHeaders));
+        }
+
+        @Authorize
         @PostMapping("/executions/sync")
         @Operation(summary = "Execute a workflow synchronously")
-        @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ExecutionRequest.class)))
+        @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ExecutionRequest.class)))
         @ApiResponses({
-                        @ApiResponse(responseCode = "200", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ExecutionResponse.class))),
-                        @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "422", description = "WORKFLOW_VALIDATION_FAILED", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "503", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
+                        @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ExecutionResponse.class))),
+                        @ApiResponse(responseCode = "400", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "401", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "403", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "422", description = "WORKFLOW_VALIDATION_FAILED", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "500", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "503", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
         })
         public ResponseEntity<byte[]> executeSync(
                         @AuthenticationPrincipal(expression = "subject") String actorEmail,
@@ -88,16 +147,16 @@ public class WorkflowRuntimeController {
                                         + "replay the same asynchronous execution request "
                                         + "without creating a duplicate execution.", required = true, in = ParameterIn.HEADER, example = "manual-async-20260729-001", schema = @Schema(type = "string"))
         })
-        @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ExecutionRequest.class)))
+        @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ExecutionRequest.class)))
         @ApiResponses({
-                        @ApiResponse(responseCode = "202", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ExecutionResponse.class))),
-                        @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "409", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "422", description = "WORKFLOW_VALIDATION_FAILED", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "503", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
+                        @ApiResponse(responseCode = "202", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ExecutionResponse.class))),
+                        @ApiResponse(responseCode = "400", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "401", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "403", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "409", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "422", description = "WORKFLOW_VALIDATION_FAILED", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "500", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "503", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
         })
         public ResponseEntity<byte[]> executeAsync(
                         @AuthenticationPrincipal(expression = "subject") String actorEmail,
@@ -120,14 +179,14 @@ public class WorkflowRuntimeController {
                                         + "creating a duplicate recovery execution.", required = true, in = ParameterIn.HEADER, example = "manual-recovery-20260729-001", schema = @Schema(type = "string"))
         })
         @ApiResponses({
-                        @ApiResponse(responseCode = "202", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.RecoveryResponse.class))),
-                        @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "409", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "503", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
+                        @ApiResponse(responseCode = "202", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.RecoveryResponse.class))),
+                        @ApiResponse(responseCode = "400", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "401", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "403", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "404", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "409", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "500", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "503", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
         })
         public ResponseEntity<byte[]> recoverExecution(
                         @AuthenticationPrincipal(expression = "subject") String actorEmail,
@@ -151,12 +210,12 @@ public class WorkflowRuntimeController {
                         @Parameter(name = "status", description = "Filters executions by workflow execution status.", required = false, in = ParameterIn.QUERY, example = "SUCCEEDED", schema = @Schema(type = "string"))
         })
         @ApiResponses({
-                        @ApiResponse(responseCode = "200", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ExecutionPage.class))),
-                        @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "503", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
+                        @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ExecutionPage.class))),
+                        @ApiResponse(responseCode = "400", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "401", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "403", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "500", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "503", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
         })
         public ResponseEntity<byte[]> listExecutions(
                         @AuthenticationPrincipal(expression = "subject") String actorEmail,
@@ -175,12 +234,12 @@ public class WorkflowRuntimeController {
         @GetMapping("/executions/{executionId}")
         @Operation(summary = "Get a workflow execution")
         @ApiResponses({
-                        @ApiResponse(responseCode = "200", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ExecutionSummaryResponse.class))),
-                        @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "503", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
+                        @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ExecutionSummaryResponse.class))),
+                        @ApiResponse(responseCode = "401", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "403", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "404", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "500", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "503", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
         })
         public ResponseEntity<byte[]> getExecution(
                         @AuthenticationPrincipal(expression = "subject") String actorEmail,
@@ -199,12 +258,12 @@ public class WorkflowRuntimeController {
         @GetMapping("/executions/{executionId}/definition")
         @Operation(summary = "Get the immutable workflow definition for an execution")
         @ApiResponses({
-                        @ApiResponse(responseCode = "200", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.DefinitionResponse.class))),
-                        @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "503", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
+                        @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.DefinitionResponse.class))),
+                        @ApiResponse(responseCode = "401", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "403", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "404", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "500", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "503", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
         })
         public ResponseEntity<byte[]> getExecutionDefinition(
                         @AuthenticationPrincipal(expression = "subject") String actorEmail,
@@ -226,13 +285,13 @@ public class WorkflowRuntimeController {
                         @Parameter(name = "after", description = "Opaque pagination cursor returned by the previous page.", required = false, in = ParameterIn.QUERY, schema = @Schema(type = "string"))
         })
         @ApiResponses({
-                        @ApiResponse(responseCode = "200", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.NodeExecutionPage.class))),
-                        @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "503", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
+                        @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.NodeExecutionPage.class))),
+                        @ApiResponse(responseCode = "400", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "401", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "403", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "404", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "500", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "503", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
         })
         public ResponseEntity<byte[]> getExecutionNodes(
                         @AuthenticationPrincipal(expression = "subject") String actorEmail,
@@ -257,13 +316,13 @@ public class WorkflowRuntimeController {
                         @Parameter(name = "after", description = "Opaque pagination cursor returned by the previous page.", required = false, in = ParameterIn.QUERY, schema = @Schema(type = "string"))
         })
         @ApiResponses({
-                        @ApiResponse(responseCode = "200", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ExecutionEventPage.class))),
-                        @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "503", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
+                        @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ExecutionEventPage.class))),
+                        @ApiResponse(responseCode = "400", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "401", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "403", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "404", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "500", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "503", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
         })
         public ResponseEntity<byte[]> getExecutionEvents(
                         @AuthenticationPrincipal(expression = "subject") String actorEmail,
@@ -288,13 +347,13 @@ public class WorkflowRuntimeController {
                         @Parameter(name = "after", description = "Opaque pagination cursor returned by the previous page.", required = false, in = ParameterIn.QUERY, schema = @Schema(type = "string"))
         })
         @ApiResponses({
-                        @ApiResponse(responseCode = "200", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ExecutionLogPage.class))),
-                        @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "503", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
+                        @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ExecutionLogPage.class))),
+                        @ApiResponse(responseCode = "400", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "401", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "403", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "404", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "500", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "503", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
         })
         public ResponseEntity<byte[]> getExecutionLogs(
                         @AuthenticationPrincipal(expression = "subject") String actorEmail,
@@ -319,13 +378,13 @@ public class WorkflowRuntimeController {
                         @Parameter(name = "after", description = "Opaque pagination cursor returned by the previous page.", required = false, in = ParameterIn.QUERY, schema = @Schema(type = "string"))
         })
         @ApiResponses({
-                        @ApiResponse(responseCode = "200", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ExecutionErrorPage.class))),
-                        @ApiResponse(responseCode = "400", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "401", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "403", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "404", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "500", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
-                        @ApiResponse(responseCode = "503", content = @Content(schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
+                        @ApiResponse(responseCode = "200", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ExecutionErrorPage.class))),
+                        @ApiResponse(responseCode = "400", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "401", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "403", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "404", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "500", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+                        @ApiResponse(responseCode = "503", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
         })
         public ResponseEntity<byte[]> getExecutionErrors(
                         @AuthenticationPrincipal(expression = "subject") String actorEmail,
@@ -344,7 +403,7 @@ public class WorkflowRuntimeController {
         }
 
         private ResponseEntity<byte[]> toResponseEntity(
-                        GoRuntimeResponse response) {
+                        WorkflowRuntimeResponse response) {
                 return ResponseEntity
                                 .status(response.status())
                                 .headers(response.headers())
