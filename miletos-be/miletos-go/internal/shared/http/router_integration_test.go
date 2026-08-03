@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -20,12 +21,12 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	execution "miletos-go/internal/features/workflowruntime/execution"
-	"miletos-go/internal/features/workflowruntime/execution/queue"
-	executionrepository "miletos-go/internal/features/workflowruntime/execution/repository"
-	"miletos-go/internal/features/workflowruntime/httptrigger"
-	"miletos-go/internal/features/workflowruntime/plugin"
-	workflowfeature "miletos-go/internal/features/workflowruntime/workflow"
+	"miletos-go/internal/context-provider/http-trigger"
+	execution "miletos-go/internal/features/workflow-runtime/execution"
+	"miletos-go/internal/features/workflow-runtime/execution/queue"
+	executionrepository "miletos-go/internal/features/workflow-runtime/execution/repository"
+	"miletos-go/internal/features/workflow-runtime/plugin"
+	workflowfeature "miletos-go/internal/features/workflow-runtime/workflow"
 	"miletos-go/internal/health"
 	"miletos-go/internal/shared/database"
 	runtimehttp "miletos-go/internal/shared/http"
@@ -118,13 +119,23 @@ func integrationRouter(t *testing.T) http.Handler {
 	if err := plugin.RegisterBuiltinNodes(registry); err != nil {
 		t.Fatalf("RegisterBuiltinNodes() error = %v", err)
 	}
+	if err := registry.DefineNode("test.failure", func(
+		context.Context, plugin.NodeExecutionContext, map[string]any, any,
+	) (any, error) {
+		return nil, errors.New("controlled integration failure")
+	}); err != nil {
+		t.Fatalf("DefineNode(test.failure) error = %v", err)
+	}
 	var nodeQueue queue.Queue = routerQueue{}
 	scheduler := execution.NewScheduler(
 		workflows, executions, nodeQueue, "commands", registry,
 	)
-	processor := execution.NewNodeProcessor(
+	processor, err := execution.NewNodeProcessor(
 		workflows, executions, registry, scheduler, nodeQueue, "commands", 1, time.Millisecond,
 	)
+	if err != nil {
+		t.Fatalf("NewNodeProcessor() error = %v", err)
+	}
 	workflowService := workflowfeature.NewWorkflowService(workflows, registry)
 	executionService := execution.NewExecutionService(
 		workflowService, executions, scheduler, processor, true,
@@ -136,12 +147,17 @@ func integrationRouter(t *testing.T) http.Handler {
 	healthController := &health.Controller{}
 	pluginController := plugin.NewController(registry)
 	executionController := execution.NewExecutionController(
-		executionService, recoveryService, workflows, executions,
+		executionService, recoveryService,
+		execution.NewExecutionQueryService(executions, workflows),
 	)
 	publicController := httptrigger.NewPublicController(nil)
+	validator, err := security.NewInternalTokenValidator(routerToken)
+	if err != nil {
+		t.Fatalf("NewInternalTokenValidator() error = %v", err)
+	}
 	return runtimehttp.NewRouter(
 		logger,
-		security.NewAuthentication(routerToken),
+		security.NewAuthentication(validator),
 		runtimehttp.RouteHandlers{
 			Health:                 healthController.Get,
 			PublicTrigger:          publicController.Invoke,
@@ -229,7 +245,7 @@ func TestRouterExecutionContractsIntegration(t *testing.T) {
 	router := integrationRouter(t)
 	syncResponse := routerRequest(
 		t, router, http.MethodPost, "/api/v1/executions/sync",
-		successfulWorkflowRequest(), "",
+		successfulWorkflowRequest(), "sync-key",
 	)
 	if syncResponse.Code != http.StatusOK {
 		t.Fatalf("sync status=%d body=%s", syncResponse.Code, syncResponse.Body)
@@ -276,13 +292,13 @@ func TestRouterRecoveryContractIntegration(t *testing.T) {
 		"definition": map[string]any{
 			"id": "workflow-failure", "name": "Failure", "revision": 1,
 			"nodes": []map[string]any{{
-				"id": "failure", "pluginType": "core.pass-through", "pluginVersion": "v1",
+				"id": "failure", "pluginType": "test.failure", "pluginVersion": "v1",
 			}},
 			"edges": []map[string]any{},
 		},
 	}
 	syncResponse := routerRequest(
-		t, router, http.MethodPost, "/api/v1/executions/sync", failingRequest, "",
+		t, router, http.MethodPost, "/api/v1/executions/sync", failingRequest, "failure-key",
 	)
 	if syncResponse.Code != http.StatusOK {
 		t.Fatalf("failed sync status=%d body=%s", syncResponse.Code, syncResponse.Body)

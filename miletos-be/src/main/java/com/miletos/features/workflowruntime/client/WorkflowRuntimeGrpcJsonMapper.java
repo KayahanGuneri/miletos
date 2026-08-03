@@ -1,193 +1,115 @@
 package com.miletos.features.workflowruntime.client;
 
-import java.io.IOException;
-import org.springframework.stereotype.Component;
-
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.google.protobuf.Message;
-import com.google.protobuf.util.JsonFormat;
-import com.miletos.features.workflowruntime.grpc.generated.ExecuteRequest;
 import com.miletos.features.workflowruntime.grpc.generated.CreateHTTPTriggerResponse;
+import com.miletos.features.workflowruntime.grpc.generated.EdgeConstraint;
 import com.miletos.features.workflowruntime.grpc.generated.ExecutionDefinition;
+import com.miletos.features.workflowruntime.grpc.generated.ExecutionError;
 import com.miletos.features.workflowruntime.grpc.generated.ExecutionErrorPage;
+import com.miletos.features.workflowruntime.grpc.generated.ExecutionEvent;
 import com.miletos.features.workflowruntime.grpc.generated.ExecutionEventPage;
+import com.miletos.features.workflowruntime.grpc.generated.ExecutionLog;
 import com.miletos.features.workflowruntime.grpc.generated.ExecutionLogPage;
 import com.miletos.features.workflowruntime.grpc.generated.ExecutionPage;
 import com.miletos.features.workflowruntime.grpc.generated.ExecutionResponse;
 import com.miletos.features.workflowruntime.grpc.generated.ExecutionSummary;
 import com.miletos.features.workflowruntime.grpc.generated.HTTPTriggerResponse;
+import com.miletos.features.workflowruntime.grpc.generated.ListPluginsResponse;
+import com.miletos.features.workflowruntime.grpc.generated.NodeExecution;
 import com.miletos.features.workflowruntime.grpc.generated.NodeExecutionPage;
+import com.miletos.features.workflowruntime.grpc.generated.NodePosition;
+import com.miletos.features.workflowruntime.grpc.generated.Plugin;
+import com.miletos.features.workflowruntime.grpc.generated.Port;
+import com.miletos.features.workflowruntime.grpc.generated.RecoveryResponse;
 import com.miletos.features.workflowruntime.grpc.generated.WorkflowDefinition;
+import com.miletos.features.workflowruntime.grpc.generated.WorkflowEdge;
+import com.miletos.features.workflowruntime.grpc.generated.WorkflowNode;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+import org.mapstruct.ReportingPolicy;
 
-@Component
-public class WorkflowRuntimeGrpcJsonMapper {
+@Mapper(
+    componentModel = "spring",
+    uses = ProtobufValueConverter.class,
+    unmappedTargetPolicy = ReportingPolicy.ERROR)
+public interface WorkflowRuntimeGrpcJsonMapper {
 
-    private final ObjectMapper objectMapper;
+  // Plugin mappings
 
-    public WorkflowRuntimeGrpcJsonMapper(ObjectMapper objectMapper) {
-        this.objectMapper = objectMapper;
-    }
+  @Mapping(target = "items", source = "itemsList")
+  WorkflowRuntimeBrowserDtos.PluginPage map(ListPluginsResponse source);
 
-    public ExecuteRequest toExecuteRequest(JsonNode browserRequest) {
-        if (browserRequest == null || !browserRequest.isObject()) {
-            throw new IllegalArgumentException("Execution request must be a JSON object");
-        }
-        ObjectNode normalized = browserRequest.deepCopy();
-        JsonNode definition = normalized.get("definition");
-        if (!(definition instanceof ObjectNode definitionObject)) {
-            throw new IllegalArgumentException("Workflow definition is required");
-        }
-        normalizeDefinitionForProto(definitionObject);
-        ExecuteRequest.Builder builder = ExecuteRequest.newBuilder();
-        try {
-            JsonFormat.parser().merge(objectMapper.writeValueAsString(normalized), builder);
-            return builder.build();
-        } catch (IOException exception) {
-            throw new IllegalArgumentException("Execution request is invalid", exception);
-        }
-    }
+  @Mapping(target = "inputPorts", source = "inputPortsList")
+  @Mapping(target = "outputPorts", source = "outputPortsList")
+  @Mapping(target = "allowedRootOrigins", source = "allowedRootOriginsList")
+  WorkflowRuntimeBrowserDtos.Plugin map(Plugin source);
 
-    public WorkflowDefinition toWorkflowDefinition(JsonNode browserDefinition) {
-        if (!(browserDefinition instanceof ObjectNode definitionObject)) {
-            throw new IllegalArgumentException("Workflow definition is required");
-        }
-        ObjectNode normalized = definitionObject.deepCopy();
-        normalizeDefinitionForProto(normalized);
-        WorkflowDefinition.Builder builder = WorkflowDefinition.newBuilder();
-        try {
-            JsonFormat.parser().merge(objectMapper.writeValueAsString(normalized), builder);
-            return builder.build();
-        } catch (IOException exception) {
-            throw new IllegalArgumentException("Workflow definition is invalid", exception);
-        }
-    }
+  WorkflowRuntimeBrowserDtos.Port map(Port source);
 
-    public byte[] toBrowserJson(Message message) {
-        try {
-            ObjectNode root = (ObjectNode) objectMapper.readTree(
-                    JsonFormat.printer()
-                            .alwaysPrintFieldsWithNoPresence()
-                            .omittingInsignificantWhitespace()
-                            .print(message));
-            normalizeBrowserResponse(message, root);
-            return objectMapper.writeValueAsBytes(root);
-        } catch (IOException exception) {
-            throw new IllegalStateException("Runtime response could not be mapped", exception);
-        }
-    }
+  WorkflowRuntimeBrowserDtos.EdgeConstraint map(EdgeConstraint source);
 
-    private void normalizeBrowserResponse(Message message, ObjectNode root) {
-        if (message instanceof ExecutionResponse response) {
-            root.put("workflowRevision", response.getWorkflowRevision());
-        } else if (message instanceof ExecutionSummary summary) {
-            normalizeExecutionSummary(root, summary);
-        } else if (message instanceof ExecutionPage page) {
-            renameCursor(root);
-            ArrayNode items = root.withArray("items");
-            for (int index = 0; index < page.getItemsCount(); index++) {
-                normalizeExecutionSummary(
-                        (ObjectNode) items.get(index), page.getItems(index));
-            }
-        } else if (message instanceof ExecutionDefinition definition) {
-            root.put("workflowRevision", definition.getWorkflowRevision());
-            JsonNode nested = root.get("definition");
-            if (nested instanceof ObjectNode nestedObject) {
-                normalizeDefinitionForBrowser(nestedObject);
-            }
-        } else if (message instanceof NodeExecutionPage) {
-            renameCursor(root);
-            renameExecutionIds(root.withArray("items"));
-        } else if (message instanceof ExecutionEventPage
-                || message instanceof ExecutionLogPage
-                || message instanceof ExecutionErrorPage) {
-            renameCursor(root);
-            renameExecutionIds(root.withArray("items"));
-        } else if (message instanceof HTTPTriggerResponse trigger) {
-            root.put("workflowRevision", trigger.getWorkflowRevision());
-        } else if (message instanceof CreateHTTPTriggerResponse created) {
-            JsonNode trigger = root.get("trigger");
-            if (trigger instanceof ObjectNode triggerObject) {
-                triggerObject.put(
-                        "workflowRevision",
-                        created.getTrigger().getWorkflowRevision());
-            }
-        }
-    }
+  // Execution mappings
 
-    private void normalizeExecutionSummary(
-            ObjectNode node,
-            ExecutionSummary summary) {
-        node.put("workflowRevision", summary.getWorkflowRevision());
-    }
+  WorkflowRuntimeBrowserDtos.ExecutionResponse map(ExecutionResponse source);
 
-    private void renameCursor(ObjectNode root) {
-        JsonNode cursor = root.remove("cursor");
-        root.put("next", cursor == null ? "" : cursor.asText(""));
-    }
+  WorkflowRuntimeBrowserDtos.ExecutionSummary map(ExecutionSummary source);
 
-    private void renameExecutionIds(ArrayNode items) {
-        for (JsonNode item : items) {
-            if (item instanceof ObjectNode object) {
-                JsonNode executionId = object.remove("executionId");
-                if (executionId != null) {
-                    object.set("workflowExecutionId", executionId);
-                }
-            }
-        }
-    }
+  @Mapping(target = "items", source = "itemsList")
+  @Mapping(target = "next", source = "cursor")
+  WorkflowRuntimeBrowserDtos.ExecutionPage map(ExecutionPage source);
 
-    private void normalizeDefinitionForProto(ObjectNode definition) {
-        rename(definition, "id", "workflowId");
-        rename(definition, "revision", "workflowRevision");
-        JsonNode nodes = definition.get("nodes");
-        if (nodes instanceof ArrayNode array) {
-            array.forEach(node -> {
-                if (node instanceof ObjectNode object) {
-                    rename(object, "id", "nodeId");
-                }
-            });
-        }
-        JsonNode edges = definition.get("edges");
-        if (edges instanceof ArrayNode array) {
-            array.forEach(edge -> {
-                if (edge instanceof ObjectNode object) {
-                    rename(object, "id", "edgeId");
-                }
-            });
-        }
-    }
+  WorkflowRuntimeBrowserDtos.ExecutionDefinition map(ExecutionDefinition source);
 
-    private void normalizeDefinitionForBrowser(ObjectNode definition) {
-        rename(definition, "workflowId", "id");
-        JsonNode revision = definition.remove("workflowRevision");
-        if (revision != null) {
-            definition.put("revision", revision.asLong());
-        }
-        JsonNode nodes = definition.get("nodes");
-        if (nodes instanceof ArrayNode array) {
-            array.forEach(node -> {
-                if (node instanceof ObjectNode object) {
-                    rename(object, "nodeId", "id");
-                }
-            });
-        }
-        JsonNode edges = definition.get("edges");
-        if (edges instanceof ArrayNode array) {
-            array.forEach(edge -> {
-                if (edge instanceof ObjectNode object) {
-                    rename(object, "edgeId", "id");
-                }
-            });
-        }
-    }
+  WorkflowRuntimeBrowserDtos.RecoveryResponse map(RecoveryResponse source);
 
-    private void rename(ObjectNode object, String source, String target) {
-        JsonNode value = object.remove(source);
-        if (value != null) {
-            object.set(target, value);
-        }
-    }
+  // Workflow-definition mappings
+
+  @Mapping(target = "id", source = "workflowId")
+  @Mapping(target = "revision", source = "workflowRevision")
+  @Mapping(target = "nodes", source = "nodesList")
+  @Mapping(target = "edges", source = "edgesList")
+  WorkflowRuntimeBrowserDtos.WorkflowDefinition map(WorkflowDefinition source);
+
+  @Mapping(target = "id", source = "nodeId")
+  WorkflowRuntimeBrowserDtos.WorkflowNode map(WorkflowNode source);
+
+  @Mapping(target = "id", source = "edgeId")
+  WorkflowRuntimeBrowserDtos.WorkflowEdge map(WorkflowEdge source);
+
+  WorkflowRuntimeBrowserDtos.NodePosition map(NodePosition source);
+
+  // Node, event, log, and error mappings
+
+  @Mapping(target = "items", source = "itemsList")
+  @Mapping(target = "next", source = "cursor")
+  WorkflowRuntimeBrowserDtos.NodeExecutionPage map(NodeExecutionPage source);
+
+  @Mapping(target = "workflowExecutionId", source = "executionId")
+  WorkflowRuntimeBrowserDtos.NodeExecution map(NodeExecution source);
+
+  @Mapping(target = "items", source = "itemsList")
+  @Mapping(target = "next", source = "cursor")
+  WorkflowRuntimeBrowserDtos.ExecutionEventPage map(ExecutionEventPage source);
+
+  @Mapping(target = "workflowExecutionId", source = "executionId")
+  WorkflowRuntimeBrowserDtos.ExecutionEvent map(ExecutionEvent source);
+
+  @Mapping(target = "items", source = "itemsList")
+  @Mapping(target = "next", source = "cursor")
+  WorkflowRuntimeBrowserDtos.ExecutionLogPage map(ExecutionLogPage source);
+
+  @Mapping(target = "workflowExecutionId", source = "executionId")
+  WorkflowRuntimeBrowserDtos.ExecutionLog map(ExecutionLog source);
+
+  @Mapping(target = "items", source = "itemsList")
+  @Mapping(target = "next", source = "cursor")
+  WorkflowRuntimeBrowserDtos.ExecutionErrorPage map(ExecutionErrorPage source);
+
+  @Mapping(target = "workflowExecutionId", source = "executionId")
+  WorkflowRuntimeBrowserDtos.ExecutionError map(ExecutionError source);
+
+  // HTTP-trigger mappings
+
+  WorkflowRuntimeBrowserDtos.HTTPTriggerResponse map(HTTPTriggerResponse source);
+
+  WorkflowRuntimeBrowserDtos.CreateHTTPTriggerResponse map(CreateHTTPTriggerResponse source);
 }

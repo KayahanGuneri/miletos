@@ -4,9 +4,11 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
+	"unicode"
 
 	"miletos-go/internal/shared/requestcontext"
 )
@@ -19,8 +21,8 @@ type Authentication struct {
 	validator InternalTokenValidator
 }
 
-func NewAuthentication(token string) Authentication {
-	return Authentication{validator: NewInternalTokenValidator(token)}
+func NewAuthentication(validator InternalTokenValidator) Authentication {
+	return Authentication{validator: validator}
 }
 
 func (authentication Authentication) Handle(next http.Handler) http.Handler {
@@ -45,10 +47,13 @@ func (authentication Authentication) Handle(next http.Handler) http.Handler {
 	})
 }
 
-func NewInternalTokenValidator(token string) InternalTokenValidator {
-	return InternalTokenValidator{
-		tokenDigest: sha256.Sum256([]byte(strings.TrimSpace(token))),
+func NewInternalTokenValidator(token string) (InternalTokenValidator, error) {
+	if len([]byte(token)) < 32 || strings.IndexFunc(token, unicode.IsSpace) >= 0 {
+		return InternalTokenValidator{}, fmt.Errorf(
+			"internal service token must contain at least 32 bytes and no whitespace",
+		)
 	}
+	return InternalTokenValidator{tokenDigest: sha256.Sum256([]byte(token))}, nil
 }
 
 func (validator InternalTokenValidator) ValidateAuthorization(value string) bool {

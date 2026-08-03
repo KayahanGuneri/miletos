@@ -13,6 +13,9 @@ var configEnvironment = []string{
 	"MILETOS_RUNTIME_ENVIRONMENT",
 	"MILETOS_RUNTIME_HTTP_HOST",
 	"MILETOS_RUNTIME_HTTP_PORT",
+	"MILETOS_RUNTIME_GRPC_HOST",
+	"MILETOS_RUNTIME_GRPC_PORT",
+	"MILETOS_RUNTIME_PUBLIC_TRIGGER_BASE_URL",
 	"MILETOS_RUNTIME_LOG_LEVEL",
 	"MILETOS_RUNTIME_POSTGRES_URL",
 	"MILETOS_RUNTIME_POSTGRES_PASSWORD",
@@ -25,10 +28,17 @@ var configEnvironment = []string{
 	"MILETOS_RUNTIME_KAFKA_BROKERS",
 	"MILETOS_RUNTIME_KAFKA_CLIENT_ID",
 	"MILETOS_RUNTIME_KAFKA_COMMAND_TOPIC",
+	"MILETOS_RUNTIME_KAFKA_DEAD_LETTER_TOPIC",
 	"MILETOS_RUNTIME_KAFKA_CONSUMER_GROUP",
 	"MILETOS_RUNTIME_INTERNAL_SERVICE_TOKEN",
 	"MILETOS_RUNTIME_RETRY_MAX_ATTEMPTS",
 	"MILETOS_RUNTIME_RETRY_DELAY",
+	"MILETOS_RUNTIME_NODE_CONCURRENCY",
+	"MILETOS_RUNTIME_RECONCILIATION_ENABLED",
+	"MILETOS_RUNTIME_RECONCILIATION_INTERVAL",
+	"MILETOS_RUNTIME_RECONCILIATION_QUEUED_STALE",
+	"MILETOS_RUNTIME_RECONCILIATION_RUNNING_STALE",
+	"MILETOS_RUNTIME_RECONCILIATION_RETRY_PENDING_STALE",
 }
 
 func configureValidEnvironment(t *testing.T) {
@@ -116,8 +126,22 @@ func TestLoadStrictParsedFields(t *testing.T) {
 		},
 		{name: "malformed HTTP port", key: "MILETOS_RUNTIME_HTTP_PORT", value: "invalid", wantError: true},
 		{name: "empty HTTP port", key: "MILETOS_RUNTIME_HTTP_PORT", value: "", wantError: true},
-		{name: "HTTP port below range", key: "MILETOS_RUNTIME_HTTP_PORT", value: "0", wantError: true},
-		{name: "HTTP port above range", key: "MILETOS_RUNTIME_HTTP_PORT", value: "65536", wantError: true},
+		{
+			name: "HTTP port below operational range is parsed", key: "MILETOS_RUNTIME_HTTP_PORT", value: "0",
+			assert: func(t *testing.T, configuration Config) {
+				if configuration.HTTPPort != 0 {
+					t.Fatalf("HTTPPort = %d", configuration.HTTPPort)
+				}
+			},
+		},
+		{
+			name: "HTTP port above operational range is parsed", key: "MILETOS_RUNTIME_HTTP_PORT", value: "65536",
+			assert: func(t *testing.T, configuration Config) {
+				if configuration.HTTPPort != 65536 {
+					t.Fatalf("HTTPPort = %d", configuration.HTTPPort)
+				}
+			},
+		},
 		{
 			name: "valid Kafka enabled", key: "MILETOS_RUNTIME_KAFKA_ENABLED", value: "true",
 			assert: func(t *testing.T, configuration Config) {
@@ -138,8 +162,22 @@ func TestLoadStrictParsedFields(t *testing.T) {
 		},
 		{name: "malformed retry attempts", key: "MILETOS_RUNTIME_RETRY_MAX_ATTEMPTS", value: "many", wantError: true},
 		{name: "empty retry attempts", key: "MILETOS_RUNTIME_RETRY_MAX_ATTEMPTS", value: "", wantError: true},
-		{name: "zero retry attempts", key: "MILETOS_RUNTIME_RETRY_MAX_ATTEMPTS", value: "0", wantError: true},
-		{name: "excessive retry attempts", key: "MILETOS_RUNTIME_RETRY_MAX_ATTEMPTS", value: "32768", wantError: true},
+		{
+			name: "zero retry attempts is parsed", key: "MILETOS_RUNTIME_RETRY_MAX_ATTEMPTS", value: "0",
+			assert: func(t *testing.T, configuration Config) {
+				if configuration.RetryMaxAttempts != 0 {
+					t.Fatalf("RetryMaxAttempts = %d", configuration.RetryMaxAttempts)
+				}
+			},
+		},
+		{
+			name: "excessive retry attempts is parsed", key: "MILETOS_RUNTIME_RETRY_MAX_ATTEMPTS", value: "32768",
+			assert: func(t *testing.T, configuration Config) {
+				if configuration.RetryMaxAttempts != 32768 {
+					t.Fatalf("RetryMaxAttempts = %d", configuration.RetryMaxAttempts)
+				}
+			},
+		},
 		{
 			name: "valid retry delay", key: "MILETOS_RUNTIME_RETRY_DELAY", value: "2s",
 			assert: func(t *testing.T, configuration Config) {
@@ -150,8 +188,22 @@ func TestLoadStrictParsedFields(t *testing.T) {
 		},
 		{name: "malformed retry delay", key: "MILETOS_RUNTIME_RETRY_DELAY", value: "later", wantError: true},
 		{name: "empty retry delay", key: "MILETOS_RUNTIME_RETRY_DELAY", value: "", wantError: true},
-		{name: "zero retry delay", key: "MILETOS_RUNTIME_RETRY_DELAY", value: "0s", wantError: true},
-		{name: "negative retry delay", key: "MILETOS_RUNTIME_RETRY_DELAY", value: "-1s", wantError: true},
+		{
+			name: "zero retry delay is parsed", key: "MILETOS_RUNTIME_RETRY_DELAY", value: "0s",
+			assert: func(t *testing.T, configuration Config) {
+				if configuration.RetryDelay != 0 {
+					t.Fatalf("RetryDelay = %v", configuration.RetryDelay)
+				}
+			},
+		},
+		{
+			name: "negative retry delay is parsed", key: "MILETOS_RUNTIME_RETRY_DELAY", value: "-1s",
+			assert: func(t *testing.T, configuration Config) {
+				if configuration.RetryDelay != -time.Second {
+					t.Fatalf("RetryDelay = %v", configuration.RetryDelay)
+				}
+			},
+		},
 		{name: "invalid log level", key: "MILETOS_RUNTIME_LOG_LEVEL", value: "verbose", wantError: true},
 		{name: "empty log level", key: "MILETOS_RUNTIME_LOG_LEVEL", value: "", wantError: true},
 	}
@@ -223,7 +275,7 @@ func TestLoadRequiresPostgreSQLPasswordForFallback(t *testing.T) {
 
 }
 
-func TestLoadKafkaFieldValidation(t *testing.T) {
+func TestLoadDefersKafkaOperationalValidation(t *testing.T) {
 	required := []string{
 		"MILETOS_RUNTIME_KAFKA_BROKERS",
 		"MILETOS_RUNTIME_KAFKA_CLIENT_ID",
@@ -236,10 +288,13 @@ func TestLoadKafkaFieldValidation(t *testing.T) {
 			t.Setenv("MILETOS_RUNTIME_KAFKA_ENABLED", "true")
 			t.Setenv(key, "")
 
-			_, err := Load()
+			configuration, err := Load()
 
-			if err == nil || !strings.Contains(err.Error(), key) {
-				t.Fatalf("Load() error = %v, want error identifying %s", err, key)
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if key == "MILETOS_RUNTIME_KAFKA_BROKERS" && len(configuration.KafkaBrokers) != 0 {
+				t.Fatalf("KafkaBrokers = %#v", configuration.KafkaBrokers)
 			}
 		})
 	}

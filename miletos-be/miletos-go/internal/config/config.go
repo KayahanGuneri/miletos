@@ -39,11 +39,11 @@ type Config struct {
 }
 
 func Load() (Config, error) {
-	httpPort, err := toInteger("MILETOS_RUNTIME_HTTP_PORT", 8081)
+	httpPort, err := getEnvInt("MILETOS_RUNTIME_HTTP_PORT", 8081)
 	if err != nil {
 		return Config{}, err
 	}
-	grpcPort, err := toInteger("MILETOS_RUNTIME_GRPC_PORT", 9091)
+	grpcPort, err := getEnvInt("MILETOS_RUNTIME_GRPC_PORT", 9091)
 	if err != nil {
 		return Config{}, err
 	}
@@ -51,41 +51,41 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	kafkaEnabled, err := toBoolean("MILETOS_RUNTIME_KAFKA_ENABLED", false)
+	kafkaEnabled, err := getEnvBool("MILETOS_RUNTIME_KAFKA_ENABLED", false)
 	if err != nil {
 		return Config{}, err
 	}
-	retryMaxAttempts, err := toInteger("MILETOS_RUNTIME_RETRY_MAX_ATTEMPTS", 3)
+	retryMaxAttempts, err := getEnvInt("MILETOS_RUNTIME_RETRY_MAX_ATTEMPTS", 3)
 	if err != nil {
 		return Config{}, err
 	}
-	retryDelay, err := toDuration(
+	retryDelay, err := getEnvDuration(
 		"MILETOS_RUNTIME_RETRY_DELAY", 250*time.Millisecond,
 	)
 	if err != nil {
 		return Config{}, err
 	}
-	nodeConcurrency, err := toInteger("MILETOS_RUNTIME_NODE_CONCURRENCY", 2)
+	nodeConcurrency, err := getEnvInt("MILETOS_RUNTIME_NODE_CONCURRENCY", 2)
 	if err != nil {
 		return Config{}, err
 	}
-	reconciliationEnabled, err := toBoolean("MILETOS_RUNTIME_RECONCILIATION_ENABLED", true)
+	reconciliationEnabled, err := getEnvBool("MILETOS_RUNTIME_RECONCILIATION_ENABLED", true)
 	if err != nil {
 		return Config{}, err
 	}
-	reconciliationInterval, err := toDuration("MILETOS_RUNTIME_RECONCILIATION_INTERVAL", 30*time.Second)
+	reconciliationInterval, err := getEnvDuration("MILETOS_RUNTIME_RECONCILIATION_INTERVAL", 30*time.Second)
 	if err != nil {
 		return Config{}, err
 	}
-	queuedStale, err := toDuration("MILETOS_RUNTIME_RECONCILIATION_QUEUED_STALE", 2*time.Minute)
+	queuedStale, err := getEnvDuration("MILETOS_RUNTIME_RECONCILIATION_QUEUED_STALE", 2*time.Minute)
 	if err != nil {
 		return Config{}, err
 	}
-	runningStale, err := toDuration("MILETOS_RUNTIME_RECONCILIATION_RUNNING_STALE", 10*time.Minute)
+	runningStale, err := getEnvDuration("MILETOS_RUNTIME_RECONCILIATION_RUNNING_STALE", 10*time.Minute)
 	if err != nil {
 		return Config{}, err
 	}
-	retryPendingStale, err := toDuration("MILETOS_RUNTIME_RECONCILIATION_RETRY_PENDING_STALE", 2*time.Minute)
+	retryPendingStale, err := getEnvDuration("MILETOS_RUNTIME_RECONCILIATION_RETRY_PENDING_STALE", 2*time.Minute)
 	if err != nil {
 		return Config{}, err
 	}
@@ -106,7 +106,7 @@ func Load() (Config, error) {
 		PublicTriggerBaseURL: publicTriggerBaseURL,
 		PostgreSQLURL:        postgresqlURL,
 		KafkaEnabled:         kafkaEnabled,
-		KafkaBrokers:         toStringSlice("MILETOS_RUNTIME_KAFKA_BROKERS", "127.0.0.1:9092"),
+		KafkaBrokers:         getEnvStrings("MILETOS_RUNTIME_KAFKA_BROKERS", "127.0.0.1:9092"),
 		KafkaClientID: getEnv(
 			"MILETOS_RUNTIME_KAFKA_CLIENT_ID", "miletos-go-engine-v1",
 		),
@@ -145,50 +145,6 @@ func Load() (Config, error) {
 	default:
 		return Config{}, fmt.Errorf("MILETOS_RUNTIME_LOG_LEVEL must be debug, info, warn, or error")
 	}
-	if configuration.HTTPPort < 1 || configuration.HTTPPort > 65535 {
-		return Config{}, fmt.Errorf("MILETOS_RUNTIME_HTTP_PORT must be between 1 and 65535")
-	}
-	if configuration.GRPCPort < 1 || configuration.GRPCPort > 65535 {
-		return Config{}, fmt.Errorf("MILETOS_RUNTIME_GRPC_PORT must be between 1 and 65535")
-	}
-	if len(configuration.InternalServiceToken) < 32 {
-		return Config{}, fmt.Errorf("MILETOS_RUNTIME_INTERNAL_SERVICE_TOKEN must contain at least 32 bytes")
-	}
-	if configuration.KafkaEnabled {
-		if len(configuration.KafkaBrokers) == 0 {
-			return Config{}, fmt.Errorf("MILETOS_RUNTIME_KAFKA_BROKERS must not be empty when Kafka is enabled")
-		}
-		if configuration.KafkaClientID == "" {
-			return Config{}, fmt.Errorf("MILETOS_RUNTIME_KAFKA_CLIENT_ID must not be empty when Kafka is enabled")
-		}
-		if configuration.KafkaCommandTopic == "" {
-			return Config{}, fmt.Errorf("MILETOS_RUNTIME_KAFKA_COMMAND_TOPIC must not be empty when Kafka is enabled")
-		}
-		if configuration.KafkaDeadLetterTopic == "" {
-			return Config{}, fmt.Errorf("MILETOS_RUNTIME_KAFKA_DEAD_LETTER_TOPIC must not be empty when Kafka is enabled")
-		}
-		if configuration.KafkaConsumerGroup == "" {
-			return Config{}, fmt.Errorf("MILETOS_RUNTIME_KAFKA_CONSUMER_GROUP must not be empty when Kafka is enabled")
-		}
-	}
-	if configuration.RetryMaxAttempts < 1 {
-		return Config{}, fmt.Errorf("MILETOS_RUNTIME_RETRY_MAX_ATTEMPTS must be positive")
-	}
-	if configuration.RetryDelay <= 0 {
-		return Config{}, fmt.Errorf("MILETOS_RUNTIME_RETRY_DELAY must be positive")
-	}
-	if configuration.RetryMaxAttempts > 32767 {
-		return Config{}, fmt.Errorf("MILETOS_RUNTIME_RETRY_MAX_ATTEMPTS cannot exceed 32767")
-	}
-	if configuration.NodeConcurrency < 2 || configuration.NodeConcurrency > 5 {
-		return Config{}, fmt.Errorf("MILETOS_RUNTIME_NODE_CONCURRENCY must be between 2 and 5")
-	}
-	if configuration.ReconciliationInterval <= 0 ||
-		configuration.ReconciliationQueuedStale <= 0 ||
-		configuration.ReconciliationRunningStale <= 0 ||
-		configuration.ReconciliationRetryPendingStale <= 0 {
-		return Config{}, fmt.Errorf("reconciliation durations must be positive")
-	}
 	return configuration, nil
 }
 
@@ -208,7 +164,7 @@ func getEnv(name, fallback string) string {
 	return strings.TrimSpace(configured)
 }
 
-func toInteger(name string, fallback int) (int, error) {
+func getEnvInt(name string, fallback int) (int, error) {
 	configured, exists := os.LookupEnv(name)
 	if !exists {
 		return fallback, nil
@@ -221,7 +177,7 @@ func toInteger(name string, fallback int) (int, error) {
 	return parsed, nil
 }
 
-func toBoolean(name string, fallback bool) (bool, error) {
+func getEnvBool(name string, fallback bool) (bool, error) {
 	configured, exists := os.LookupEnv(name)
 	if !exists {
 		return fallback, nil
@@ -234,7 +190,7 @@ func toBoolean(name string, fallback bool) (bool, error) {
 	return parsed, nil
 }
 
-func toDuration(name string, fallback time.Duration) (time.Duration, error) {
+func getEnvDuration(name string, fallback time.Duration) (time.Duration, error) {
 	configured, exists := os.LookupEnv(name)
 	if !exists {
 		return fallback, nil
@@ -247,7 +203,7 @@ func toDuration(name string, fallback time.Duration) (time.Duration, error) {
 	return parsed, nil
 }
 
-func toStringSlice(name, fallback string) []string {
+func getEnvStrings(name, fallback string) []string {
 	parts := strings.Split(getEnv(name, fallback), ",")
 	result := make([]string, 0, len(parts))
 	for _, part := range parts {

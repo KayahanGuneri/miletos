@@ -1,0 +1,122 @@
+package httptrigger
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"time"
+
+	"gorm.io/gorm"
+
+	"miletos-go/internal/features/workflow-runtime/execution/repository"
+	"miletos-go/internal/features/workflow-runtime/workflow"
+	"miletos-go/internal/shared/database"
+)
+
+type Repository struct {
+	dbClient *database.Client
+}
+
+func NewRepository(dbClient *database.Client) *Repository {
+	return &Repository{dbClient: dbClient}
+}
+
+func (triggerRepository *Repository) Create(
+	ctx context.Context,
+	binding Binding,
+	definition workflow.Workflow,
+) error {
+	encodedDefinition, err := json.Marshal(definition)
+	if err != nil {
+		return fmt.Errorf("encode trigger workflow snapshot: %w", err)
+	}
+	transaction, err := triggerRepository.dbClient.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin HTTP trigger activation: %w", err)
+	}
+	defer transaction.Rollback(ctx)
+	snapshot := map[string]any{
+		"snapshot_id": binding.SnapshotID, "company_id": binding.CompanyID,
+		"workflow_id": binding.WorkflowID, "workflow_revision": binding.WorkflowRevision,
+		"workflow_name": definition.Name, "definition_json": encodedDefinition,
+		"created_at": binding.CreatedAt,
+	}
+	if err := transaction.DB(ctx).
+		Table("workflow_runtime.workflow_definition_snapshots").Create(snapshot).Error; err != nil {
+		return fmt.Errorf("persist trigger workflow snapshot: %w", err)
+	}
+	record := triggerBindingRecordFromBinding(binding)
+	if err := transaction.DB(ctx).
+		Table("workflow_runtime.http_trigger_bindings").Create(&record).Error; err != nil {
+		return fmt.Errorf("persist HTTP trigger binding: %w", err)
+	}
+	if err := transaction.Commit(ctx); err != nil {
+		return fmt.Errorf("commit HTTP trigger activation: %w", err)
+	}
+	return nil
+}
+
+func (triggerRepository *Repository) FindByID(
+	ctx context.Context,
+	companyID string,
+	triggerID string,
+) (Binding, error) {
+	var record triggerBindingRecord
+	err := triggerRepository.dbClient.DB(ctx).
+		Table("workflow_runtime.http_trigger_bindings").
+		Where("company_id = ? AND trigger_id = ?", companyID, triggerID).
+		Take(&record).Error
+	if err != nil {
+		return Binding{}, mapBindingFindError(err)
+	}
+	return bindingFromRecord(record), nil
+}
+
+func (triggerRepository *Repository) FindActiveByTokenHash(
+	ctx context.Context,
+	tokenHash []byte,
+) (Binding, error) {
+	var record triggerBindingRecord
+	err := triggerRepository.dbClient.DB(ctx).
+		Table("workflow_runtime.http_trigger_bindings").
+		Where("token_hash = ? AND status = ?", tokenHash, StatusActive).
+		Take(&record).Error
+	if err != nil {
+		return Binding{}, mapBindingFindError(err)
+	}
+	return bindingFromRecord(record), nil
+}
+
+func (triggerRepository *Repository) Disable(
+	ctx context.Context,
+	companyID string,
+	triggerID string,
+) (Binding, error) {
+	now := time.Now().UTC()
+	result := triggerRepository.dbClient.DB(ctx).
+		Table("workflow_runtime.http_trigger_bindings").
+		Where("company_id = ? AND trigger_id = ? AND status = ?", companyID, triggerID, StatusActive).
+		Updates(map[string]any{
+			"status": StatusDisabled, "disabled_at": now, "updated_at": now,
+			"lock_version": gorm.Expr("lock_version + 1"),
+		})
+	if result.Error != nil {
+		return Binding{}, fmt.Errorf("disable HTTP trigger: %w", result.Error)
+	}
+	binding, err := triggerRepository.FindByID(ctx, companyID, triggerID)
+	if err != nil {
+		return Binding{}, err
+	}
+	if result.RowsAffected == 0 && binding.Status != StatusDisabled {
+		return Binding{}, repository.ErrStateTransition
+	}
+	return binding, nil
+}
+
+func mapBindingFindError(err error) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return repository.ErrNotFound
+	}
+	return err
+}

@@ -22,14 +22,42 @@ export const executionQueryKeys = {
     [...EXECUTION_QUERY_ROOT, "detail", companyId ?? "current", executionId, "definition"] as const,
 
   nodes: (executionId: string, params: CursorPageParams, companyId?: number) =>
-    [...EXECUTION_QUERY_ROOT, "detail", companyId ?? "current", executionId, "nodes", params] as const,
+    [
+      ...EXECUTION_QUERY_ROOT,
+      "detail",
+      companyId ?? "current",
+      executionId,
+      "nodes",
+      params,
+    ] as const,
 
   events: (executionId: string, params: CursorPageParams, companyId?: number) =>
-    [...EXECUTION_QUERY_ROOT, "detail", companyId ?? "current", executionId, "events", params] as const,
+    [
+      ...EXECUTION_QUERY_ROOT,
+      "detail",
+      companyId ?? "current",
+      executionId,
+      "events",
+      params,
+    ] as const,
 
   logs: (executionId: string, params: CursorPageParams, companyId?: number) =>
-    [...EXECUTION_QUERY_ROOT, "detail", companyId ?? "current", executionId, "logs", params] as const,
+    [
+      ...EXECUTION_QUERY_ROOT,
+      "detail",
+      companyId ?? "current",
+      executionId,
+      "logs",
+      params,
+    ] as const,
 
   errors: (executionId: string, params: CursorPageParams, companyId?: number) =>
-    [...EXECUTION_QUERY_ROOT, "detail", companyId ?? "current", executionId, "errors", params] as const,
+    [
+      ...EXECUTION_QUERY_ROOT,
+      "detail",
+      companyId ?? "current",
+      executionId,
+      "errors",
+      params,
+    ] as const,
 };

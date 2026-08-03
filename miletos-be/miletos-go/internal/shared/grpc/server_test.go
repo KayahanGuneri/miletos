@@ -16,17 +16,21 @@ import (
 )
 
 func TestContextInterceptorValidatesTokenAndPropagatesMetadata(t *testing.T) {
-	validator := security.NewInternalTokenValidator("internal-token-value")
+	const token = "internal-token-value-for-grpc-tests"
+	validator, err := security.NewInternalTokenValidator(token)
+	if err != nil {
+		t.Fatalf("NewInternalTokenValidator() error = %v", err)
+	}
 	interceptor := contextInterceptor(validator)
 	incoming := metadata.NewIncomingContext(context.Background(), metadata.Pairs(
-		"authorization", "Bearer internal-token-value",
+		"authorization", "Bearer "+token,
 		requestcontext.HeaderCompanyID, "company-7",
 		requestcontext.HeaderRequestID, "request-7",
 		requestcontext.HeaderCorrelationID, "correlation-7",
 		requestcontext.HeaderIdempotencyKey, "idempotency-7",
 	))
 
-	_, err := interceptor(incoming, struct{}{}, &grpc.UnaryServerInfo{},
+	_, err = interceptor(incoming, struct{}{}, &grpc.UnaryServerInfo{},
 		func(ctx context.Context, _ any) (any, error) {
 			if got := requestcontext.CompanyID(ctx); got != "company-7" {
 				t.Fatalf("company ID = %q", got)
@@ -48,7 +52,11 @@ func TestContextInterceptorValidatesTokenAndPropagatesMetadata(t *testing.T) {
 }
 
 func TestContextInterceptorRejectsInvalidAuthenticationAndTenant(t *testing.T) {
-	validator := security.NewInternalTokenValidator("internal-token-value")
+	const token = "internal-token-value-for-grpc-tests"
+	validator, validatorErr := security.NewInternalTokenValidator(token)
+	if validatorErr != nil {
+		t.Fatalf("NewInternalTokenValidator() error = %v", validatorErr)
+	}
 	interceptor := contextInterceptor(validator)
 	handler := func(context.Context, any) (any, error) {
 		t.Fatal("handler called for invalid metadata")
@@ -61,7 +69,7 @@ func TestContextInterceptorRejectsInvalidAuthenticationAndTenant(t *testing.T) {
 	}
 
 	authenticated := metadata.NewIncomingContext(context.Background(), metadata.Pairs(
-		"authorization", "Bearer internal-token-value",
+		"authorization", "Bearer "+token,
 	))
 	_, err = interceptor(authenticated, struct{}{}, &grpc.UnaryServerInfo{}, handler)
 	if status.Code(err) != codes.PermissionDenied {

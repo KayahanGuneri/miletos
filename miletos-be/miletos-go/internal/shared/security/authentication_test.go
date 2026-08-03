@@ -12,9 +12,9 @@ import (
 )
 
 func TestAuthenticationAcceptsValidBearerToken(t *testing.T) {
-	const token = "internal-service-token-value"
+	const token = "internal-service-token-value-32-bytes"
 	var calls atomic.Int32
-	handler := security.NewAuthentication(token).Handle(http.HandlerFunc(
+	handler := authentication(t, token).Handle(http.HandlerFunc(
 		func(writer http.ResponseWriter, _ *http.Request) {
 			calls.Add(1)
 			writer.WriteHeader(http.StatusNoContent)
@@ -32,7 +32,7 @@ func TestAuthenticationAcceptsValidBearerToken(t *testing.T) {
 }
 
 func TestAuthenticationRejectsInvalidHeaders(t *testing.T) {
-	const token = "internal-service-token-value"
+	const token = "internal-service-token-value-32-bytes"
 	tests := []struct {
 		name   string
 		header string
@@ -46,7 +46,7 @@ func TestAuthenticationRejectsInvalidHeaders(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var calls atomic.Int32
-			handler := security.NewAuthentication(token).Handle(http.HandlerFunc(
+			handler := authentication(t, token).Handle(http.HandlerFunc(
 				func(http.ResponseWriter, *http.Request) { calls.Add(1) },
 			))
 			request := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -75,4 +75,24 @@ func TestAuthenticationRejectsInvalidHeaders(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewInternalTokenValidatorRejectsWeakTokens(t *testing.T) {
+	for _, token := range []string{
+		"", "too-short", "internal service token with whitespace 32",
+	} {
+		validator, err := security.NewInternalTokenValidator(token)
+		if err == nil || validator.ValidateAuthorization("Bearer "+token) {
+			t.Fatalf("NewInternalTokenValidator(%q) = (%#v, %v)", token, validator, err)
+		}
+	}
+}
+
+func authentication(t *testing.T, token string) security.Authentication {
+	t.Helper()
+	validator, err := security.NewInternalTokenValidator(token)
+	if err != nil {
+		t.Fatalf("NewInternalTokenValidator() error = %v", err)
+	}
+	return security.NewAuthentication(validator)
 }

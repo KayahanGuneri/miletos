@@ -70,6 +70,8 @@ message Plugin {
   repeated Port output_ports = 8;
   EdgeConstraint input_edge_constraint = 9;
   EdgeConstraint output_edge_constraint = 10;
+  repeated string allowed_root_origins = 11;
+  string context_provider = 12;
 }
 
 message ListPluginsResponse {
@@ -202,6 +204,7 @@ message NodeExecution {
   google.protobuf.Struct input_summary = 15;
   google.protobuf.Struct output_summary = 16;
   google.protobuf.Struct failure_summary = 17;
+  google.protobuf.Struct configuration = 18;
 }
 
 message NodeExecutionPage {

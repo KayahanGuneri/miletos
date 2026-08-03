@@ -1,19 +1,106 @@
 #!/usr/bin/env sh
 set -eu
 
-ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
 
-(
-  cd "$ROOT/miletos-be/miletos-go"
-  go fmt ./...
-)
+TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/miletos-pre-commit.XXXXXX")"
+trap 'rm -rf -- "$TEMP_DIR"' EXIT HUP INT TERM
 
-(
-  cd "$ROOT/miletos-be"
-  mvn -DskipTests -Dmaven.test.skip=true spotless:apply
-)
+STAGED_FILES="$TEMP_DIR/staged-files"
+GO_FILES="$TEMP_DIR/go-files"
+JAVA_FILES="$TEMP_DIR/java-files"
+FRONTEND_FILES="$TEMP_DIR/frontend-files"
+UNSTAGED_FILES="$TEMP_DIR/unstaged-files"
+GO_FORMAT_DIFF="$TEMP_DIR/go-format.diff"
 
-(
-  cd "$ROOT/miletos-fe"
-  npm run format
-)
+git diff --cached --name-only --diff-filter=ACMR > "$STAGED_FILES"
+
+: > "$GO_FILES"
+: > "$JAVA_FILES"
+: > "$FRONTEND_FILES"
+: > "$UNSTAGED_FILES"
+: > "$GO_FORMAT_DIFF"
+
+while IFS= read -r file; do
+  [ -n "$file" ] || continue
+
+  if ! git diff --quiet -- "$file"; then
+    printf '%s\n' "$file" >> "$UNSTAGED_FILES"
+  fi
+
+  case "$file" in
+    *.go)
+      printf '%s\n' "$file" >> "$GO_FILES"
+      ;;
+  esac
+
+  case "$file" in
+    miletos-be/*.java)
+      printf '%s\n' "$file" >> "$JAVA_FILES"
+      ;;
+  esac
+
+  case "$file" in
+    miletos-fe/*.ts|miletos-fe/*.tsx|miletos-fe/*.js|miletos-fe/*.jsx|miletos-fe/*.json|miletos-fe/*.css|miletos-fe/*.md)
+      printf '%s\n' "$file" >> "$FRONTEND_FILES"
+      ;;
+  esac
+done < "$STAGED_FILES"
+
+if [ -s "$UNSTAGED_FILES" ]; then
+  echo "Pre-commit aborted: staged files also contain unstaged changes." >&2
+  echo "Stage the final file contents before committing:" >&2
+  cat "$UNSTAGED_FILES" >&2
+  exit 1
+fi
+
+while IFS= read -r file; do
+  [ -n "$file" ] || continue
+  [ -f "$file" ] || continue
+  gofmt -d -- "$file" >> "$GO_FORMAT_DIFF"
+done < "$GO_FILES"
+
+if [ -s "$GO_FORMAT_DIFF" ]; then
+  echo "Go formatting check failed. Run gofmt on these staged files:" >&2
+  cat "$GO_FORMAT_DIFF" >&2
+  exit 1
+fi
+
+if [ -s "$JAVA_FILES" ]; then
+  JAVA_PATTERNS=""
+
+  while IFS= read -r file; do
+    [ -n "$file" ] || continue
+
+    relative_file=${file#miletos-be/}
+    escaped_file=$(printf '%s' "$relative_file" | sed 's/[][\\.^$*+?(){}|]/\\&/g; s|/|[\\\\/]|g')
+    file_pattern=".*[\\\\/]$escaped_file"
+
+    if [ -z "$JAVA_PATTERNS" ]; then
+      JAVA_PATTERNS=$file_pattern
+    else
+      JAVA_PATTERNS="$JAVA_PATTERNS,$file_pattern"
+    fi
+  done < "$JAVA_FILES"
+
+  (
+    cd "$ROOT/miletos-be"
+    mvn -DskipTests -Dmaven.test.skip=true "-DspotlessFiles=$JAVA_PATTERNS" spotless:check
+  )
+fi
+
+if [ -s "$FRONTEND_FILES" ]; then
+  (
+    cd "$ROOT/miletos-fe"
+    set --
+
+    while IFS= read -r file; do
+      [ -n "$file" ] || continue
+      relative_file=${file#miletos-fe/}
+      set -- "$@" "$relative_file"
+    done < "$FRONTEND_FILES"
+
+    npx prettier --check -- "$@"
+  )
+fi

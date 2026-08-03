@@ -29,6 +29,14 @@ type Transaction struct {
 	db *gorm.DB
 }
 
+func (client *Client) DB(ctx context.Context) *gorm.DB {
+	return client.db.WithContext(ctx)
+}
+
+func (transaction *Transaction) DB(ctx context.Context) *gorm.DB {
+	return transaction.db.WithContext(ctx)
+}
+
 var positionalParameter = regexp.MustCompile(`\$(\d+)`)
 
 func normalizeQuery(query string, arguments []any) (string, []any) {

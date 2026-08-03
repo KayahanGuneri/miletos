@@ -64,21 +64,13 @@ export interface ExecutionDefinitionResponse {
   createdAt: string;
 }
 
-export interface PayloadSummary {
-  source?: string;
-  contentType?: string;
-  sizeBytes?: number;
-  sha256?: string;
-  artifactId?: string;
-  checksum?: string;
-  metadataKeys?: string[];
-}
-
 export interface FailureSummary {
-  category: string;
-  code: string;
-  message: string;
-  retryable: boolean;
+  category?: string;
+  code?: string;
+  message?: string;
+  retryable?: boolean;
+  details?: unknown;
+  [key: string]: unknown;
 }
 
 export interface NodeExecutionResponse {
@@ -87,6 +79,7 @@ export interface NodeExecutionResponse {
   nodeId: string;
   pluginType: string;
   pluginVersion: string;
+  configuration?: Record<string, unknown>;
   status: string;
   attempt: number;
   createdAt: string;
@@ -96,8 +89,8 @@ export interface NodeExecutionResponse {
   finishedAt?: string;
   nextAttemptAt?: string;
   updatedAt: string;
-  inputSummary?: PayloadSummary;
-  outputSummary?: PayloadSummary;
+  inputSummary?: Record<string, unknown>;
+  outputSummary?: Record<string, unknown>;
   failureSummary?: FailureSummary;
 }
 
@@ -123,7 +116,7 @@ export interface ExecutionEventResponse {
   eventId: string;
   workflowExecutionId: string;
   nodeExecutionId?: string;
-  sequenceNumber: number;
+  sequenceNumber: string;
   type: string;
   previousStatus?: string;
   newStatus?: string;
@@ -144,7 +137,7 @@ export interface ExecutionLogResponse {
   logId: string;
   workflowExecutionId: string;
   nodeExecutionId?: string;
-  sequenceNumber: number;
+  sequenceNumber: string;
   level: string;
   message: string;
   metadata: ExecutionMetadata;

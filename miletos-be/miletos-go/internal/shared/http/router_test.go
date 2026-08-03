@@ -8,15 +8,15 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"miletos-go/internal/features/workflowruntime/execution"
-	"miletos-go/internal/features/workflowruntime/httptrigger"
-	"miletos-go/internal/features/workflowruntime/plugin"
+	"miletos-go/internal/context-provider/http-trigger"
+	"miletos-go/internal/features/workflow-runtime/execution"
+	"miletos-go/internal/features/workflow-runtime/plugin"
 	"miletos-go/internal/health"
 	runtimehttp "miletos-go/internal/shared/http"
 	"miletos-go/internal/shared/security"
 )
 
-const routerToken = "router-internal-service-token"
+const routerToken = "router-internal-service-token-value-32"
 
 func testRouter(t *testing.T) http.Handler {
 	t.Helper()
@@ -27,11 +27,15 @@ func testRouter(t *testing.T) http.Handler {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	healthController := &health.Controller{}
 	pluginController := plugin.NewController(registry)
-	executionController := execution.NewExecutionController(nil, nil, nil, nil)
+	executionController := execution.NewExecutionController(nil, nil, nil)
 	publicController := httptrigger.NewPublicController(nil)
+	validator, err := security.NewInternalTokenValidator(routerToken)
+	if err != nil {
+		t.Fatalf("NewInternalTokenValidator() error = %v", err)
+	}
 	return runtimehttp.NewRouter(
 		logger,
-		security.NewAuthentication(routerToken),
+		security.NewAuthentication(validator),
 		runtimehttp.RouteHandlers{
 			Health:                 healthController.Get,
 			PublicTrigger:          publicController.Invoke,

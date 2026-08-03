@@ -1,8 +1,4 @@
-import {
-  type CoordinateExtent,
-  type Edge,
-  type Node,
-} from "@xyflow/react";
+import { type CoordinateExtent, type Edge, type Node } from "@xyflow/react";
 
 export interface ExecutionGraphNodeData extends Record<string, unknown> {
   label: string;
