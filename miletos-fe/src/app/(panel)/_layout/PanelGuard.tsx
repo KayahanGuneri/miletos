@@ -28,7 +28,15 @@ interface AuthenticatedPanelShellProps {
 }
 
 type NavigationIcon =
-  "building" | "dashboard" | "logout" | "menu" | "profile" | "shield" | "users" | "x";
+  | "building"
+  | "dashboard"
+  | "executions"
+  | "logout"
+  | "menu"
+  | "profile"
+  | "shield"
+  | "users"
+  | "x";
 
 interface IconProps {
   name: NavigationIcon;
@@ -59,6 +67,7 @@ function Icon({ name, size = 20 }: IconProps) {
   const sources: Record<NavigationIcon, string> = {
     building: "/icons/dashboard/building.svg",
     dashboard: "/icons/dashboard/dashboard.svg",
+    executions: "/icons/dashboard/sparkles.svg",
     logout: "/icons/navigation/logout.svg",
     menu: "/icons/navigation/menu.svg",
     profile: "/icons/dashboard/profile.svg",
@@ -122,6 +131,14 @@ function getCurrentPageTitle(pathname: string) {
     return "Profile & security";
   }
 
+  if (pathname === "/dashboard/executions") {
+    return "Workflow executions";
+  }
+
+  if (pathname.startsWith("/dashboard/executions/")) {
+    return "Execution detail";
+  }
+
   return "Dashboard";
 }
 
@@ -135,6 +152,14 @@ function buildNavigationItems(pathname: string, user: UserProfile): NavigationIt
       active: pathname === "/dashboard",
     },
   ];
+
+  items.push({
+    href: "/dashboard/executions",
+    label: "Executions",
+    description: "Workflow runtime history",
+    icon: "executions",
+    active: pathname === "/dashboard/executions" || pathname.startsWith("/dashboard/executions/"),
+  });
 
   if (canCreateCompany(user)) {
     items.push({

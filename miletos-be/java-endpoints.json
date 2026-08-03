@@ -1,0 +1,184 @@
+﻿[
+    {
+        "Method":  "POST",
+        "Path":  "/api/auth/change-password",
+        "Summary":  null,
+        "OperationId":  "changePassword",
+        "Security":  "Public/Unspecified"
+    },
+    {
+        "Method":  "POST",
+        "Path":  "/api/auth/complete-password",
+        "Summary":  null,
+        "OperationId":  "completePassword",
+        "Security":  "Public/Unspecified"
+    },
+    {
+        "Method":  "POST",
+        "Path":  "/api/auth/forgot-password",
+        "Summary":  null,
+        "OperationId":  "forgotPassword",
+        "Security":  "Public/Unspecified"
+    },
+    {
+        "Method":  "POST",
+        "Path":  "/api/auth/invitations",
+        "Summary":  null,
+        "OperationId":  "inviteUser",
+        "Security":  "Public/Unspecified"
+    },
+    {
+        "Method":  "POST",
+        "Path":  "/api/auth/login",
+        "Summary":  null,
+        "OperationId":  "login",
+        "Security":  "Public/Unspecified"
+    },
+    {
+        "Method":  "POST",
+        "Path":  "/api/auth/reset-password",
+        "Summary":  null,
+        "OperationId":  "resetPassword",
+        "Security":  "Public/Unspecified"
+    },
+    {
+        "Method":  "GET",
+        "Path":  "/api/companies",
+        "Summary":  null,
+        "OperationId":  "listCompanies",
+        "Security":  "Public/Unspecified"
+    },
+    {
+        "Method":  "POST",
+        "Path":  "/api/companies",
+        "Summary":  null,
+        "OperationId":  "createCompany",
+        "Security":  "Public/Unspecified"
+    },
+    {
+        "Method":  "DELETE",
+        "Path":  "/api/companies/{companyId}",
+        "Summary":  null,
+        "OperationId":  "deleteCompany",
+        "Security":  "Public/Unspecified"
+    },
+    {
+        "Method":  "PUT",
+        "Path":  "/api/companies/{companyId}",
+        "Summary":  null,
+        "OperationId":  "updateCompany",
+        "Security":  "Public/Unspecified"
+    },
+    {
+        "Method":  "GET",
+        "Path":  "/api/companies/{companyId}/users",
+        "Summary":  null,
+        "OperationId":  "listCompanyUsers",
+        "Security":  "Public/Unspecified"
+    },
+    {
+        "Method":  "PUT",
+        "Path":  "/api/users/{userId}/name",
+        "Summary":  null,
+        "OperationId":  "updateUserName",
+        "Security":  "Public/Unspecified"
+    },
+    {
+        "Method":  "GET",
+        "Path":  "/api/users/me",
+        "Summary":  null,
+        "OperationId":  "getCurrentUser",
+        "Security":  "Public/Unspecified"
+    },
+    {
+        "Method":  "GET",
+        "Path":  "/api/users/me/profile-photo",
+        "Summary":  null,
+        "OperationId":  "getOwnProfilePhoto",
+        "Security":  "Public/Unspecified"
+    },
+    {
+        "Method":  "PUT",
+        "Path":  "/api/users/me/profile-photo",
+        "Summary":  null,
+        "OperationId":  "updateOwnProfilePhoto",
+        "Security":  "Public/Unspecified"
+    },
+    {
+        "Method":  "GET",
+        "Path":  "/api/v1/executions",
+        "Summary":  null,
+        "OperationId":  "listExecutions",
+        "Security":  "Public/Unspecified"
+    },
+    {
+        "Method":  "GET",
+        "Path":  "/api/v1/executions/{executionId}",
+        "Summary":  null,
+        "OperationId":  "getExecution",
+        "Security":  "Public/Unspecified"
+    },
+    {
+        "Method":  "GET",
+        "Path":  "/api/v1/executions/{executionId}/definition",
+        "Summary":  null,
+        "OperationId":  "getExecutionDefinition",
+        "Security":  "Public/Unspecified"
+    },
+    {
+        "Method":  "GET",
+        "Path":  "/api/v1/executions/{executionId}/errors",
+        "Summary":  null,
+        "OperationId":  "getExecutionErrors",
+        "Security":  "Public/Unspecified"
+    },
+    {
+        "Method":  "GET",
+        "Path":  "/api/v1/executions/{executionId}/events",
+        "Summary":  null,
+        "OperationId":  "getExecutionEvents",
+        "Security":  "Public/Unspecified"
+    },
+    {
+        "Method":  "GET",
+        "Path":  "/api/v1/executions/{executionId}/logs",
+        "Summary":  null,
+        "OperationId":  "getExecutionLogs",
+        "Security":  "Public/Unspecified"
+    },
+    {
+        "Method":  "GET",
+        "Path":  "/api/v1/executions/{executionId}/nodes",
+        "Summary":  null,
+        "OperationId":  "getExecutionNodes",
+        "Security":  "Public/Unspecified"
+    },
+    {
+        "Method":  "POST",
+        "Path":  "/api/v1/executions/{executionId}/recover",
+        "Summary":  null,
+        "OperationId":  "recoverExecution",
+        "Security":  "Public/Unspecified"
+    },
+    {
+        "Method":  "POST",
+        "Path":  "/api/v1/executions/async",
+        "Summary":  null,
+        "OperationId":  "executeAsync",
+        "Security":  "Public/Unspecified"
+    },
+    {
+        "Method":  "POST",
+        "Path":  "/api/v1/executions/sync",
+        "Summary":  null,
+        "OperationId":  "executeSync",
+        "Security":  "Public/Unspecified"
+    },
+    {
+        "Method":  "GET",
+        "Path":  "/api/v1/plugins",
+        "Summary":  null,
+        "OperationId":  "getPlugins",
+        "Security":  "Public/Unspecified"
+    }
+]

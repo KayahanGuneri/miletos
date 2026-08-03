@@ -178,3 +178,5 @@ blob-report/
 playwright/.cache/
 .nyc_output/
 eslint-report.*
+.gocache/
+.tools/

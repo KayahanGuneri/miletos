@@ -155,6 +155,33 @@ class SecurityIntegrationTest extends PostgreSqlContainerSupport {
     }
 
     @Test
+    void workflowRuntimeEndpointRejectsMissingBearerToken()
+            throws Exception {
+        mockMvc.perform(get("/api/v1/executions"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+    }
+
+    @Test
+    void authenticatedUserWithoutCompanyCannotUseRuntimeGateway()
+            throws Exception {
+        String accessToken =
+                loginAndExtractAccessToken(
+                        SUPERADMIN_EMAIL,
+                        SUPERADMIN_PASSWORD
+                );
+
+        mockMvc.perform(get("/api/v1/executions")
+                        .header(
+                                "Authorization",
+                                "Bearer " + accessToken
+                        ))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code")
+                        .value("COMPANY_CONTEXT_REQUIRED"));
+    }
+
+    @Test
     void protectedEndpointRejectsMalformedBearerTokenWithStableJson() throws Exception {
         mockMvc.perform(get("/api/users/me")
                         .header("Authorization", "Bearer not-a-jwt"))

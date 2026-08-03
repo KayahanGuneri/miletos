@@ -1,6 +1,7 @@
 import { createElement, type ComponentPropsWithoutRef } from "react";
 
-type TypographyElement = "h1" | "h2" | "h3" | "p" | "span";
+type TypographyElement =
+  "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "p" | "span" | "strong" | "small";
 
 type TypographyProps<Element extends TypographyElement> = {
   as: Element;

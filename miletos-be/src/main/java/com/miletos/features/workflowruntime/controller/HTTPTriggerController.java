@@ -1,0 +1,171 @@
+package com.miletos.features.workflowruntime.controller;
+
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.miletos.features.workflowruntime.client.WorkflowRuntimeResponse;
+import com.miletos.features.workflowruntime.documentation.WorkflowRuntimeSchemas;
+import com.miletos.features.workflowruntime.service.WorkflowRuntimeService;
+import com.miletos.security.authorization.Authorize;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import lombok.RequiredArgsConstructor;
+
+@RestController
+@RequestMapping(
+        value = "/api/v1/http-triggers",
+        produces = MediaType.APPLICATION_JSON_VALUE)
+@RequiredArgsConstructor
+public class HTTPTriggerController {
+
+    private final WorkflowRuntimeService workflowRuntimeService;
+
+    @Authorize
+    @PostMapping
+    @Operation(
+            summary = "Create an HTTP trigger",
+            description = "Creates an immutable ASYNC HTTP webhook binding. "
+                    + "The public URL is returned only by this successful response.")
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            required = true,
+            content = @Content(
+                    mediaType = "application/json",
+                    schema = @Schema(
+                            implementation =
+                                    WorkflowRuntimeSchemas.CreateHTTPTriggerRequest.class)))
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "201",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(
+                                    implementation =
+                                            WorkflowRuntimeSchemas.CreateHTTPTriggerResponse.class))),
+            @ApiResponse(
+                    responseCode = "400",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+            @ApiResponse(
+                    responseCode = "401",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+            @ApiResponse(
+                    responseCode = "403",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+            @ApiResponse(
+                    responseCode = "422",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+            @ApiResponse(
+                    responseCode = "503",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
+    })
+    public ResponseEntity<byte[]> create(
+            @AuthenticationPrincipal(expression = "subject") String actorEmail,
+            @RequestBody JsonNode body,
+            @RequestHeader HttpHeaders browserHeaders) {
+        return toResponseEntity(
+                workflowRuntimeService.createHTTPTrigger(actorEmail, body, browserHeaders));
+    }
+
+    @Authorize
+    @GetMapping("/{triggerId}")
+    @Operation(summary = "Get an HTTP trigger without its secret URL")
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(
+                                    implementation =
+                                            WorkflowRuntimeSchemas.HTTPTriggerResponse.class))),
+            @ApiResponse(
+                    responseCode = "401",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+            @ApiResponse(
+                    responseCode = "403",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+            @ApiResponse(
+                    responseCode = "404",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
+    })
+    public ResponseEntity<byte[]> get(
+            @AuthenticationPrincipal(expression = "subject") String actorEmail,
+            @PathVariable String triggerId,
+            @RequestHeader HttpHeaders browserHeaders) {
+        return toResponseEntity(
+                workflowRuntimeService.getHTTPTrigger(
+                        actorEmail, triggerId, browserHeaders));
+    }
+
+    @Authorize
+    @PostMapping("/{triggerId}/disable")
+    @Operation(summary = "Idempotently disable an HTTP trigger")
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(
+                                    implementation =
+                                            WorkflowRuntimeSchemas.HTTPTriggerResponse.class))),
+            @ApiResponse(
+                    responseCode = "401",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+            @ApiResponse(
+                    responseCode = "403",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class))),
+            @ApiResponse(
+                    responseCode = "404",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
+    })
+    public ResponseEntity<byte[]> disable(
+            @AuthenticationPrincipal(expression = "subject") String actorEmail,
+            @PathVariable String triggerId,
+            @RequestHeader HttpHeaders browserHeaders) {
+        return toResponseEntity(
+                workflowRuntimeService.disableHTTPTrigger(
+                        actorEmail, triggerId, browserHeaders));
+    }
+
+    private ResponseEntity<byte[]> toResponseEntity(
+            WorkflowRuntimeResponse response) {
+        return ResponseEntity
+                .status(response.status())
+                .headers(response.headers())
+                .body(response.body());
+    }
+}

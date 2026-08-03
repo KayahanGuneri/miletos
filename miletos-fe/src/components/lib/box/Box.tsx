@@ -1,14 +1,5 @@
-import type { AriaRole, ReactNode } from "react";
+import type { ComponentPropsWithoutRef } from "react";
 
-export interface BoxProps {
-  children?: ReactNode;
-  className?: string;
-  role?: AriaRole;
-  title?: string;
-}
+export type BoxProps = ComponentPropsWithoutRef<"div">;
 
-export const Box = ({ children, className, role, title }: BoxProps) => (
-  <div className={className} role={role} title={title}>
-    {children}
-  </div>
-);
+export const Box = (props: BoxProps) => <div {...props} />;

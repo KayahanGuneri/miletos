@@ -1,0 +1,16 @@
+.executionEdge__label {
+  position: absolute;
+  z-index: 2;
+  max-width: 14rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+  border-radius: 0.375rem;
+  background: var(--background, #fff);
+  box-shadow: 0 0.125rem 0.4rem rgb(15 23 42 / 10%);
+  color: inherit;
+  font-size: 0.75rem;
+  line-height: 1.25;
+  pointer-events: none;
+  text-align: center;
+  white-space: nowrap;
+}
