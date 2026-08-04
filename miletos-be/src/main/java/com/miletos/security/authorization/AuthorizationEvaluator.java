@@ -28,6 +28,10 @@ public class AuthorizationEvaluator {
     }
 
     public boolean isActive(User user) {
+        if (user == null) {
+            return false;
+        }
+
         boolean statusActive = user.getStatus() == UserStatus.ACTIVE;
         boolean onboardingCompleted = user.getOnboardingStatus() == OnboardingStatus.COMPLETED
                 || user.getOnboardingStatus() == OnboardingStatus.NOT_REQUIRED;
@@ -35,10 +39,19 @@ public class AuthorizationEvaluator {
         return statusActive && onboardingCompleted;
     }
 
+    public boolean isCompanyAdmin(User user) {
+        return isActive(user)
+                && !user.isSuperAdmin()
+                && user.getRole() == UserRole.ADMIN
+                && user.getCompany() != null
+                && user.getCompany().getId() != null;
+    }
+
     private boolean hasRole(User user, RequiredRole requiredRole) {
         return switch (requiredRole) {
             case SUPERADMIN -> user.isSuperAdmin();
             case ADMIN -> user.isSuperAdmin() || user.getRole() == UserRole.ADMIN;
+            case COMPANY_ADMIN -> isCompanyAdmin(user);
             case USER -> user.isSuperAdmin() || user.getRole() != null;
         };
     }

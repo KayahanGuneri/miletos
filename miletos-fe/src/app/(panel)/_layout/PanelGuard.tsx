@@ -9,6 +9,7 @@ import { SESSION_UNAUTHORIZED_EVENT } from "@/shared/session/events/session-even
 import {
   canAccessCompanyUsers,
   canCreateCompany,
+  canManageWorkflows,
 } from "@/shared/session/permissions/session-permissions";
 import { hasAccessToken } from "@/shared/session/storage/access-token-storage";
 import { type UserProfile } from "@/shared/session/types/session-user-types";
@@ -36,6 +37,7 @@ type NavigationIcon =
   | "profile"
   | "shield"
   | "users"
+  | "workflows"
   | "x";
 
 interface IconProps {
@@ -73,6 +75,7 @@ function Icon({ name, size = 20 }: IconProps) {
     profile: "/icons/dashboard/profile.svg",
     shield: "/icons/dashboard/shield.svg",
     users: "/icons/dashboard/team.svg",
+    workflows: "/icons/dashboard/sparkles.svg",
     x: "/icons/navigation/x.svg",
   };
   return <GenericIcon size={size} src={sources[name]} />;
@@ -139,6 +142,18 @@ function getCurrentPageTitle(pathname: string) {
     return "Execution detail";
   }
 
+  if (pathname === "/workflows") {
+    return "Workflow management";
+  }
+
+  if (pathname === "/workflows/new") {
+    return "New workflow";
+  }
+
+  if (pathname.startsWith("/workflows/")) {
+    return "Workflow editor";
+  }
+
   return "Dashboard";
 }
 
@@ -160,6 +175,16 @@ function buildNavigationItems(pathname: string, user: UserProfile): NavigationIt
     icon: "executions",
     active: pathname === "/dashboard/executions" || pathname.startsWith("/dashboard/executions/"),
   });
+
+  if (canManageWorkflows(user)) {
+    items.push({
+      href: "/workflows",
+      label: "Workflows",
+      description: "Design and lifecycle",
+      icon: "workflows",
+      active: pathname === "/workflows" || pathname.startsWith("/workflows/"),
+    });
+  }
 
   if (canCreateCompany(user)) {
     items.push({

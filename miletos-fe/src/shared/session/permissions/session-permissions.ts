@@ -13,6 +13,16 @@ export function canCreateCompany(user: AuthenticatedUser | null | undefined) {
   return Boolean(user?.superAdmin && isActiveCompletedUser(user));
 }
 
+export function canManageWorkflows(user: AuthenticatedUser | null | undefined) {
+  return Boolean(
+    user &&
+    isActiveCompletedUser(user) &&
+    !user.superAdmin &&
+    user.role === "ADMIN" &&
+    user.companyId,
+  );
+}
+
 export function canAccessCompanyUsers(
   user: AuthenticatedUser | null | undefined,
   companyId?: number,
