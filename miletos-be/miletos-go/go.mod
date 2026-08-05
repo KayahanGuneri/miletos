@@ -4,6 +4,7 @@ go 1.26
 
 require (
 	github.com/go-chi/chi/v5 v5.2.5
+	github.com/robfig/cron/v3 v3.0.1
 	github.com/twmb/franz-go v1.19.5
 	github.com/twmb/franz-go/pkg/kmsg v1.11.2 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250804133106-a7a43d27e69b

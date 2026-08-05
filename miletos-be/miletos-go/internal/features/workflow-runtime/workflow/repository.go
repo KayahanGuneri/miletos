@@ -71,16 +71,19 @@ func (repository *WorkflowRepository) FindBySnapshotID(
 	companyID string,
 	snapshotID string,
 ) (WorkflowSnapshot, error) {
-	var record workflowSnapshotRecord
-	err := repository.dbClient.DB(ctx).
+	var records []workflowSnapshotRecord
+	result := repository.dbClient.DB(ctx).
 		Table("workflow_runtime.workflow_definition_snapshots").
 		Select("snapshot_id, definition_json, created_at").
 		Where("company_id = ? AND snapshot_id = ?", companyID, snapshotID).
-		Take(&record).Error
-	if err != nil {
-		return WorkflowSnapshot{}, mapNoRows(err)
+		Limit(1).Find(&records)
+	if result.Error != nil {
+		return WorkflowSnapshot{}, fmt.Errorf("find workflow snapshot: %w", result.Error)
 	}
-	return workflowSnapshotFromRecord(record)
+	if result.RowsAffected == 0 {
+		return WorkflowSnapshot{}, ErrNotFound
+	}
+	return workflowSnapshotFromRecord(records[0])
 }
 
 func newID(prefix string) string {

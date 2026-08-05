@@ -7,6 +7,7 @@ import (
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"miletos-go/internal/features/workflow-runtime/execution/model"
 	"miletos-go/internal/features/workflow-runtime/execution/repository"
@@ -34,6 +35,20 @@ func NewGRPCService(
 	}
 }
 
+func (service *GRPCService) ValidateWorkflow(
+	ctx context.Context,
+	request *runtimev1.ValidateWorkflowRequest,
+) (*emptypb.Empty, error) {
+	if request == nil || request.Definition == nil {
+		return nil, status.Error(codes.InvalidArgument, "workflow definition is required")
+	}
+	definition := mapWorkflowFromGRPC(request.GetDefinition(), requestcontext.CompanyID(ctx))
+	if err := service.service.Validate(definition); err != nil {
+		return nil, mapGRPCError(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
 func (service *GRPCService) ExecuteSync(
 	ctx context.Context,
 	request *runtimev1.ExecuteRequest,
@@ -53,7 +68,7 @@ func (service *GRPCService) ExecuteSync(
 		startInput,
 		requestcontext.CorrelationID(ctx),
 		requestcontext.IdempotencyKey(ctx),
-		grpcFingerprint(request, "SYNC"),
+		manualExecutionFingerprint(workflow, startInput, "SYNC"),
 	)
 	if err != nil {
 		return nil, mapGRPCError(err)
@@ -80,7 +95,7 @@ func (service *GRPCService) ExecuteAsync(
 		startInput,
 		requestcontext.CorrelationID(ctx),
 		requestcontext.IdempotencyKey(ctx),
-		grpcFingerprint(request, "ASYNC"),
+		manualExecutionFingerprint(workflow, startInput, "ASYNC"),
 	)
 	if err != nil {
 		return nil, mapGRPCError(err)
@@ -288,28 +303,34 @@ func mapGRPCError(err error) error {
 			"INVALID_EXECUTION_ORIGIN",
 		)
 	case errors.Is(err, workflow.ErrInvalidWorkflow):
-		var validationError *workflow.WorkflowValidationError
-		issues := make([]*runtimev1.ValidationIssue, 0)
-		if errors.As(err, &validationError) {
-			for _, issue := range validationError.Issues {
-				issues = append(issues, &runtimev1.ValidationIssue{
-					Code:          issue.Code,
-					Field:         issue.Field,
-					Reason:        issue.Reason,
-					NodeId:        issue.NodeID,
-					EdgeId:        issue.EdgeID,
-					PluginType:    issue.PluginType,
-					PluginVersion: issue.PluginVersion,
-					Expected:      issue.Expected,
-					Actual:        issue.Actual,
-					CyclePath:     issue.CyclePath,
-				})
-			}
-		}
-		return validationStatus(issues)
+		return WorkflowValidationGRPCStatus(err)
 	default:
 		return status.Error(codes.Internal, "an unexpected internal error occurred")
 	}
+}
+
+// WorkflowValidationGRPCStatus maps workflow.ErrInvalidWorkflow to a gRPC
+// InvalidArgument status that carries the original ValidationIssue details.
+func WorkflowValidationGRPCStatus(err error) error {
+	var validationError *workflow.WorkflowValidationError
+	issues := make([]*runtimev1.ValidationIssue, 0)
+	if errors.As(err, &validationError) {
+		for _, issue := range validationError.Issues {
+			issues = append(issues, &runtimev1.ValidationIssue{
+				Code:          issue.Code,
+				Field:         issue.Field,
+				Reason:        issue.Reason,
+				NodeId:        issue.NodeID,
+				EdgeId:        issue.EdgeID,
+				PluginType:    issue.PluginType,
+				PluginVersion: issue.PluginVersion,
+				Expected:      issue.Expected,
+				Actual:        issue.Actual,
+				CyclePath:     issue.CyclePath,
+			})
+		}
+	}
+	return validationStatus(issues)
 }
 
 func validationStatus(issues []*runtimev1.ValidationIssue) error {

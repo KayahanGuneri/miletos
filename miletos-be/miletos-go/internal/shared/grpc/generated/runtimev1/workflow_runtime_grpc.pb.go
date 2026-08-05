@@ -8,7 +8,6 @@ package runtimev1
 
 import (
 	context "context"
-
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -123,6 +122,7 @@ var PluginService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
+	ExecutionService_ValidateWorkflow_FullMethodName       = "/miletos.runtime.v1.ExecutionService/ValidateWorkflow"
 	ExecutionService_ExecuteSync_FullMethodName            = "/miletos.runtime.v1.ExecutionService/ExecuteSync"
 	ExecutionService_ExecuteAsync_FullMethodName           = "/miletos.runtime.v1.ExecutionService/ExecuteAsync"
 	ExecutionService_ListExecutions_FullMethodName         = "/miletos.runtime.v1.ExecutionService/ListExecutions"
@@ -139,6 +139,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ExecutionServiceClient interface {
+	ValidateWorkflow(ctx context.Context, in *ValidateWorkflowRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	ExecuteSync(ctx context.Context, in *ExecuteRequest, opts ...grpc.CallOption) (*ExecutionResponse, error)
 	ExecuteAsync(ctx context.Context, in *ExecuteRequest, opts ...grpc.CallOption) (*ExecutionResponse, error)
 	ListExecutions(ctx context.Context, in *ListExecutionsRequest, opts ...grpc.CallOption) (*ExecutionPage, error)
@@ -157,6 +158,16 @@ type executionServiceClient struct {
 
 func NewExecutionServiceClient(cc grpc.ClientConnInterface) ExecutionServiceClient {
 	return &executionServiceClient{cc}
+}
+
+func (c *executionServiceClient) ValidateWorkflow(ctx context.Context, in *ValidateWorkflowRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, ExecutionService_ValidateWorkflow_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *executionServiceClient) ExecuteSync(ctx context.Context, in *ExecuteRequest, opts ...grpc.CallOption) (*ExecutionResponse, error) {
@@ -263,6 +274,7 @@ func (c *executionServiceClient) RecoverExecution(ctx context.Context, in *Recov
 // All implementations must embed UnimplementedExecutionServiceServer
 // for forward compatibility.
 type ExecutionServiceServer interface {
+	ValidateWorkflow(context.Context, *ValidateWorkflowRequest) (*emptypb.Empty, error)
 	ExecuteSync(context.Context, *ExecuteRequest) (*ExecutionResponse, error)
 	ExecuteAsync(context.Context, *ExecuteRequest) (*ExecutionResponse, error)
 	ListExecutions(context.Context, *ListExecutionsRequest) (*ExecutionPage, error)
@@ -283,6 +295,9 @@ type ExecutionServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedExecutionServiceServer struct{}
 
+func (UnimplementedExecutionServiceServer) ValidateWorkflow(context.Context, *ValidateWorkflowRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ValidateWorkflow not implemented")
+}
 func (UnimplementedExecutionServiceServer) ExecuteSync(context.Context, *ExecuteRequest) (*ExecutionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ExecuteSync not implemented")
 }
@@ -332,6 +347,24 @@ func RegisterExecutionServiceServer(s grpc.ServiceRegistrar, srv ExecutionServic
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&ExecutionService_ServiceDesc, srv)
+}
+
+func _ExecutionService_ValidateWorkflow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ValidateWorkflowRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ExecutionServiceServer).ValidateWorkflow(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ExecutionService_ValidateWorkflow_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ExecutionServiceServer).ValidateWorkflow(ctx, req.(*ValidateWorkflowRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _ExecutionService_ExecuteSync_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -522,6 +555,10 @@ var ExecutionService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*ExecutionServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
+			MethodName: "ValidateWorkflow",
+			Handler:    _ExecutionService_ValidateWorkflow_Handler,
+		},
+		{
 			MethodName: "ExecuteSync",
 			Handler:    _ExecutionService_ExecuteSync_Handler,
 		},
@@ -567,9 +604,10 @@ var ExecutionService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	HTTPTriggerService_CreateHTTPTrigger_FullMethodName  = "/miletos.runtime.v1.HTTPTriggerService/CreateHTTPTrigger"
-	HTTPTriggerService_GetHTTPTrigger_FullMethodName     = "/miletos.runtime.v1.HTTPTriggerService/GetHTTPTrigger"
-	HTTPTriggerService_DisableHTTPTrigger_FullMethodName = "/miletos.runtime.v1.HTTPTriggerService/DisableHTTPTrigger"
+	HTTPTriggerService_CreateHTTPTrigger_FullMethodName              = "/miletos.runtime.v1.HTTPTriggerService/CreateHTTPTrigger"
+	HTTPTriggerService_GetHTTPTrigger_FullMethodName                 = "/miletos.runtime.v1.HTTPTriggerService/GetHTTPTrigger"
+	HTTPTriggerService_GetActiveHTTPTriggerByWorkflow_FullMethodName = "/miletos.runtime.v1.HTTPTriggerService/GetActiveHTTPTriggerByWorkflow"
+	HTTPTriggerService_DisableHTTPTrigger_FullMethodName             = "/miletos.runtime.v1.HTTPTriggerService/DisableHTTPTrigger"
 )
 
 // HTTPTriggerServiceClient is the client API for HTTPTriggerService service.
@@ -578,6 +616,7 @@ const (
 type HTTPTriggerServiceClient interface {
 	CreateHTTPTrigger(ctx context.Context, in *CreateHTTPTriggerRequest, opts ...grpc.CallOption) (*CreateHTTPTriggerResponse, error)
 	GetHTTPTrigger(ctx context.Context, in *GetHTTPTriggerRequest, opts ...grpc.CallOption) (*HTTPTriggerResponse, error)
+	GetActiveHTTPTriggerByWorkflow(ctx context.Context, in *GetActiveHTTPTriggerByWorkflowRequest, opts ...grpc.CallOption) (*HTTPTriggerResponse, error)
 	DisableHTTPTrigger(ctx context.Context, in *DisableHTTPTriggerRequest, opts ...grpc.CallOption) (*HTTPTriggerResponse, error)
 }
 
@@ -609,6 +648,16 @@ func (c *hTTPTriggerServiceClient) GetHTTPTrigger(ctx context.Context, in *GetHT
 	return out, nil
 }
 
+func (c *hTTPTriggerServiceClient) GetActiveHTTPTriggerByWorkflow(ctx context.Context, in *GetActiveHTTPTriggerByWorkflowRequest, opts ...grpc.CallOption) (*HTTPTriggerResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HTTPTriggerResponse)
+	err := c.cc.Invoke(ctx, HTTPTriggerService_GetActiveHTTPTriggerByWorkflow_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *hTTPTriggerServiceClient) DisableHTTPTrigger(ctx context.Context, in *DisableHTTPTriggerRequest, opts ...grpc.CallOption) (*HTTPTriggerResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(HTTPTriggerResponse)
@@ -625,6 +674,7 @@ func (c *hTTPTriggerServiceClient) DisableHTTPTrigger(ctx context.Context, in *D
 type HTTPTriggerServiceServer interface {
 	CreateHTTPTrigger(context.Context, *CreateHTTPTriggerRequest) (*CreateHTTPTriggerResponse, error)
 	GetHTTPTrigger(context.Context, *GetHTTPTriggerRequest) (*HTTPTriggerResponse, error)
+	GetActiveHTTPTriggerByWorkflow(context.Context, *GetActiveHTTPTriggerByWorkflowRequest) (*HTTPTriggerResponse, error)
 	DisableHTTPTrigger(context.Context, *DisableHTTPTriggerRequest) (*HTTPTriggerResponse, error)
 	mustEmbedUnimplementedHTTPTriggerServiceServer()
 }
@@ -641,6 +691,9 @@ func (UnimplementedHTTPTriggerServiceServer) CreateHTTPTrigger(context.Context, 
 }
 func (UnimplementedHTTPTriggerServiceServer) GetHTTPTrigger(context.Context, *GetHTTPTriggerRequest) (*HTTPTriggerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetHTTPTrigger not implemented")
+}
+func (UnimplementedHTTPTriggerServiceServer) GetActiveHTTPTriggerByWorkflow(context.Context, *GetActiveHTTPTriggerByWorkflowRequest) (*HTTPTriggerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetActiveHTTPTriggerByWorkflow not implemented")
 }
 func (UnimplementedHTTPTriggerServiceServer) DisableHTTPTrigger(context.Context, *DisableHTTPTriggerRequest) (*HTTPTriggerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DisableHTTPTrigger not implemented")
@@ -702,6 +755,24 @@ func _HTTPTriggerService_GetHTTPTrigger_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _HTTPTriggerService_GetActiveHTTPTriggerByWorkflow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetActiveHTTPTriggerByWorkflowRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HTTPTriggerServiceServer).GetActiveHTTPTriggerByWorkflow(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HTTPTriggerService_GetActiveHTTPTriggerByWorkflow_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HTTPTriggerServiceServer).GetActiveHTTPTriggerByWorkflow(ctx, req.(*GetActiveHTTPTriggerByWorkflowRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _HTTPTriggerService_DisableHTTPTrigger_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DisableHTTPTriggerRequest)
 	if err := dec(in); err != nil {
@@ -736,8 +807,331 @@ var HTTPTriggerService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _HTTPTriggerService_GetHTTPTrigger_Handler,
 		},
 		{
+			MethodName: "GetActiveHTTPTriggerByWorkflow",
+			Handler:    _HTTPTriggerService_GetActiveHTTPTriggerByWorkflow_Handler,
+		},
+		{
 			MethodName: "DisableHTTPTrigger",
 			Handler:    _HTTPTriggerService_DisableHTTPTrigger_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "miletos/runtime/v1/workflow_runtime.proto",
+}
+
+const (
+	CronTriggerService_CreateCronTrigger_FullMethodName              = "/miletos.runtime.v1.CronTriggerService/CreateCronTrigger"
+	CronTriggerService_GetCronTrigger_FullMethodName                 = "/miletos.runtime.v1.CronTriggerService/GetCronTrigger"
+	CronTriggerService_GetActiveCronTriggerByWorkflow_FullMethodName = "/miletos.runtime.v1.CronTriggerService/GetActiveCronTriggerByWorkflow"
+	CronTriggerService_DisableCronTrigger_FullMethodName             = "/miletos.runtime.v1.CronTriggerService/DisableCronTrigger"
+)
+
+// CronTriggerServiceClient is the client API for CronTriggerService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type CronTriggerServiceClient interface {
+	CreateCronTrigger(ctx context.Context, in *CreateCronTriggerRequest, opts ...grpc.CallOption) (*CreateCronTriggerResponse, error)
+	GetCronTrigger(ctx context.Context, in *GetCronTriggerRequest, opts ...grpc.CallOption) (*CronTriggerResponse, error)
+	GetActiveCronTriggerByWorkflow(ctx context.Context, in *GetActiveCronTriggerByWorkflowRequest, opts ...grpc.CallOption) (*CronTriggerResponse, error)
+	DisableCronTrigger(ctx context.Context, in *DisableCronTriggerRequest, opts ...grpc.CallOption) (*CronTriggerResponse, error)
+}
+
+type cronTriggerServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewCronTriggerServiceClient(cc grpc.ClientConnInterface) CronTriggerServiceClient {
+	return &cronTriggerServiceClient{cc}
+}
+
+func (c *cronTriggerServiceClient) CreateCronTrigger(ctx context.Context, in *CreateCronTriggerRequest, opts ...grpc.CallOption) (*CreateCronTriggerResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateCronTriggerResponse)
+	err := c.cc.Invoke(ctx, CronTriggerService_CreateCronTrigger_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *cronTriggerServiceClient) GetCronTrigger(ctx context.Context, in *GetCronTriggerRequest, opts ...grpc.CallOption) (*CronTriggerResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CronTriggerResponse)
+	err := c.cc.Invoke(ctx, CronTriggerService_GetCronTrigger_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *cronTriggerServiceClient) GetActiveCronTriggerByWorkflow(ctx context.Context, in *GetActiveCronTriggerByWorkflowRequest, opts ...grpc.CallOption) (*CronTriggerResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CronTriggerResponse)
+	err := c.cc.Invoke(ctx, CronTriggerService_GetActiveCronTriggerByWorkflow_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *cronTriggerServiceClient) DisableCronTrigger(ctx context.Context, in *DisableCronTriggerRequest, opts ...grpc.CallOption) (*CronTriggerResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CronTriggerResponse)
+	err := c.cc.Invoke(ctx, CronTriggerService_DisableCronTrigger_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// CronTriggerServiceServer is the server API for CronTriggerService service.
+// All implementations must embed UnimplementedCronTriggerServiceServer
+// for forward compatibility.
+type CronTriggerServiceServer interface {
+	CreateCronTrigger(context.Context, *CreateCronTriggerRequest) (*CreateCronTriggerResponse, error)
+	GetCronTrigger(context.Context, *GetCronTriggerRequest) (*CronTriggerResponse, error)
+	GetActiveCronTriggerByWorkflow(context.Context, *GetActiveCronTriggerByWorkflowRequest) (*CronTriggerResponse, error)
+	DisableCronTrigger(context.Context, *DisableCronTriggerRequest) (*CronTriggerResponse, error)
+	mustEmbedUnimplementedCronTriggerServiceServer()
+}
+
+// UnimplementedCronTriggerServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedCronTriggerServiceServer struct{}
+
+func (UnimplementedCronTriggerServiceServer) CreateCronTrigger(context.Context, *CreateCronTriggerRequest) (*CreateCronTriggerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateCronTrigger not implemented")
+}
+func (UnimplementedCronTriggerServiceServer) GetCronTrigger(context.Context, *GetCronTriggerRequest) (*CronTriggerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetCronTrigger not implemented")
+}
+func (UnimplementedCronTriggerServiceServer) GetActiveCronTriggerByWorkflow(context.Context, *GetActiveCronTriggerByWorkflowRequest) (*CronTriggerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetActiveCronTriggerByWorkflow not implemented")
+}
+func (UnimplementedCronTriggerServiceServer) DisableCronTrigger(context.Context, *DisableCronTriggerRequest) (*CronTriggerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DisableCronTrigger not implemented")
+}
+func (UnimplementedCronTriggerServiceServer) mustEmbedUnimplementedCronTriggerServiceServer() {}
+func (UnimplementedCronTriggerServiceServer) testEmbeddedByValue()                            {}
+
+// UnsafeCronTriggerServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to CronTriggerServiceServer will
+// result in compilation errors.
+type UnsafeCronTriggerServiceServer interface {
+	mustEmbedUnimplementedCronTriggerServiceServer()
+}
+
+func RegisterCronTriggerServiceServer(s grpc.ServiceRegistrar, srv CronTriggerServiceServer) {
+	// If the following call pancis, it indicates UnimplementedCronTriggerServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&CronTriggerService_ServiceDesc, srv)
+}
+
+func _CronTriggerService_CreateCronTrigger_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateCronTriggerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CronTriggerServiceServer).CreateCronTrigger(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CronTriggerService_CreateCronTrigger_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CronTriggerServiceServer).CreateCronTrigger(ctx, req.(*CreateCronTriggerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CronTriggerService_GetCronTrigger_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCronTriggerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CronTriggerServiceServer).GetCronTrigger(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CronTriggerService_GetCronTrigger_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CronTriggerServiceServer).GetCronTrigger(ctx, req.(*GetCronTriggerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CronTriggerService_GetActiveCronTriggerByWorkflow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetActiveCronTriggerByWorkflowRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CronTriggerServiceServer).GetActiveCronTriggerByWorkflow(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CronTriggerService_GetActiveCronTriggerByWorkflow_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CronTriggerServiceServer).GetActiveCronTriggerByWorkflow(ctx, req.(*GetActiveCronTriggerByWorkflowRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CronTriggerService_DisableCronTrigger_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DisableCronTriggerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CronTriggerServiceServer).DisableCronTrigger(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CronTriggerService_DisableCronTrigger_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CronTriggerServiceServer).DisableCronTrigger(ctx, req.(*DisableCronTriggerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// CronTriggerService_ServiceDesc is the grpc.ServiceDesc for CronTriggerService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var CronTriggerService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "miletos.runtime.v1.CronTriggerService",
+	HandlerType: (*CronTriggerServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "CreateCronTrigger",
+			Handler:    _CronTriggerService_CreateCronTrigger_Handler,
+		},
+		{
+			MethodName: "GetCronTrigger",
+			Handler:    _CronTriggerService_GetCronTrigger_Handler,
+		},
+		{
+			MethodName: "GetActiveCronTriggerByWorkflow",
+			Handler:    _CronTriggerService_GetActiveCronTriggerByWorkflow_Handler,
+		},
+		{
+			MethodName: "DisableCronTrigger",
+			Handler:    _CronTriggerService_DisableCronTrigger_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "miletos/runtime/v1/workflow_runtime.proto",
+}
+
+const (
+	TriggerLifecycleService_DisableWorkflowTriggers_FullMethodName = "/miletos.runtime.v1.TriggerLifecycleService/DisableWorkflowTriggers"
+)
+
+// TriggerLifecycleServiceClient is the client API for TriggerLifecycleService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type TriggerLifecycleServiceClient interface {
+	DisableWorkflowTriggers(ctx context.Context, in *DisableWorkflowTriggersRequest, opts ...grpc.CallOption) (*DisableWorkflowTriggersResponse, error)
+}
+
+type triggerLifecycleServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewTriggerLifecycleServiceClient(cc grpc.ClientConnInterface) TriggerLifecycleServiceClient {
+	return &triggerLifecycleServiceClient{cc}
+}
+
+func (c *triggerLifecycleServiceClient) DisableWorkflowTriggers(ctx context.Context, in *DisableWorkflowTriggersRequest, opts ...grpc.CallOption) (*DisableWorkflowTriggersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DisableWorkflowTriggersResponse)
+	err := c.cc.Invoke(ctx, TriggerLifecycleService_DisableWorkflowTriggers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// TriggerLifecycleServiceServer is the server API for TriggerLifecycleService service.
+// All implementations must embed UnimplementedTriggerLifecycleServiceServer
+// for forward compatibility.
+type TriggerLifecycleServiceServer interface {
+	DisableWorkflowTriggers(context.Context, *DisableWorkflowTriggersRequest) (*DisableWorkflowTriggersResponse, error)
+	mustEmbedUnimplementedTriggerLifecycleServiceServer()
+}
+
+// UnimplementedTriggerLifecycleServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedTriggerLifecycleServiceServer struct{}
+
+func (UnimplementedTriggerLifecycleServiceServer) DisableWorkflowTriggers(context.Context, *DisableWorkflowTriggersRequest) (*DisableWorkflowTriggersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DisableWorkflowTriggers not implemented")
+}
+func (UnimplementedTriggerLifecycleServiceServer) mustEmbedUnimplementedTriggerLifecycleServiceServer() {
+}
+func (UnimplementedTriggerLifecycleServiceServer) testEmbeddedByValue() {}
+
+// UnsafeTriggerLifecycleServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to TriggerLifecycleServiceServer will
+// result in compilation errors.
+type UnsafeTriggerLifecycleServiceServer interface {
+	mustEmbedUnimplementedTriggerLifecycleServiceServer()
+}
+
+func RegisterTriggerLifecycleServiceServer(s grpc.ServiceRegistrar, srv TriggerLifecycleServiceServer) {
+	// If the following call pancis, it indicates UnimplementedTriggerLifecycleServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&TriggerLifecycleService_ServiceDesc, srv)
+}
+
+func _TriggerLifecycleService_DisableWorkflowTriggers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DisableWorkflowTriggersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TriggerLifecycleServiceServer).DisableWorkflowTriggers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TriggerLifecycleService_DisableWorkflowTriggers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TriggerLifecycleServiceServer).DisableWorkflowTriggers(ctx, req.(*DisableWorkflowTriggersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// TriggerLifecycleService_ServiceDesc is the grpc.ServiceDesc for TriggerLifecycleService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var TriggerLifecycleService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "miletos.runtime.v1.TriggerLifecycleService",
+	HandlerType: (*TriggerLifecycleServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "DisableWorkflowTriggers",
+			Handler:    _TriggerLifecycleService_DisableWorkflowTriggers_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

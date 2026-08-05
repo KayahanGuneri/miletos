@@ -6,8 +6,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.protobuf.Message;
+import com.google.protobuf.Struct;
 import com.google.protobuf.util.JsonFormat;
 import com.miletos.features.workflowruntime.grpc.generated.CreateHTTPTriggerResponse;
+import com.miletos.features.workflowruntime.grpc.generated.CreateCronTriggerResponse;
+import com.miletos.features.workflowruntime.grpc.generated.CronTriggerResponse;
 import com.miletos.features.workflowruntime.grpc.generated.ExecuteRequest;
 import com.miletos.features.workflowruntime.grpc.generated.ExecutionDefinition;
 import com.miletos.features.workflowruntime.grpc.generated.ExecutionErrorPage;
@@ -51,7 +54,9 @@ public class WorkflowRuntimeGrpcJsonAdapter {
             mapping(ExecutionErrorPage.class, mapper::map),
             mapping(RecoveryResponse.class, mapper::map),
             mapping(HTTPTriggerResponse.class, mapper::map),
-            mapping(CreateHTTPTriggerResponse.class, mapper::map));
+            mapping(CreateHTTPTriggerResponse.class, mapper::map),
+            mapping(CronTriggerResponse.class, mapper::map),
+            mapping(CreateCronTriggerResponse.class, mapper::map));
   }
 
   public ExecuteRequest toExecuteRequest(JsonNode browserRequest) {
@@ -85,6 +90,19 @@ public class WorkflowRuntimeGrpcJsonAdapter {
       return builder.build();
     } catch (IOException exception) {
       throw new IllegalArgumentException("Workflow definition is invalid", exception);
+    }
+  }
+
+  public Struct toStruct(JsonNode value, String fieldName) {
+    if (value == null || !value.isObject()) {
+      throw new IllegalArgumentException(fieldName + " must be a JSON object");
+    }
+    Struct.Builder builder = Struct.newBuilder();
+    try {
+      JsonFormat.parser().merge(requestObjectMapper.writeValueAsString(value), builder);
+      return builder.build();
+    } catch (IOException exception) {
+      throw new IllegalArgumentException(fieldName + " is invalid", exception);
     }
   }
 

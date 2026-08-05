@@ -66,11 +66,13 @@ func buildExecutionNodeInput(
 		return payload
 	}
 	switch origin {
-	case model.ExecutionOriginHTTPWebhook:
-		return startInput
 	case model.ExecutionOriginManualDirect:
 		descriptor, registered := registry.Definition(node.Type, node.Version)
 		if registered && plugin.CanReceiveEntryInput(descriptor) {
+			return startInput
+		}
+	case model.ExecutionOriginHTTPWebhook, model.ExecutionOriginCron:
+		if registry.DeclaresExecutionSource(node.Type, node.Version, string(origin)) {
 			return startInput
 		}
 	}

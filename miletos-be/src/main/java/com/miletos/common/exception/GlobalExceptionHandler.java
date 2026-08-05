@@ -2,11 +2,15 @@ package com.miletos.common.exception;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -33,9 +37,11 @@ public class GlobalExceptionHandler {
         public ResponseEntity<ApiErrorResponse> handleMiletosException(
                         MiletosException exception,
                         HttpServletRequest request) {
-                ApiErrorResponse response = createResponse(
+                ApiErrorResponse response = apiErrorResponseFactory.create(
                                 exception.getCode(),
-                                request);
+                                exception.getCode().name(),
+                                request.getRequestURI(),
+                                exception.getFieldErrors());
 
                 return ResponseEntity
                                 .status(exception.getHttpStatus())
@@ -77,6 +83,37 @@ public class GlobalExceptionHandler {
                                                 createResponse(
                                                                 ErrorCode.MALFORMED_REQUEST,
                                                                 request));
+        }
+
+        @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+        public ResponseEntity<ApiErrorResponse> handleUnsupportedMediaType(
+                        HttpMediaTypeNotSupportedException exception,
+                        HttpServletRequest request) {
+                return ResponseEntity
+                                .status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+                                .body(
+                                                createResponse(
+                                                                ErrorCode.UNSUPPORTED_MEDIA_TYPE,
+                                                                request));
+        }
+
+        @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+        public ResponseEntity<ApiErrorResponse> handleMethodNotSupported(
+                        HttpRequestMethodNotSupportedException exception,
+                        HttpServletRequest request) {
+                ResponseEntity.BodyBuilder builder = ResponseEntity
+                                .status(HttpStatus.METHOD_NOT_ALLOWED);
+
+                Set<HttpMethod> allowedMethods = exception.getSupportedHttpMethods();
+
+                if (allowedMethods != null && !allowedMethods.isEmpty()) {
+                        builder.allow(allowedMethods.toArray(HttpMethod[]::new));
+                }
+
+                return builder.body(
+                                createResponse(
+                                                ErrorCode.METHOD_NOT_ALLOWED,
+                                                request));
         }
 
         @ExceptionHandler(MethodArgumentTypeMismatchException.class)

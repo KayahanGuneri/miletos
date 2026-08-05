@@ -5,8 +5,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -127,29 +125,29 @@ func validateTriggerRoot(
 	method string,
 	registry *plugin.NodeRegistry,
 ) error {
-	root, valid := singleRoot(definition)
+	rootNode, valid := singleRootNode(definition)
 	if !valid {
 		return ErrInvalidTrigger
 	}
-	if root.ID != triggerNodeID {
+	if rootNode.ID != triggerNodeID {
 		return ErrInvalidTrigger
 	}
 	if !registry.DeclaresExecutionSource(
-		root.Type,
-		root.Version,
+		rootNode.Type,
+		rootNode.Version,
 		string(executionmodel.ExecutionOriginHTTPWebhook),
 	) {
 		return ErrInvalidTrigger
 	}
-	return validateBindingConfiguration(root.Configuration, method)
+	return validateBindingConfiguration(rootNode.Configuration, method)
 }
 
-func singleRoot(definition workflow.Workflow) (workflow.WorkflowNode, bool) {
-	roots := workflow.Roots(definition)
-	if len(roots) != 1 {
+func singleRootNode(definition workflow.Workflow) (workflow.WorkflowNode, bool) {
+	rootNodes := workflow.Roots(definition)
+	if len(rootNodes) != 1 {
 		return workflow.WorkflowNode{}, false
 	}
-	return roots[0], true
+	return rootNodes[0], true
 }
 
 func validateBindingConfiguration(configuration map[string]any, method string) error {
@@ -170,6 +168,16 @@ func (service *Service) Get(
 	return binding, err
 }
 
+func (service *Service) GetActiveByWorkflow(
+	ctx context.Context,
+	companyID string,
+	workflowID string,
+) (Binding, error) {
+	binding, err := service.triggers.FindActiveByWorkflow(ctx, companyID, workflowID)
+	binding.TokenHash = nil
+	return binding, err
+}
+
 func (service *Service) Disable(
 	ctx context.Context,
 	companyID string,
@@ -178,6 +186,10 @@ func (service *Service) Disable(
 	binding, err := service.triggers.Disable(ctx, companyID, triggerID)
 	binding.TokenHash = nil
 	return binding, err
+}
+
+func (service *Service) DisableWorkflow(ctx context.Context, companyID, workflowID string) (int, error) {
+	return service.triggers.DisableWorkflow(ctx, companyID, workflowID)
 }
 
 func (service *Service) Invoke(
@@ -227,29 +239,53 @@ func (service *Service) Invoke(
 			)
 		}
 	}
-	fingerprintPayload := map[string]any{
-		"triggerId":  binding.ID,
-		"snapshotId": binding.SnapshotID,
-		"payload":    stableFingerprintPayload(payload),
-	}
-	encoded, _ := json.Marshal(fingerprintPayload)
-	fingerprintDigest := sha256.Sum256(encoded)
 	outcome, err := service.executions.ExecuteAsyncFromSnapshot(
 		ctx, snapshot, binding.TriggerNodeID, payload, correlationID,
-		key, hex.EncodeToString(fingerprintDigest[:]),
+		key, invocationFingerprint(binding, payload),
 	)
 	return outcome, "", err
 }
 
+// stableFingerprintPayload keeps only the logical values of a webhook call.
+// Request identifiers, correlation identifiers, secrets, and transport/hop-by-hop
+// headers are excluded so a retry of the same logical call replays instead of
+// conflicting. Accepted non-transport headers (for example Content-Type and
+// caller-defined safe custom headers) remain part of request identity.
 func stableFingerprintPayload(payload map[string]any) map[string]any {
-	stable := make(map[string]any, len(payload))
-	for key, value := range payload {
-		if key == "requestId" || key == "correlationId" {
-			continue
+	stable := make(map[string]any, 4)
+	if method, present := payload["method"]; present {
+		if typed, ok := method.(string); ok {
+			stable["method"] = strings.ToUpper(strings.TrimSpace(typed))
+		} else {
+			stable["method"] = method
 		}
-		stable[key] = value
+	}
+	if query, present := payload["query"]; present {
+		stable["query"] = fingerprintQuery(query)
+	} else {
+		stable["query"] = map[string][]string{}
+	}
+	if headers, present := payload["headers"]; present {
+		if typed, ok := headers.(map[string][]string); ok {
+			stable["headers"] = fingerprintHeaders(typed)
+		} else {
+			stable["headers"] = fingerprintHeaders(nil)
+		}
+	} else {
+		stable["headers"] = fingerprintHeaders(nil)
+	}
+	if body, present := payload["body"]; present {
+		stable["body"] = body
 	}
 	return stable
+}
+
+func invocationFingerprint(binding Binding, payload map[string]any) string {
+	stable := stableFingerprintPayload(payload)
+	stable["triggerId"] = binding.ID
+	stable["snapshotId"] = binding.SnapshotID
+	stable["method"] = binding.Method
+	return execution.Fingerprint(stable)
 }
 
 func normalizeMethod(method string) (string, error) {

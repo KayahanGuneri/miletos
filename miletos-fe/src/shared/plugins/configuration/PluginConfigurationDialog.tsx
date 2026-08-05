@@ -6,6 +6,7 @@ import Button, { ButtonVariant } from "@/components/lib/button/Button";
 import { Dialog } from "@/components/lib/dialog/Dialog";
 import { Typography } from "@/components/lib/typography/Typography";
 import type { PluginConfiguration } from "@/shared/plugins/contracts/plugin-configuration-interfaces";
+import { pluginMessages } from "@/shared/plugins/messages/plugin-messages";
 import { getPluginConfigurationDefinition } from "@/shared/plugins/registry/plugin-configuration-registry";
 import styles from "./PluginConfigurationDialog.module.css";
 
@@ -38,7 +39,7 @@ function loadValues(pluginType: string, configuration: PluginConfiguration): Ini
       error:
         error instanceof Error
           ? error.message
-          : "The persisted plugin configuration could not be loaded.",
+          : pluginMessages.configurationDialog.loadErrorFallback,
     };
   }
 }
@@ -86,7 +87,9 @@ export function PluginConfigurationDialog({
       footer={
         <>
           <Button type="button" variant={ButtonVariant.Secondary} onClick={onClose}>
-            {readOnly ? "Close" : "Cancel"}
+            {readOnly
+              ? pluginMessages.configurationDialog.close
+              : pluginMessages.configurationDialog.cancel}
           </Button>
           {!readOnly && definition && !dialogState.error ? (
             <Button
@@ -104,29 +107,28 @@ export function PluginConfigurationDialog({
                 onSave(serialized);
               }}
             >
-              Save configuration
+              {pluginMessages.configurationDialog.save}
             </Button>
           ) : null}
         </>
       }
     >
       <Box className={styles.pluginConfiguration__identity}>
-        <Typography as="span">Plugin identity</Typography>
+        <Typography as="span">{pluginMessages.configurationDialog.identityLabel}</Typography>
         <Typography as="strong">
-          {pluginType} Â· {pluginVersion}
+          {pluginType} {"\u00B7"} {pluginVersion}
         </Typography>
       </Box>
 
       {!definition ? (
         <Typography as="p" className={styles.pluginConfiguration__notice}>
-          No configuration editor is registered for this plugin. The existing configuration will be
-          preserved.
+          {pluginMessages.configurationDialog.unsupportedNotice}
         </Typography>
       ) : null}
 
       {dialogState.error ? (
         <Box className={styles.pluginConfiguration__errorPanel} role="alert">
-          <Typography as="strong">Configuration could not be loaded.</Typography>
+          <Typography as="strong">{pluginMessages.configurationDialog.loadErrorTitle}</Typography>
           <Typography as="span">{dialogState.error}</Typography>
           {!readOnly ? (
             <Button
@@ -134,7 +136,7 @@ export function PluginConfigurationDialog({
               variant={ButtonVariant.Secondary}
               onClick={resetToDefaultConfiguration}
             >
-              Start with blank configuration
+              {pluginMessages.configurationDialog.resetToBlank}
             </Button>
           ) : null}
         </Box>

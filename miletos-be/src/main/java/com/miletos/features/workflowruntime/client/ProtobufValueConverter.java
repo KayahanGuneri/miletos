@@ -10,7 +10,7 @@ import com.google.protobuf.Timestamp;
 import com.google.protobuf.Value;
 import com.google.protobuf.util.Timestamps;
 
-final class ProtobufValueConverter {
+public final class ProtobufValueConverter {
 
   private ProtobufValueConverter() {}
 
@@ -18,7 +18,7 @@ final class ProtobufValueConverter {
     return value == null ? null : Timestamps.toString(value);
   }
 
-  static JsonNode struct(Struct value) {
+  public static JsonNode struct(Struct value) {
     if (value == null) {
       return null;
     }

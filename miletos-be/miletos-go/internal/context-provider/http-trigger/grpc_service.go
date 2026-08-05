@@ -7,7 +7,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"miletos-go/internal/features/workflow-runtime/execution"
 	"miletos-go/internal/features/workflow-runtime/execution/repository"
+	"miletos-go/internal/features/workflow-runtime/workflow"
 	runtimev1 "miletos-go/internal/shared/grpc/generated/runtimev1"
 	"miletos-go/internal/shared/requestcontext"
 )
@@ -50,6 +52,22 @@ func (grpcService *GRPCService) GetHTTPTrigger(
 	return mapTriggerBinding(binding), nil
 }
 
+func (grpcService *GRPCService) GetActiveHTTPTriggerByWorkflow(
+	ctx context.Context,
+	request *runtimev1.GetActiveHTTPTriggerByWorkflowRequest,
+) (*runtimev1.HTTPTriggerResponse, error) {
+	if request == nil || request.GetWorkflowId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "workflow id is required")
+	}
+	binding, err := grpcService.service.GetActiveByWorkflow(
+		ctx, requestcontext.CompanyID(ctx), request.GetWorkflowId(),
+	)
+	if err != nil {
+		return nil, mapTriggerGRPCError(err)
+	}
+	return mapTriggerBinding(binding), nil
+}
+
 func (grpcService *GRPCService) DisableHTTPTrigger(
 	ctx context.Context,
 	request *runtimev1.DisableHTTPTriggerRequest,
@@ -70,6 +88,8 @@ func mapTriggerGRPCError(err error) error {
 		return status.FromContextError(err).Err()
 	case errors.Is(err, repository.ErrNotFound):
 		return status.Error(codes.NotFound, "the requested HTTP trigger was not found")
+	case errors.Is(err, workflow.ErrInvalidWorkflow):
+		return execution.WorkflowValidationGRPCStatus(err)
 	case errors.Is(err, ErrInvalidTrigger),
 		errors.Is(err, ErrMethodNotAllowed):
 		return status.Error(codes.InvalidArgument, "HTTP trigger request is invalid")

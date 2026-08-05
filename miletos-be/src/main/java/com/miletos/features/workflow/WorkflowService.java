@@ -3,6 +3,7 @@ package com.miletos.features.workflow;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +17,8 @@ import com.miletos.features.workflow.repository.WorkflowRepository;
 import com.miletos.features.workflow.repository.entity.Workflow;
 import com.miletos.features.workflow.repository.entity.WorkflowStatus;
 import com.miletos.features.workflow.service.WorkflowDefinitionPolicy;
+import com.miletos.features.workflow.service.WorkflowRuntimeValidationGateway;
+import com.miletos.features.workflow.service.WorkflowTriggerLifecycleGateway;
 
 import lombok.RequiredArgsConstructor;
 
@@ -29,19 +32,26 @@ public class WorkflowService {
     private final WorkflowRepository workflowRepository;
     private final WorkflowMapper workflowMapper;
     private final WorkflowDefinitionPolicy workflowDefinitionPolicy;
+    private final WorkflowTriggerLifecycleGateway workflowTriggerLifecycleGateway;
+    private final WorkflowRuntimeValidationGateway workflowRuntimeValidationGateway;
 
     @Transactional
     public Workflow createWorkflow(Workflow workflow) {
         Company company = workflow.getCompany();
 
-        if (Boolean.TRUE.equals(workflowRepository.existsByCompanyAndNameIgnoreCase(
-                company, workflow.getName()))) {
+        if (Boolean.TRUE.equals(
+                workflowRepository.existsByCompanyAndNameIgnoreCase(
+                        company,
+                        workflow.getName()))) {
             throw new WorkflowNameAlreadyExistsException();
         }
 
         JsonNode definition = workflowDefinitionPolicy.validateAndNormalizeDefinition(
                 workflow.getDefinitionJson());
-        workflowMapper.applyNormalizedDefinition(definition, workflow);
+
+        workflowMapper.applyNormalizedDefinition(
+                definition,
+                workflow);
 
         return workflowRepository.save(workflow);
     }
@@ -53,8 +63,10 @@ public class WorkflowService {
             Integer size,
             String search,
             WorkflowStatus status) {
+
         Company company = user.getCompany();
         String normalizedSearch = normalizeSearch(search);
+
         PageRequest pageable = PageRequest.of(
                 Math.max(page, 0),
                 normalizePageSize(size),
@@ -66,36 +78,61 @@ public class WorkflowService {
             return normalizedSearch == null
                     ? workflowRepository.findAllByCompany(company, pageable)
                     : workflowRepository.findAllByCompanyAndNameContainingIgnoreCase(
-                            company, normalizedSearch, pageable);
+                            company,
+                            normalizedSearch,
+                            pageable);
         }
 
         return normalizedSearch == null
-                ? workflowRepository.findAllByCompanyAndStatus(company, status, pageable)
+                ? workflowRepository.findAllByCompanyAndStatus(
+                        company,
+                        status,
+                        pageable)
                 : workflowRepository.findAllByCompanyAndStatusAndNameContainingIgnoreCase(
-                        company, status, normalizedSearch, pageable);
+                        company,
+                        status,
+                        normalizedSearch,
+                        pageable);
     }
 
     @Transactional(readOnly = true)
-    public Workflow getWorkflowById(User user, Long workflowId) {
-        return findOwnedWorkflow(workflowId, user.getCompany());
+    public Workflow getWorkflowById(
+            User user,
+            Long workflowId) {
+
+        return findOwnedWorkflow(
+                workflowId,
+                user.getCompany());
     }
 
     @Transactional
-    public Workflow updateWorkflow(Long workflowId, Workflow changes) {
+    public Workflow updateWorkflow(
+            Long workflowId,
+            Workflow changes) {
+
         Company company = changes.getCompany();
-        Workflow workflow = findOwnedWorkflow(workflowId, company);
+
+        Workflow workflow = findOwnedWorkflow(
+                workflowId,
+                company);
+
         if (workflow.getStatus() != WorkflowStatus.DRAFT) {
             throw new WorkflowInvalidStateException();
         }
 
-        if (Boolean.TRUE.equals(workflowRepository.existsByCompanyAndNameIgnoreCaseAndIdNot(
-                company, changes.getName(), workflow.getId()))) {
+        if (Boolean.TRUE.equals(
+                workflowRepository.existsByCompanyAndNameIgnoreCaseAndIdNot(
+                        company,
+                        changes.getName(),
+                        workflow.getId()))) {
             throw new WorkflowNameAlreadyExistsException();
         }
 
         JsonNode definition = workflowDefinitionPolicy.validateAndNormalizeDefinition(
                 changes.getDefinitionJson());
+
         Long revision = workflow.getRevision() + 1L;
+
         workflowMapper.applyContentUpdate(
                 changes,
                 definition,
@@ -106,36 +143,72 @@ public class WorkflowService {
     }
 
     @Transactional
-    public Workflow activateWorkflow(User user, Long workflowId) {
-        Workflow workflow = findOwnedWorkflow(workflowId, user.getCompany());
+    public Workflow activateWorkflow(
+            User user,
+            Long workflowId,
+            HttpHeaders browserHeaders) {
+
+        Company company = user.getCompany();
+
+        Workflow workflow = findOwnedWorkflow(
+                workflowId,
+                company);
+
         if (workflow.getStatus() != WorkflowStatus.DRAFT) {
             throw new WorkflowInvalidStateException();
         }
+
+        workflowRuntimeValidationGateway.validateWorkflowDefinition(
+                workflow,
+                company.getId(),
+                browserHeaders);
 
         workflowMapper.applyLifecycleUpdate(
                 WorkflowStatus.ACTIVE,
                 user,
                 workflow);
+
         return workflowRepository.save(workflow);
     }
 
     @Transactional
-    public Workflow archiveWorkflow(User user, Long workflowId) {
-        Workflow workflow = findOwnedWorkflow(workflowId, user.getCompany());
+    public Workflow archiveWorkflow(
+            User user,
+            Long workflowId,
+            HttpHeaders browserHeaders) {
+
+        Company company = user.getCompany();
+
+        Workflow workflow = findOwnedWorkflow(
+                workflowId,
+                company);
+
         if (workflow.getStatus() != WorkflowStatus.ACTIVE) {
             throw new WorkflowInvalidStateException();
         }
+
+        workflowTriggerLifecycleGateway.disableWorkflowTriggers(
+                workflow.getId(),
+                company.getId(),
+                browserHeaders);
 
         workflowMapper.applyLifecycleUpdate(
                 WorkflowStatus.ARCHIVED,
                 user,
                 workflow);
+
         return workflowRepository.save(workflow);
     }
 
     @Transactional
-    public Workflow restoreWorkflow(User user, Long workflowId) {
-        Workflow workflow = findOwnedWorkflow(workflowId, user.getCompany());
+    public Workflow restoreWorkflow(
+            User user,
+            Long workflowId) {
+
+        Workflow workflow = findOwnedWorkflow(
+                workflowId,
+                user.getCompany());
+
         if (workflow.getStatus() != WorkflowStatus.ARCHIVED) {
             throw new WorkflowInvalidStateException();
         }
@@ -144,15 +217,30 @@ public class WorkflowService {
                 WorkflowStatus.DRAFT,
                 user,
                 workflow);
+
         return workflowRepository.save(workflow);
     }
 
     @Transactional
-    public void deleteWorkflow(User user, Long workflowId) {
-        Workflow workflow = findOwnedWorkflow(workflowId, user.getCompany());
+    public void deleteWorkflow(
+            User user,
+            Long workflowId,
+            HttpHeaders browserHeaders) {
+
+        Company company = user.getCompany();
+
+        Workflow workflow = findOwnedWorkflow(
+                workflowId,
+                company);
+
         if (workflow.getStatus() == WorkflowStatus.ACTIVE) {
             throw new WorkflowInvalidStateException();
         }
+
+        workflowTriggerLifecycleGateway.disableWorkflowTriggers(
+                workflow.getId(),
+                company.getId(),
+                browserHeaders);
 
         workflowRepository.delete(workflow);
         workflowRepository.flush();
@@ -161,6 +249,7 @@ public class WorkflowService {
     private Workflow findOwnedWorkflow(
             Long workflowId,
             Company company) {
+
         return workflowRepository
                 .findByIdAndCompany(workflowId, company)
                 .orElseThrow(WorkflowNotFoundException::new);
@@ -170,6 +259,7 @@ public class WorkflowService {
         if (search == null || search.isBlank()) {
             return null;
         }
+
         return search.trim();
     }
 
@@ -177,6 +267,7 @@ public class WorkflowService {
         if (size == null || size <= 0) {
             return DEFAULT_PAGE_SIZE;
         }
+
         return Math.min(size, MAX_PAGE_SIZE);
     }
 }

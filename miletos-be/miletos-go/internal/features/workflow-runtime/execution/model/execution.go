@@ -114,6 +114,7 @@ type NodeExecution struct {
 const (
 	ExecutionOriginManualDirect ExecutionOrigin = "MANUAL_DIRECT"
 	ExecutionOriginHTTPWebhook  ExecutionOrigin = "HTTP_WEBHOOK"
+	ExecutionOriginCron         ExecutionOrigin = "CRON"
 )
 
 type ExecutionEvent struct {

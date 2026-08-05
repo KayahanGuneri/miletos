@@ -92,3 +92,79 @@ export interface WorkflowFilterState {
   search: string;
   status?: WorkflowStatus;
 }
+
+export interface CreateWorkflowTriggerRequest {
+  triggerNodeId: string;
+}
+
+export interface HTTPTrigger {
+  triggerId: string;
+  workflowId: string;
+  workflowRevision: number;
+  snapshotId: string;
+  triggerNodeId: string;
+  httpMethod: string;
+  status: string;
+  resolvedMode: string;
+  createdAt: string;
+  updatedAt: string;
+  disabledAt?: string;
+}
+
+export interface CreateHTTPTriggerResponse {
+  trigger: HTTPTrigger;
+  publicUrl: string;
+}
+
+export interface CronTrigger {
+  triggerId: string;
+  workflowId: string;
+  workflowRevision: number;
+  snapshotId: string;
+  triggerNodeId: string;
+  cronExpression: string;
+  timezone: string;
+  status: string;
+  nextFireAt: string;
+  lastScheduledAt?: string;
+  lastFiredAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  disabledAt?: string;
+}
+
+export interface CreateCronTriggerResponse {
+  trigger: CronTrigger;
+}
+
+export interface RunWorkflowRequest {
+  initialVariables?: JsonObject;
+}
+
+export interface WorkflowExecutionResponse {
+  executionId: string;
+  workflowId: string;
+  workflowRevision: number;
+  snapshotId: string;
+  mode: string;
+  status: string;
+  executionOrigin: string;
+  scheduledRoots: number;
+  replayed: boolean;
+}
+
+export interface CreateTriggerVariables {
+  workflowId: number;
+  triggerNodeId: string;
+}
+
+export interface DisableTriggerVariables {
+  workflowId: number;
+  triggerId: string;
+}
+
+export interface RunWorkflowVariables {
+  workflowId: number;
+  initialVariables: JsonObject;
+  idempotencyKey: string;
+}

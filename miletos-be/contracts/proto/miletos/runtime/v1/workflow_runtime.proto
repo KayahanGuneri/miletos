@@ -16,6 +16,7 @@ service PluginService {
 }
 
 service ExecutionService {
+  rpc ValidateWorkflow(ValidateWorkflowRequest) returns (google.protobuf.Empty);
   rpc ExecuteSync(ExecuteRequest) returns (ExecutionResponse);
   rpc ExecuteAsync(ExecuteRequest) returns (ExecutionResponse);
   rpc ListExecutions(ListExecutionsRequest) returns (ExecutionPage);
@@ -31,7 +32,19 @@ service ExecutionService {
 service HTTPTriggerService {
   rpc CreateHTTPTrigger(CreateHTTPTriggerRequest) returns (CreateHTTPTriggerResponse);
   rpc GetHTTPTrigger(GetHTTPTriggerRequest) returns (HTTPTriggerResponse);
+  rpc GetActiveHTTPTriggerByWorkflow(GetActiveHTTPTriggerByWorkflowRequest) returns (HTTPTriggerResponse);
   rpc DisableHTTPTrigger(DisableHTTPTriggerRequest) returns (HTTPTriggerResponse);
+}
+
+service CronTriggerService {
+  rpc CreateCronTrigger(CreateCronTriggerRequest) returns (CreateCronTriggerResponse);
+  rpc GetCronTrigger(GetCronTriggerRequest) returns (CronTriggerResponse);
+  rpc GetActiveCronTriggerByWorkflow(GetActiveCronTriggerByWorkflowRequest) returns (CronTriggerResponse);
+  rpc DisableCronTrigger(DisableCronTriggerRequest) returns (CronTriggerResponse);
+}
+
+service TriggerLifecycleService {
+  rpc DisableWorkflowTriggers(DisableWorkflowTriggersRequest) returns (DisableWorkflowTriggersResponse);
 }
 
 message ValidationIssue {
@@ -107,6 +120,10 @@ message WorkflowDefinition {
   repeated WorkflowNode nodes = 4;
   repeated WorkflowEdge edges = 5;
   google.protobuf.Struct metadata = 6;
+}
+
+message ValidateWorkflowRequest {
+  WorkflowDefinition definition = 1;
 }
 
 message ExecuteRequest {
@@ -296,6 +313,10 @@ message GetHTTPTriggerRequest {
   string trigger_id = 1;
 }
 
+message GetActiveHTTPTriggerByWorkflowRequest {
+  string workflow_id = 1;
+}
+
 message DisableHTTPTriggerRequest {
   string trigger_id = 1;
 }
@@ -317,4 +338,54 @@ message HTTPTriggerResponse {
 message CreateHTTPTriggerResponse {
   HTTPTriggerResponse trigger = 1;
   string public_url = 2;
+}
+
+message CreateCronTriggerRequest {
+  WorkflowDefinition definition = 1;
+  string trigger_node_id = 2;
+  string cron_expression = 3;
+  string timezone = 4;
+  string resolved_mode = 5;
+}
+
+message GetCronTriggerRequest {
+  string trigger_id = 1;
+}
+
+message GetActiveCronTriggerByWorkflowRequest {
+  string workflow_id = 1;
+}
+
+message DisableCronTriggerRequest {
+  string trigger_id = 1;
+}
+
+message CronTriggerResponse {
+  string trigger_id = 1;
+  string workflow_id = 2;
+  uint64 workflow_revision = 3;
+  string snapshot_id = 4;
+  string trigger_node_id = 5;
+  string cron_expression = 6;
+  string timezone = 7;
+  string status = 8;
+  google.protobuf.Timestamp next_fire_at = 9;
+  optional google.protobuf.Timestamp last_scheduled_at = 10;
+  optional google.protobuf.Timestamp last_fired_at = 11;
+  google.protobuf.Timestamp created_at = 12;
+  google.protobuf.Timestamp updated_at = 13;
+  optional google.protobuf.Timestamp disabled_at = 14;
+}
+
+message CreateCronTriggerResponse {
+  CronTriggerResponse trigger = 1;
+}
+
+message DisableWorkflowTriggersRequest {
+  string workflow_id = 1;
+}
+
+message DisableWorkflowTriggersResponse {
+  uint32 disabled_http_trigger_count = 1;
+  uint32 disabled_cron_trigger_count = 2;
 }

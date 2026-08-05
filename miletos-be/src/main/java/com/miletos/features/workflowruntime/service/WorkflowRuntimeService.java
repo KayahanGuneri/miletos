@@ -201,26 +201,6 @@ public class WorkflowRuntimeService {
                                 browserHeaders);
         }
 
-        public WorkflowRuntimeResponse createHTTPTrigger(
-                        String actorEmail,
-                        JsonNode body,
-                        HttpHeaders browserHeaders) {
-                String companyId = resolveCompanyId(actorEmail, browserHeaders);
-                ResolvedExecutionMode resolvedMode = executionPolicyResolver.resolve(
-                                ExecutionModePolicy.AUTO,
-                                TrustedTriggerType.HTTP_WEBHOOK);
-                if (resolvedMode != ResolvedExecutionMode.ASYNC) {
-                        throw new IllegalStateException(
-                                        "HTTP webhook execution policy must resolve to ASYNC");
-                }
-                LOGGER.info(
-                                "HTTP trigger execution mode resolved: companyId={}, triggerType={}, mode={}",
-                                companyId,
-                                TrustedTriggerType.HTTP_WEBHOOK,
-                                resolvedMode);
-                return runtimeClient.createHTTPTrigger(body, companyId, browserHeaders);
-        }
-
         public WorkflowRuntimeResponse getHTTPTrigger(
                         String actorEmail,
                         String triggerId,

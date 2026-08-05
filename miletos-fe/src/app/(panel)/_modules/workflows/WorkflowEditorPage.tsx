@@ -25,6 +25,7 @@ import {
   useWorkflowPluginsQuery,
   useWorkflowQuery,
 } from "@/app/(panel)/_modules/workflows/query/workflow-queries";
+import { WorkflowRuntimeActions } from "@/app/(panel)/_modules/workflows/components/WorkflowRuntimeActions";
 import {
   type SaveWorkflowRequest,
   type Workflow,
@@ -430,6 +431,14 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
         ) : null}
       </section>
 
+      {detail.data ? (
+        <WorkflowRuntimeActions
+          workflow={detail.data}
+          plugins={plugins.data?.items ?? []}
+          canManage={isAllowed}
+        />
+      ) : null}
+
       <Box className={styles.workflowEditor__workspace}>
         <PluginPalette
           plugins={plugins.data?.items ?? []}
@@ -532,6 +541,7 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
 
       {configurationNode ? (
         <PluginConfigurationDialog
+          key={configurationNode.nodeId}
           displayName={configurationPlugin?.displayName ?? configurationNode.pluginType}
           pluginType={configurationNode.pluginType}
           pluginVersion={configurationNode.pluginVersion}

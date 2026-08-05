@@ -2,6 +2,9 @@ package execution
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -41,6 +44,24 @@ func NewExecutionService(
 		workflows: workflows, executions: executions,
 		scheduler: scheduler, processor: processor, asyncEnabled: asyncEnabled,
 	}
+}
+
+func (service *ExecutionService) AsyncAvailable() bool {
+	return service.asyncEnabled
+}
+
+func (service *ExecutionService) Validate(definition workflow.Workflow) error {
+	return service.workflows.Validate(definition)
+}
+
+// Fingerprint hashes the stable logical values of a request so that a replay of
+// the same Idempotency-Key can be distinguished from a conflicting reuse.
+// Callers must supply only stable values: no request identifiers, correlation
+// identifiers, timestamps, secrets or transport control headers.
+func Fingerprint(request map[string]any) string {
+	encoded, _ := json.Marshal(request)
+	digest := sha256.Sum256(encoded)
+	return hex.EncodeToString(digest[:])
 }
 
 func (service *ExecutionService) ExecuteAsyncCommand(
@@ -85,14 +106,7 @@ func (service *ExecutionService) ExecuteAsync(
 	if existing, found, err := service.executions.FindIdempotent(
 		ctx, definition.CompanyID, idempotencyKey, fingerprint,
 	); err != nil || found {
-		outcome := ExecutionOutcome{Execution: existing, Replayed: found}
-		if isTerminalExecutionStatus(existing.Status) {
-			return outcome, err
-		}
-		if err == nil && found {
-			outcome.ScheduledEntryNodes, err = service.scheduler.Activate(ctx, existing, startInput)
-		}
-		return outcome, err
+		return ExecutionOutcome{Execution: existing, Replayed: found}, err
 	}
 	snapshot, err := service.workflows.CreateWorkflow(ctx, definition)
 	if err != nil {
@@ -233,35 +247,58 @@ func (service *ExecutionService) ExecuteAsyncFromSnapshot(
 	idempotencyKey string,
 	fingerprint string,
 ) (ExecutionOutcome, error) {
+	return service.ExecuteTriggerFromSnapshot(
+		ctx, snapshot, triggerNodeID, startInput,
+		model.ExecutionOriginHTTPWebhook, correlationID, idempotencyKey, fingerprint,
+	)
+}
+
+func (service *ExecutionService) ExecuteTriggerFromSnapshot(
+	ctx context.Context,
+	snapshot workflow.WorkflowSnapshot,
+	triggerNodeID string,
+	startInput map[string]any,
+	origin model.ExecutionOrigin,
+	correlationID string,
+	idempotencyKey string,
+	fingerprint string,
+) (ExecutionOutcome, error) {
 	if !service.asyncEnabled {
 		return ExecutionOutcome{}, ErrAsyncUnavailable
+	}
+	if origin == model.ExecutionOriginManualDirect {
+		return ExecutionOutcome{}, ErrInvalidExecutionOrigin
 	}
 	snapshotWorkflow := snapshot.Workflow
 	if err := service.workflows.Validate(snapshotWorkflow); err != nil {
 		return ExecutionOutcome{}, err
 	}
 	if err := service.validateExecutionStart(
-		snapshotWorkflow, startInput, model.ExecutionOriginHTTPWebhook,
+		snapshotWorkflow, startInput, origin,
 	); err != nil {
 		return ExecutionOutcome{}, err
 	}
-	roots := workflow.Roots(snapshotWorkflow)
-	if len(roots) != 1 || roots[0].ID != triggerNodeID {
+	rootNodes := workflow.Roots(snapshotWorkflow)
+	if len(rootNodes) != 1 || rootNodes[0].ID != triggerNodeID {
 		return ExecutionOutcome{}, ErrInvalidExecutionOrigin
 	}
+	if !service.scheduler.registry.DeclaresExecutionSource(
+		rootNodes[0].Type,
+		rootNodes[0].Version,
+		string(origin),
+	) {
+		return ExecutionOutcome{}, ErrInvalidExecutionOrigin
+	}
+	// A matching idempotent request is returned as-is. Re-activating it would
+	// schedule the root nodes a second time; the reconciler and the outbox own
+	// durable recovery of an execution that has not progressed.
 	if existing, found, err := service.executions.FindIdempotent(
 		ctx, snapshotWorkflow.CompanyID, idempotencyKey, fingerprint,
 	); err != nil || found {
-		outcome := ExecutionOutcome{Execution: existing, Replayed: found}
-		if found && err == nil && !isTerminalExecutionStatus(existing.Status) {
-			outcome.ScheduledEntryNodes, err = service.scheduler.Activate(
-				ctx, existing, startInput,
-			)
-		}
-		return outcome, err
+		return ExecutionOutcome{Execution: existing, Replayed: found}, err
 	}
 	execution, err := service.executions.Create(
-		ctx, snapshotWorkflow, snapshot.ID, "ASYNC", model.ExecutionOriginHTTPWebhook,
+		ctx, snapshotWorkflow, snapshot.ID, "ASYNC", origin,
 		correlationID, idempotencyKey, fingerprint,
 	)
 	if err != nil {
