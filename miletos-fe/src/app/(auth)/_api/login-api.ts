@@ -5,7 +5,7 @@ import {
 import { httpClient } from "@/shared/api/http-client";
 
 export async function login(request: LoginRequest) {
-  const response = await httpClient.post<LoginResponse>("/api/auth/login", request);
+  const response = await httpClient.post<LoginResponse>("/auth/login", request);
 
   return response.data;
 }

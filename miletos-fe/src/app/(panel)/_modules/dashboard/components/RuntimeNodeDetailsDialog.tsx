@@ -4,56 +4,74 @@ import {
   formatExecutionStatus,
 } from "@/app/(panel)/_modules/dashboard/utils/execution-formatters";
 import { Box } from "@/components/lib/box/Box";
+import Button, { ButtonVariant } from "@/components/lib/button/Button";
+import { Dialog } from "@/components/lib/dialog/Dialog";
 import { Typography } from "@/components/lib/typography/Typography";
-import styles from "./ExecutionNodeDetail.module.css";
 import { JsonDataSection } from "./JsonDataSection";
+import styles from "./RuntimeNodeDetailsDialog.module.css";
 
-interface ExecutionNodeDetailProps {
-  selectedNodeId: string | null;
+interface RuntimeNodeDetailsDialogProps {
+  selectedNodeId: string;
   nodeExecution: NodeExecutionResponse | null;
+  onClose: () => void;
 }
 
-export function ExecutionNodeDetail({ selectedNodeId, nodeExecution }: ExecutionNodeDetailProps) {
-  if (!selectedNodeId) {
-    return (
-      <section className={styles.executionNodeDetail__empty}>
-        <Typography as="strong">Select a workflow node.</Typography>
-        <Typography as="span">
-          Click a node in the execution graph to inspect its runtime details.
-        </Typography>
-      </section>
-    );
-  }
-
+export function RuntimeNodeDetailsDialog({
+  selectedNodeId,
+  nodeExecution,
+  onClose,
+}: RuntimeNodeDetailsDialogProps) {
   if (!nodeExecution) {
     return (
-      <section className={styles.executionNodeDetail__empty}>
-        <Typography as="strong">{selectedNodeId}</Typography>
-        <Typography as="span">
-          This node exists in the immutable workflow definition, but no runtime execution record is
-          available in the loaded node page.
-        </Typography>
-      </section>
+      <Dialog
+        title="Runtime node details"
+        description={selectedNodeId}
+        size="large"
+        onClose={onClose}
+        footer={
+          <Button type="button" variant={ButtonVariant.Secondary} onClick={onClose}>
+            Close
+          </Button>
+        }
+      >
+        <Box className={styles.runtimeNodeDetails__empty}>
+          <Typography as="strong">No runtime record is available for this node.</Typography>
+          <Typography as="span">
+            The node exists in the immutable workflow definition, but it has not produced a node
+            execution in the loaded runtime page.
+          </Typography>
+        </Box>
+      </Dialog>
     );
   }
 
   return (
-    <section className={styles.executionNodeDetail}>
-      <header className={styles.executionNodeDetail__header}>
+    <Dialog
+      title="Runtime node details"
+      description={`${nodeExecution.pluginType} / ${nodeExecution.pluginVersion}`}
+      size="large"
+      onClose={onClose}
+      footer={
+        <Button type="button" variant={ButtonVariant.Secondary} onClick={onClose}>
+          Close
+        </Button>
+      }
+    >
+      <header className={styles.runtimeNodeDetails__header}>
         <Box>
           <Typography as="p">Selected runtime node</Typography>
           <Typography as="h2">{nodeExecution.nodeId}</Typography>
         </Box>
         <Typography
           as="span"
-          className={styles.executionNodeDetail__status}
+          className={styles.runtimeNodeDetails__status}
           data-status={nodeExecution.status}
         >
           {formatExecutionStatus(nodeExecution.status)}
         </Typography>
       </header>
 
-      <Box className={styles.executionNodeDetail__grid}>
+      <Box className={styles.runtimeNodeDetails__grid}>
         <dl>
           <Box>
             <dt>Node execution ID</dt>
@@ -92,7 +110,7 @@ export function ExecutionNodeDetail({ selectedNodeId, nodeExecution }: Execution
         </dl>
       </Box>
 
-      <Box className={styles.executionNodeDetail__payloads}>
+      <Box className={styles.runtimeNodeDetails__payloads}>
         <JsonDataSection
           label="Configuration"
           value={nodeExecution.configuration}
@@ -118,6 +136,6 @@ export function ExecutionNodeDetail({ selectedNodeId, nodeExecution }: Execution
           emptyMessage="No failure was recorded."
         />
       </Box>
-    </section>
+    </Dialog>
   );
 }

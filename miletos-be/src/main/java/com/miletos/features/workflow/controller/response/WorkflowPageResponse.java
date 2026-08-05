@@ -4,10 +4,10 @@ import java.util.List;
 
 public record WorkflowPageResponse(
                 List<WorkflowSummaryResponse> content,
-                int page,
-                int size,
-                long totalElements,
-                int totalPages,
-                boolean first,
-                boolean last) {
+                Integer page,
+                Integer size,
+                Long totalElements,
+                Integer totalPages,
+                Boolean first,
+                Boolean last) {
 }

@@ -1,4 +1,5 @@
 import { httpClient } from "@/shared/api/http-client";
+import { withPluginCategory } from "@/shared/plugins/registry/plugin-palette-registry";
 import {
   type PluginPageResponse,
   type SaveWorkflowRequest,
@@ -7,7 +8,11 @@ import {
   type WorkflowPageResponse,
 } from "@/app/(panel)/_modules/workflows/types/workflow-types";
 
-const WORKFLOWS_PATH = "/api/workflows";
+const WORKFLOWS_PATH = "/workflows";
+
+type PluginApiResponse = Omit<PluginPageResponse, "items"> & {
+  items: Array<Omit<PluginPageResponse["items"][number], "category"> & { category?: unknown }>;
+};
 
 export async function listWorkflows(params: WorkflowListParams) {
   const response = await httpClient.get<WorkflowPageResponse>(WORKFLOWS_PATH, { params });
@@ -49,6 +54,9 @@ export async function restoreWorkflow(workflowId: number) {
 }
 
 export async function listWorkflowPlugins() {
-  const response = await httpClient.get<PluginPageResponse>("/api/v1/plugins");
-  return response.data;
+  const response = await httpClient.get<PluginApiResponse>("/v1/plugins");
+  return {
+    ...response.data,
+    items: response.data.items.map(withPluginCategory),
+  } satisfies PluginPageResponse;
 }

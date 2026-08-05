@@ -209,8 +209,8 @@ export function WorkflowListPage() {
                         <TableCell>{workflow.edgeCount}</TableCell>
                         <TableCell>{formatWorkflowDate(workflow.createdAt)}</TableCell>
                         <TableCell>{formatWorkflowDate(workflow.updatedAt)}</TableCell>
-                        <TableCell>{workflow.createdByEmail}</TableCell>
-                        <TableCell>{workflow.updatedByEmail}</TableCell>
+                        <TableCell>{workflow.createdBy.email}</TableCell>
+                        <TableCell>{workflow.updatedBy.email}</TableCell>
                         <TableCell>
                           <Box className={styles.workflowList__rowActions}>
                             <Link href={`/workflows/${workflow.id}`}>Open</Link>

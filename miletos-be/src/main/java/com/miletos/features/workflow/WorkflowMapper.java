@@ -3,8 +3,11 @@ package com.miletos.features.workflow;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.mapstruct.BeanMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.MappingTarget;
+import org.mapstruct.Named;
 import org.mapstruct.ReportingPolicy;
 import org.springframework.data.domain.Page;
 
@@ -12,45 +15,132 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.miletos.features.company.repository.entity.Company;
+import com.miletos.features.user.repository.entity.User;
 import com.miletos.features.workflow.controller.request.CreateWorkflowRequest;
 import com.miletos.features.workflow.controller.request.NodePositionRequest;
 import com.miletos.features.workflow.controller.request.UpdateWorkflowRequest;
 import com.miletos.features.workflow.controller.request.WorkflowEdgeRequest;
 import com.miletos.features.workflow.controller.request.WorkflowNodeRequest;
 import com.miletos.features.workflow.controller.response.NodePositionResponse;
+import com.miletos.features.workflow.controller.response.WorkflowAuditUserResponse;
 import com.miletos.features.workflow.controller.response.WorkflowEdgeResponse;
 import com.miletos.features.workflow.controller.response.WorkflowNodeResponse;
 import com.miletos.features.workflow.controller.response.WorkflowPageResponse;
 import com.miletos.features.workflow.controller.response.WorkflowResponse;
 import com.miletos.features.workflow.controller.response.WorkflowSummaryResponse;
 import com.miletos.features.workflow.repository.entity.Workflow;
+import com.miletos.features.workflow.repository.entity.WorkflowStatus;
 
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.ERROR)
 public interface WorkflowMapper {
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "company", ignore = true)
-    @Mapping(target = "normalizedName", ignore = true)
+    @Mapping(target = "name", source = "name", qualifiedByName = "trimRequired")
+    @Mapping(target = "description", source = "description", qualifiedByName = "trimToNull")
     @Mapping(target = "status", ignore = true)
     @Mapping(target = "revision", ignore = true)
-    @Mapping(target = "definitionJson", expression = "java(toDefinitionJson(request.nodes(), request.edges(), request.metadata()))")
-    @Mapping(target = "createdByEmail", ignore = true)
-    @Mapping(target = "updatedByEmail", ignore = true)
+    @Mapping(
+            target = "definitionJson",
+            expression = "java(toDefinitionJson(request.nodes(), request.edges(), request.metadata()))")
+    @Mapping(target = "createdBy", ignore = true)
+    @Mapping(target = "updatedBy", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     Workflow toEntity(CreateWorkflowRequest request);
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "company", ignore = true)
-    @Mapping(target = "normalizedName", ignore = true)
+    @Mapping(target = "name", source = "name", qualifiedByName = "trimRequired")
+    @Mapping(target = "description", source = "description", qualifiedByName = "trimToNull")
     @Mapping(target = "status", ignore = true)
     @Mapping(target = "revision", ignore = true)
-    @Mapping(target = "definitionJson", expression = "java(toDefinitionJson(request.nodes(), request.edges(), request.metadata()))")
-    @Mapping(target = "createdByEmail", ignore = true)
-    @Mapping(target = "updatedByEmail", ignore = true)
+    @Mapping(
+            target = "definitionJson",
+            expression = "java(toDefinitionJson(request.nodes(), request.edges(), request.metadata()))")
+    @Mapping(target = "createdBy", ignore = true)
+    @Mapping(target = "updatedBy", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     Workflow toEntity(UpdateWorkflowRequest request);
+
+    @BeanMapping(ignoreByDefault = true)
+    @Mapping(target = "company", source = "company")
+    @Mapping(target = "status", source = "status")
+    @Mapping(target = "revision", source = "revision")
+    @Mapping(target = "definitionJson", source = "definitionJson")
+    @Mapping(target = "createdBy", source = "user")
+    @Mapping(target = "updatedBy", source = "user")
+    void prepareForCreate(
+            Company company,
+            User user,
+            JsonNode definitionJson,
+            WorkflowStatus status,
+            Long revision,
+            @MappingTarget Workflow workflow);
+
+    @BeanMapping(ignoreByDefault = true)
+    @Mapping(target = "name", source = "source.name")
+    @Mapping(target = "description", source = "source.description")
+    @Mapping(target = "definitionJson", source = "definitionJson")
+    @Mapping(target = "revision", source = "revision")
+    @Mapping(target = "updatedBy", source = "user")
+    void applyContentUpdate(
+            Workflow source,
+            JsonNode definitionJson,
+            User user,
+            Long revision,
+            @MappingTarget Workflow target);
+
+    @BeanMapping(ignoreByDefault = true)
+    @Mapping(target = "status", source = "status")
+    @Mapping(target = "updatedBy", source = "user")
+    void applyLifecycleUpdate(
+            WorkflowStatus status,
+            User user,
+            @MappingTarget Workflow workflow);
+
+    @Mapping(target = "nodes", source = "workflow", qualifiedByName = "nodes")
+    @Mapping(target = "edges", source = "workflow", qualifiedByName = "edges")
+    @Mapping(target = "metadata", source = "workflow", qualifiedByName = "metadata")
+    @Mapping(target = "nodeCount", source = "workflow", qualifiedByName = "nodeCount")
+    @Mapping(target = "edgeCount", source = "workflow", qualifiedByName = "edgeCount")
+    WorkflowResponse toResponse(Workflow workflow);
+
+    @Mapping(target = "nodeCount", source = "workflow", qualifiedByName = "nodeCount")
+    @Mapping(target = "edgeCount", source = "workflow", qualifiedByName = "edgeCount")
+    WorkflowSummaryResponse toSummaryResponse(Workflow workflow);
+
+    List<WorkflowSummaryResponse> toSummaryResponses(List<Workflow> workflows);
+
+    WorkflowAuditUserResponse toAuditUserResponse(User user);
+
+    default WorkflowPageResponse toPageResponse(Page<Workflow> page) {
+        return new WorkflowPageResponse(
+                toSummaryResponses(page.getContent()),
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements(),
+                page.getTotalPages(),
+                page.isFirst(),
+                page.isLast());
+    }
+
+    @Named("trimRequired")
+    default String trimRequired(String value) {
+        return value == null ? null : value.trim();
+    }
+
+    @Named("trimToNull")
+    default String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+
+        String trimmed = value.trim();
+        return trimmed.isBlank() ? null : trimmed;
+    }
 
     default JsonNode toDefinitionJson(
             List<WorkflowNodeRequest> nodes,
@@ -63,28 +153,7 @@ public interface WorkflowMapper {
         return definition;
     }
 
-    @Mapping(target = "nodes", expression = "java(nodes(workflow))")
-    @Mapping(target = "edges", expression = "java(edges(workflow))")
-    @Mapping(target = "metadata", expression = "java(metadata(workflow))")
-    @Mapping(target = "nodeCount", expression = "java(nodeCount(workflow))")
-    @Mapping(target = "edgeCount", expression = "java(edgeCount(workflow))")
-    WorkflowResponse toResponse(Workflow workflow);
-
-    @Mapping(target = "nodeCount", expression = "java(nodeCount(workflow))")
-    @Mapping(target = "edgeCount", expression = "java(edgeCount(workflow))")
-    WorkflowSummaryResponse toSummaryResponse(Workflow workflow);
-
-    default WorkflowPageResponse toPageResponse(Page<Workflow> page) {
-        return new WorkflowPageResponse(
-                page.getContent().stream().map(this::toSummaryResponse).toList(),
-                page.getNumber(),
-                page.getSize(),
-                page.getTotalElements(),
-                page.getTotalPages(),
-                page.isFirst(),
-                page.isLast());
-    }
-
+    @Named("nodes")
     default List<WorkflowNodeResponse> nodes(Workflow workflow) {
         JsonNode nodes = arrayField(workflow, "nodes");
         List<WorkflowNodeResponse> responses = new ArrayList<>();
@@ -107,6 +176,7 @@ public interface WorkflowMapper {
         return List.copyOf(responses);
     }
 
+    @Named("edges")
     default List<WorkflowEdgeResponse> edges(Workflow workflow) {
         JsonNode edges = arrayField(workflow, "edges");
         List<WorkflowEdgeResponse> responses = new ArrayList<>();
@@ -124,6 +194,7 @@ public interface WorkflowMapper {
         return List.copyOf(responses);
     }
 
+    @Named("metadata")
     default JsonNode metadata(Workflow workflow) {
         JsonNode definition = workflow.getDefinitionJson();
         if (definition == null || !definition.isObject()) {
@@ -134,11 +205,13 @@ public interface WorkflowMapper {
         return metadata.isObject() ? metadata.deepCopy() : JsonNodeFactory.instance.objectNode();
     }
 
-    default int nodeCount(Workflow workflow) {
+    @Named("nodeCount")
+    default Integer nodeCount(Workflow workflow) {
         return arrayField(workflow, "nodes").size();
     }
 
-    default int edgeCount(Workflow workflow) {
+    @Named("edgeCount")
+    default Integer edgeCount(Workflow workflow) {
         return arrayField(workflow, "edges").size();
     }
 

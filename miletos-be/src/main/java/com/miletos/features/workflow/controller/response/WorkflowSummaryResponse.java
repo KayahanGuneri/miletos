@@ -9,11 +9,11 @@ public record WorkflowSummaryResponse(
                 String name,
                 String description,
                 WorkflowStatus status,
-                long revision,
-                int nodeCount,
-                int edgeCount,
-                String createdByEmail,
-                String updatedByEmail,
+                Long revision,
+                Integer nodeCount,
+                Integer edgeCount,
+                WorkflowAuditUserResponse createdBy,
+                WorkflowAuditUserResponse updatedBy,
                 Instant createdAt,
                 Instant updatedAt) {
 }

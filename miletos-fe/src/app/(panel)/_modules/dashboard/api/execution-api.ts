@@ -15,7 +15,7 @@ import {
 } from "@/app/(panel)/_modules/dashboard/types/execution-types";
 import { httpClient } from "@/shared/api/http-client";
 
-const EXECUTIONS_PATH = "/api/v1/executions";
+const EXECUTIONS_PATH = "/v1/executions";
 
 function tenantHeaders(companyId?: number) {
   return companyId ? { "X-Miletos-Company-ID": String(companyId) } : undefined;

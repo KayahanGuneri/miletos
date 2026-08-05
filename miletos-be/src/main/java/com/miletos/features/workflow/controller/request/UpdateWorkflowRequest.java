@@ -12,7 +12,7 @@ import jakarta.validation.constraints.Size;
 public record UpdateWorkflowRequest(
                 @NotBlank @Size(min = 3, max = 120) String name,
                 @Size(max = 1000) String description,
-                @NotNull List<@Valid WorkflowNodeRequest> nodes,
-                @NotNull List<@Valid WorkflowEdgeRequest> edges,
+                @NotNull List<@NotNull @Valid WorkflowNodeRequest> nodes,
+                @NotNull List<@NotNull @Valid WorkflowEdgeRequest> edges,
                 @NotNull JsonNode metadata) {
 }

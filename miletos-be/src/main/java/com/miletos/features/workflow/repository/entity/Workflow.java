@@ -7,6 +7,7 @@ import org.hibernate.type.SqlTypes;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.miletos.features.company.repository.entity.Company;
+import com.miletos.features.user.repository.entity.User;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -22,6 +23,7 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -31,6 +33,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor
 public class Workflow {
 
     @Id
@@ -44,9 +47,6 @@ public class Workflow {
     @Column(name = "name", nullable = false, length = 120)
     private String name;
 
-    @Column(name = "normalized_name", nullable = false, length = 120)
-    private String normalizedName;
-
     @Column(name = "description", length = 1000)
     private String description;
 
@@ -55,32 +55,25 @@ public class Workflow {
     private WorkflowStatus status;
 
     @Column(name = "revision", nullable = false)
-    private long revision;
+    private Long revision;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "definition_json", nullable = false, columnDefinition = "jsonb")
     private JsonNode definitionJson;
 
-    @Column(name = "created_by_email", nullable = false, length = 320, updatable = false)
-    private String createdByEmail;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "created_by_user_id", nullable = false, updatable = false)
+    private User createdBy;
 
-    @Column(name = "updated_by_email", nullable = false, length = 320)
-    private String updatedByEmail;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "updated_by_user_id", nullable = false)
+    private User updatedBy;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
-
-    public Workflow(
-            String name,
-            String description,
-            JsonNode definitionJson) {
-        this.name = name;
-        this.description = description;
-        this.definitionJson = definitionJson;
-    }
 
     @PrePersist
     void prePersist() {

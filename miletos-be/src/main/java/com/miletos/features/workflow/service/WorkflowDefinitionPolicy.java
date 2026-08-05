@@ -1,7 +1,10 @@
 package com.miletos.features.workflow.service;
 
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import org.springframework.stereotype.Component;
 
@@ -19,31 +22,24 @@ public class WorkflowDefinitionPolicy {
     private final ObjectMapper objectMapper;
 
     public JsonNode validateAndNormalizeDefinition(JsonNode definitionJson) {
-        if (definitionJson == null || !definitionJson.isObject()) {
-            throw new InvalidWorkflowDefinitionException();
-        }
-
         JsonNode nodes = definitionJson.get("nodes");
         JsonNode edges = definitionJson.get("edges");
         JsonNode metadata = definitionJson.get("metadata");
-        if (nodes == null
-                || !nodes.isArray()
-                || edges == null
-                || !edges.isArray()
-                || metadata == null
-                || !metadata.isObject()) {
-            throw new InvalidWorkflowDefinitionException();
-        }
-
         Set<String> nodeIds = new HashSet<>();
         Set<String> edgeIds = new HashSet<>();
 
+        LinkedHashMap<String, Predicate<JsonNode>> definitionValidators = new LinkedHashMap<>();
+        definitionValidators.put(
+                "metadata must be a JSON object",
+                ignored -> metadata.isObject());
+        validateAll(definitionValidators, definitionJson);
+
         for (JsonNode node : nodes) {
-            validateNode(node, nodeIds);
+            validateAll(nodeValidators(nodeIds), node);
         }
 
         for (JsonNode edge : edges) {
-            validateEdge(edge, edgeIds);
+            validateAll(edgeValidators(edgeIds, nodeIds), edge);
         }
 
         ObjectNode definition = objectMapper.createObjectNode();
@@ -53,49 +49,69 @@ public class WorkflowDefinitionPolicy {
         return definition;
     }
 
-    private void validateNode(JsonNode node, Set<String> nodeIds) {
-        JsonNode position = node == null ? null : node.get("position");
-        JsonNode x = position == null ? null : position.get("x");
-        JsonNode y = position == null ? null : position.get("y");
-        String nodeId = textValue(node, "nodeId");
-        if (node == null
-                || !node.isObject()
-                || nodeId == null
-                || textValue(node, "pluginType") == null
-                || textValue(node, "pluginVersion") == null
-                || node.get("configuration") == null
-                || !node.get("configuration").isObject()
-                || position == null
-                || !position.isObject()
-                || x == null
-                || !x.isNumber()
-                || !Double.isFinite(x.asDouble())
-                || y == null
-                || !y.isNumber()
-                || !Double.isFinite(y.asDouble())
-                || !nodeIds.add(nodeId)) {
-            throw new InvalidWorkflowDefinitionException();
-        }
+    private LinkedHashMap<String, Predicate<JsonNode>> nodeValidators(Set<String> nodeIds) {
+        LinkedHashMap<String, Predicate<JsonNode>> validators = new LinkedHashMap<>();
+
+        validators.put(
+                "configuration must be a JSON object",
+                node -> node.get("configuration").isObject());
+        validators.put(
+                "position x must be finite",
+                node -> isFiniteNumber(node.get("position"), "x"));
+        validators.put(
+                "position y must be finite",
+                node -> isFiniteNumber(node.get("position"), "y"));
+        validators.put(
+                "nodeId must be unique",
+                node -> nodeIds.add(textValue(node, "nodeId")));
+
+        return validators;
     }
 
-    private void validateEdge(JsonNode edge, Set<String> edgeIds) {
-        String edgeId = textValue(edge, "edgeId");
-        if (edge == null
-                || !edge.isObject()
-                || edgeId == null
-                || textValue(edge, "sourceNodeId") == null
-                || textValue(edge, "sourceOutputPort") == null
-                || textValue(edge, "targetNodeId") == null
-                || textValue(edge, "targetInputPort") == null
-                || !edgeIds.add(edgeId)) {
-            throw new InvalidWorkflowDefinitionException();
+    private LinkedHashMap<String, Predicate<JsonNode>> edgeValidators(
+            Set<String> edgeIds,
+            Set<String> nodeIds) {
+        LinkedHashMap<String, Predicate<JsonNode>> validators = new LinkedHashMap<>();
+
+        validators.put(
+                "edgeId must be unique",
+                edge -> edgeIds.add(textValue(edge, "edgeId")));
+        validators.put(
+                "source node must exist",
+                edge -> nodeIds.contains(textValue(edge, "sourceNodeId")));
+        validators.put(
+                "target node must exist",
+                edge -> nodeIds.contains(textValue(edge, "targetNodeId")));
+
+        return validators;
+    }
+
+    private void validateAll(
+            Map<String, Predicate<JsonNode>> validators,
+            JsonNode candidate) {
+        validators.forEach((validationName, validator) -> {
+            boolean valid = validator.test(candidate);
+
+            if (!valid) {
+                throw new InvalidWorkflowDefinitionException();
+            }
+        });
+    }
+
+    private boolean isFiniteNumber(JsonNode object, String fieldName) {
+        if (object == null || !object.isObject()) {
+            return false;
         }
+
+        JsonNode value = object.get(fieldName);
+        return value != null && value.isNumber() && Double.isFinite(value.asDouble());
     }
 
     private String textValue(JsonNode object, String fieldName) {
         if (object == null || !object.isObject()) {
             return null;
         }
+
         JsonNode value = object.get(fieldName);
         return value != null && value.isTextual() ? value.textValue() : null;
     }

@@ -15,6 +15,7 @@ import { hasAccessToken } from "@/shared/session/storage/access-token-storage";
 import { type UserProfile } from "@/shared/session/types/session-user-types";
 import { useCurrentUserQuery } from "@/shared/session/hooks/useCurrentUserQuery";
 import { useLogout } from "@/shared/session/hooks/useLogout";
+import { PanelUserIdentity } from "./PanelUserIdentity";
 import styles from "./PanelGuard.module.css";
 
 interface PanelGuardProps {
@@ -79,40 +80,6 @@ function Icon({ name, size = 20 }: IconProps) {
     x: "/icons/navigation/x.svg",
   };
   return <GenericIcon size={size} src={sources[name]} />;
-}
-
-function formatEnumLabel(value: string | null | undefined) {
-  if (!value) {
-    return "User";
-  }
-
-  return value
-    .toLowerCase()
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
-function getDisplayName(user: UserProfile) {
-  const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
-
-  return fullName || "Miletos User";
-}
-
-function getInitials(user: UserProfile) {
-  const firstInitial = user.firstName?.charAt(0) ?? "M";
-
-  const lastInitial = user.lastName?.charAt(0) ?? "";
-
-  return `${firstInitial}${lastInitial}`.toUpperCase();
-}
-
-function getRoleLabel(user: UserProfile) {
-  if (user.superAdmin) {
-    return "Superadmin";
-  }
-
-  return formatEnumLabel(user.role);
 }
 
 function getCompanyIdFromUsersPath(pathname: string) {
@@ -240,12 +207,6 @@ function AuthenticatedPanelShell({
 
   const navigationItems = buildNavigationItems(pathname, user);
 
-  const displayName = getDisplayName(user);
-
-  const initials = getInitials(user);
-
-  const roleLabel = getRoleLabel(user);
-
   const currentPageTitle = getCurrentPageTitle(pathname);
 
   function closeMobileNavigation() {
@@ -356,13 +317,11 @@ function AuthenticatedPanelShell({
             href="/profile"
             onClick={closeMobileNavigation}
           >
-            <span className={styles.panelShell__userAvatar}>{initials}</span>
-
-            <span className={styles.panelShell__userIdentity}>
-              <strong>{displayName}</strong>
-
-              <small>{roleLabel}</small>
-            </span>
+            <PanelUserIdentity
+              user={user}
+              avatarClassName={styles.panelShell__userAvatar}
+              identityClassName={styles.panelShell__userIdentity}
+            />
           </Link>
         </div>
       </aside>
@@ -393,13 +352,11 @@ function AuthenticatedPanelShell({
               href="/profile"
               onClick={closeMobileNavigation}
             >
-              <span className={styles.panelShell__topbarAvatar}>{initials}</span>
-
-              <span className={styles.panelShell__topbarIdentity}>
-                <strong>{displayName}</strong>
-
-                <small>{roleLabel}</small>
-              </span>
+              <PanelUserIdentity
+                user={user}
+                avatarClassName={styles.panelShell__topbarAvatar}
+                identityClassName={styles.panelShell__topbarIdentity}
+              />
             </Link>
 
             <button

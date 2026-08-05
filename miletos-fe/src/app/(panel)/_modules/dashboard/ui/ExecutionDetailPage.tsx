@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { Box } from "@/components/lib/box/Box";
 import Button from "@/components/lib/button/Button";
 import { Typography } from "@/components/lib/typography/Typography";
@@ -14,12 +15,14 @@ import {
 } from "@/app/(panel)/_modules/dashboard/utils/execution-formatters";
 import { useExecutionDefinitionQuery } from "@/app/(panel)/_modules/dashboard/query/useExecutionDefinitionQuery";
 import { useExecutionDetailQuery } from "@/app/(panel)/_modules/dashboard/query/useExecutionDetailQuery";
+import { useExecutionNodesQuery } from "@/app/(panel)/_modules/dashboard/query/useExecutionNodesQuery";
 import { useRunWorkflowMutation } from "@/app/(panel)/_modules/dashboard/query/useRunWorkflowMutation";
 import { mapDefinitionToRunWorkflowRequest } from "@/app/(panel)/_modules/dashboard/utils/run-workflow-mapper";
 import { useAllCompaniesQuery } from "@/app/(panel)/_modules/companies/query/useAllCompaniesQuery";
 import { useCurrentUserQuery } from "@/shared/session/hooks/useCurrentUserQuery";
 import { ExecutionObservabilityPanel } from "../components/ExecutionObservabilityPanel";
 import { ExecutionGraph } from "../components/ExecutionGraph";
+import { RuntimeNodeDetailsDialog } from "../components/RuntimeNodeDetailsDialog";
 import styles from "./ExecutionDetailPage.module.css";
 
 interface ExecutionDetailPageProps {
@@ -27,8 +30,12 @@ interface ExecutionDetailPageProps {
   companyId?: number;
 }
 
+const RUNTIME_NODE_PAGE_SIZE = 100;
+
 export function ExecutionDetailPage({ executionId, companyId }: ExecutionDetailPageProps) {
   const router = useRouter();
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [isNodeDialogOpen, setIsNodeDialogOpen] = useState(false);
   const runWorkflowMutation = useRunWorkflowMutation();
   const currentUserQuery = useCurrentUserQuery();
   const isSuperAdmin = currentUserQuery.data?.superAdmin === true;
@@ -49,6 +56,48 @@ export function ExecutionDetailPage({ executionId, companyId }: ExecutionDetailP
     enabled: queryEnabled && executionQuery.isSuccess,
     companyId: effectiveCompanyId,
   });
+  const pollingEnabled = executionQuery.data
+    ? !isTerminalExecutionStatus(executionQuery.data.status)
+    : false;
+  const nodesQuery = useExecutionNodesQuery(
+    executionId,
+    { limit: RUNTIME_NODE_PAGE_SIZE },
+    {
+      enabled: queryEnabled && definitionQuery.isSuccess && executionQuery.isSuccess,
+      pollingEnabled,
+      companyId: effectiveCompanyId,
+    },
+  );
+  const nodeExecutions = useMemo(() => nodesQuery.data?.items ?? [], [nodesQuery.data?.items]);
+  const selectedNodeExecution = useMemo(() => {
+    if (!selectedNodeId) {
+      return null;
+    }
+
+    return (
+      nodeExecutions
+        .filter((nodeExecution) => nodeExecution.nodeId === selectedNodeId)
+        .sort((first, second) => second.attempt - first.attempt)[0] ?? null
+    );
+  }, [nodeExecutions, selectedNodeId]);
+
+  useEffect(() => {
+    // A route identity change invalidates selection and dialog state from the previous execution.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelectedNodeId(null);
+    setIsNodeDialogOpen(false);
+  }, [executionId]);
+
+  function selectRuntimeNode(nodeId: string | null) {
+    setSelectedNodeId(nodeId);
+
+    if (!nodeId) {
+      setIsNodeDialogOpen(false);
+      return;
+    }
+
+    setIsNodeDialogOpen(true);
+  }
 
   if (currentUserQuery.isPending || (isSuperAdmin && companiesQuery.isPending)) {
     return (
@@ -169,8 +218,6 @@ export function ExecutionDetailPage({ executionId, companyId }: ExecutionDetailP
   }
 
   const execution = executionQuery.data;
-
-  const pollingEnabled = !isTerminalExecutionStatus(execution.status);
 
   const duration = formatExecutionDuration(
     execution.startedAt ?? execution.createdAt,
@@ -439,10 +486,18 @@ export function ExecutionDetailPage({ executionId, companyId }: ExecutionDetailP
 
       {definitionQuery.isSuccess ? (
         <ExecutionGraph
-          executionId={execution.executionId}
           definition={definitionQuery.data.definition}
-          pollingEnabled={pollingEnabled}
-          companyId={effectiveCompanyId}
+          nodeExecutions={nodeExecutions}
+          selectedNodeId={selectedNodeId}
+          onNodeSelect={selectRuntimeNode}
+        />
+      ) : null}
+
+      {isNodeDialogOpen && selectedNodeId ? (
+        <RuntimeNodeDetailsDialog
+          selectedNodeId={selectedNodeId}
+          nodeExecution={selectedNodeExecution}
+          onClose={() => setIsNodeDialogOpen(false)}
         />
       ) : null}
 

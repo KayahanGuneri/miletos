@@ -1,4 +1,4 @@
 package com.miletos.features.workflow.controller.response;
 
-public record NodePositionResponse(double x, double y) {
+public record NodePositionResponse(Double x, Double y) {
 }

@@ -13,11 +13,14 @@ export interface PluginPort {
   description: string;
 }
 
+export type PluginCategory = "trigger" | "input" | "flow-control" | "output" | "other";
+
 export interface PluginDescriptor {
   type: string;
   version: string;
   displayName: string;
   description: string;
+  category: PluginCategory;
   inputPorts: PluginPort[];
   outputPorts: PluginPort[];
 }
@@ -36,6 +39,8 @@ export interface PluginConfigurationEditorProps<TValues> {
 
 export interface PluginConfigurationDefinition<TValues> {
   pluginType: string;
+  dialogDescription?: string;
+  dialogSize?: "default" | "large";
   createDefaultConfiguration: () => PluginConfiguration;
   deserialize: (configuration: PluginConfiguration) => TValues;
   validate: (values: TValues) => PluginConfigurationValidationResult;
@@ -45,6 +50,8 @@ export interface PluginConfigurationDefinition<TValues> {
 
 export interface RegisteredPluginConfigurationDefinition {
   pluginType: string;
+  dialogDescription?: string;
+  dialogSize?: "default" | "large";
   createDefaultConfiguration: () => PluginConfiguration;
   deserialize: (configuration: PluginConfiguration) => unknown;
   validate: (values: unknown) => PluginConfigurationValidationResult;

@@ -10,10 +10,18 @@ interface DialogProps {
   description?: string;
   children: ReactNode;
   footer: ReactNode;
+  size?: "default" | "large";
   onClose: () => void;
 }
 
-export function Dialog({ title, description, children, footer, onClose }: DialogProps) {
+export function Dialog({
+  title,
+  description,
+  children,
+  footer,
+  size = "default",
+  onClose,
+}: DialogProps) {
   useEffect(() => {
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -35,7 +43,13 @@ export function Dialog({ title, description, children, footer, onClose }: Dialog
         }
       }}
     >
-      <section className={styles.dialog__panel} role="dialog" aria-modal="true" aria-label={title}>
+      <section
+        className={styles.dialog__panel}
+        data-size={size}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
         <header className={styles.dialog__header}>
           <Typography as="h2">{title}</Typography>
           {description ? <Typography as="p">{description}</Typography> : null}

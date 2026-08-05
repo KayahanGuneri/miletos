@@ -17,6 +17,8 @@ function registerDefinition<TValues>(
 ): RegisteredPluginConfigurationDefinition {
   return {
     pluginType: definition.pluginType,
+    dialogDescription: definition.dialogDescription,
+    dialogSize: definition.dialogSize,
     createDefaultConfiguration: definition.createDefaultConfiguration,
     deserialize: definition.deserialize,
     validate: (values) => definition.validate(values as TValues),

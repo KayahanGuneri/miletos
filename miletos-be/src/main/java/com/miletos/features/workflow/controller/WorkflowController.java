@@ -32,79 +32,80 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class WorkflowController {
 
-        private final WorkflowService workflowService;
-        private final WorkflowMapper workflowMapper;
+    private final WorkflowService workflowService;
+    private final WorkflowMapper workflowMapper;
 
-        @Authorize(RequiredRole.COMPANY_ADMIN)
-        @PostMapping
-        public ResponseEntity<WorkflowResponse> createWorkflow(
-                        @Valid @RequestBody CreateWorkflowRequest request) {
-                Workflow workflow = workflowMapper.toEntity(request);
-                Workflow createdWorkflow = workflowService.createWorkflow(workflow);
-                return ResponseEntity.status(HttpStatus.CREATED)
-                                .body(workflowMapper.toResponse(createdWorkflow));
-        }
+    @Authorize(RequiredRole.COMPANY_ADMIN)
+    @PostMapping
+    public ResponseEntity<WorkflowResponse> createWorkflow(
+            @Valid @RequestBody CreateWorkflowRequest request) {
+        Workflow workflow = workflowMapper.toEntity(request);
+        Workflow createdWorkflow = workflowService.createWorkflow(workflow);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(workflowMapper.toResponse(createdWorkflow));
+    }
 
-        @Authorize(RequiredRole.COMPANY_ADMIN)
-        @GetMapping
-        public ResponseEntity<WorkflowPageResponse> listWorkflows(
-                        @RequestParam(defaultValue = "0") int page,
-                        @RequestParam(defaultValue = "20") int size,
-                        @RequestParam(required = false) String search,
-                        @RequestParam(required = false) WorkflowStatus status) {
-                Page<Workflow> workflows = workflowService.listWorkflows(page, size, search, status);
-                return ResponseEntity.ok(workflowMapper.toPageResponse(workflows));
-        }
+    @Authorize(RequiredRole.COMPANY_ADMIN)
+    @GetMapping
+    public ResponseEntity<WorkflowPageResponse> listWorkflows(
+            @RequestParam(defaultValue = "0") Integer page,
+            @RequestParam(defaultValue = "20") Integer size,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) WorkflowStatus status) {
+        Page<Workflow> workflows = workflowService.listWorkflows(page, size, search, status);
+        return ResponseEntity.ok(workflowMapper.toPageResponse(workflows));
+    }
 
-        @Authorize(RequiredRole.COMPANY_ADMIN)
-        @GetMapping("/{workflowId}")
-        public ResponseEntity<WorkflowResponse> getWorkflow(
-                        @PathVariable Long workflowId) {
-                return ResponseEntity.ok(
-                                workflowMapper.toResponse(workflowService.getWorkflow(workflowId)));
-        }
+    @Authorize(RequiredRole.COMPANY_ADMIN)
+    @GetMapping("/{workflowId}")
+    public ResponseEntity<WorkflowResponse> getWorkflow(
+            @PathVariable Long workflowId) {
+        return ResponseEntity.ok(
+                workflowMapper.toResponse(
+                        workflowService.getWorkflowById(workflowId)));
+    }
 
-        @Authorize(RequiredRole.COMPANY_ADMIN)
-        @PutMapping("/{workflowId}")
-        public ResponseEntity<WorkflowResponse> updateWorkflow(
-                        @PathVariable Long workflowId,
-                        @Valid @RequestBody UpdateWorkflowRequest request) {
-                Workflow changes = workflowMapper.toEntity(request);
-                return ResponseEntity.ok(
-                                workflowMapper.toResponse(
-                                                workflowService.updateWorkflow(workflowId, changes)));
-        }
+    @Authorize(RequiredRole.COMPANY_ADMIN)
+    @PutMapping("/{workflowId}")
+    public ResponseEntity<WorkflowResponse> updateWorkflow(
+            @PathVariable Long workflowId,
+            @Valid @RequestBody UpdateWorkflowRequest request) {
+        Workflow changes = workflowMapper.toEntity(request);
+        return ResponseEntity.ok(
+                workflowMapper.toResponse(
+                        workflowService.updateWorkflow(workflowId, changes)));
+    }
 
-        @Authorize(RequiredRole.COMPANY_ADMIN)
-        @DeleteMapping("/{workflowId}")
-        public ResponseEntity<Void> deleteWorkflow(
-                        @PathVariable Long workflowId) {
-                workflowService.deleteWorkflow(workflowId);
-                return ResponseEntity.noContent().build();
-        }
+    @Authorize(RequiredRole.COMPANY_ADMIN)
+    @DeleteMapping("/{workflowId}")
+    public ResponseEntity<Void> deleteWorkflow(
+            @PathVariable Long workflowId) {
+        workflowService.deleteWorkflow(workflowId);
+        return ResponseEntity.noContent().build();
+    }
 
-        @Authorize(RequiredRole.COMPANY_ADMIN)
-        @PostMapping("/{workflowId}/activate")
-        public ResponseEntity<WorkflowResponse> activateWorkflow(
-                        @PathVariable Long workflowId) {
-                return ResponseEntity.ok(
-                                workflowMapper.toResponse(
-                                                workflowService.activateWorkflow(workflowId)));
-        }
+    @Authorize(RequiredRole.COMPANY_ADMIN)
+    @PostMapping("/{workflowId}/activate")
+    public ResponseEntity<WorkflowResponse> activateWorkflow(
+            @PathVariable Long workflowId) {
+        return ResponseEntity.ok(
+                workflowMapper.toResponse(
+                        workflowService.activateWorkflow(workflowId)));
+    }
 
-        @Authorize(RequiredRole.COMPANY_ADMIN)
-        @PostMapping("/{workflowId}/archive")
-        public ResponseEntity<WorkflowResponse> archiveWorkflow(
-                        @PathVariable Long workflowId) {
-                return ResponseEntity.ok(
-                                workflowMapper.toResponse(workflowService.archiveWorkflow(workflowId)));
-        }
+    @Authorize(RequiredRole.COMPANY_ADMIN)
+    @PostMapping("/{workflowId}/archive")
+    public ResponseEntity<WorkflowResponse> archiveWorkflow(
+            @PathVariable Long workflowId) {
+        return ResponseEntity.ok(
+                workflowMapper.toResponse(workflowService.archiveWorkflow(workflowId)));
+    }
 
-        @Authorize(RequiredRole.COMPANY_ADMIN)
-        @PostMapping("/{workflowId}/restore")
-        public ResponseEntity<WorkflowResponse> restoreWorkflow(
-                        @PathVariable Long workflowId) {
-                return ResponseEntity.ok(
-                                workflowMapper.toResponse(workflowService.restoreWorkflow(workflowId)));
-        }
+    @Authorize(RequiredRole.COMPANY_ADMIN)
+    @PostMapping("/{workflowId}/restore")
+    public ResponseEntity<WorkflowResponse> restoreWorkflow(
+            @PathVariable Long workflowId) {
+        return ResponseEntity.ok(
+                workflowMapper.toResponse(workflowService.restoreWorkflow(workflowId)));
+    }
 }

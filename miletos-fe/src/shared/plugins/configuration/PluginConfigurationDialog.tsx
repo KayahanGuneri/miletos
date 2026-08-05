@@ -80,7 +80,8 @@ export function PluginConfigurationDialog({
   return (
     <Dialog
       title={displayName}
-      description={`${pluginType} / ${pluginVersion}`}
+      description={definition?.dialogDescription ?? `${pluginType} / ${pluginVersion}`}
+      size={definition?.dialogSize}
       onClose={onClose}
       footer={
         <>
@@ -110,10 +111,10 @@ export function PluginConfigurationDialog({
       }
     >
       <Box className={styles.pluginConfiguration__identity}>
-        <Typography as="span">Plugin type</Typography>
-        <Typography as="strong">{pluginType}</Typography>
-        <Typography as="span">Version</Typography>
-        <Typography as="strong">{pluginVersion}</Typography>
+        <Typography as="span">Plugin identity</Typography>
+        <Typography as="strong">
+          {pluginType} Â· {pluginVersion}
+        </Typography>
       </Box>
 
       {!definition ? (

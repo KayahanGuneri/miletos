@@ -108,8 +108,26 @@
   line-height: 1.55;
 }
 
-.workflowEditor__pluginList {
+.workflowEditor__pluginGroups {
   margin-top: 16px;
+  display: grid;
+  gap: 18px;
+}
+
+.workflowEditor__pluginGroup {
+  min-width: 0;
+}
+
+.workflowEditor__pluginGroup h3 {
+  margin: 0 0 8px;
+  color: var(--color-muted);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.workflowEditor__pluginList {
   display: grid;
   gap: 10px;
 }

@@ -39,6 +39,13 @@ export interface SaveWorkflowRequest {
   metadata: JsonObject;
 }
 
+export interface WorkflowAuditUser {
+  id: number;
+  email: string;
+  firstName: string;
+  lastName: string;
+}
+
 export interface WorkflowSummary {
   id: number;
   name: string;
@@ -47,8 +54,8 @@ export interface WorkflowSummary {
   revision: number;
   nodeCount: number;
   edgeCount: number;
-  createdByEmail: string;
-  updatedByEmail: string;
+  createdBy: WorkflowAuditUser;
+  updatedBy: WorkflowAuditUser;
   createdAt: string;
   updatedAt: string;
 }

@@ -15,13 +15,13 @@ export async function updateOwnProfilePhoto(file: File) {
     base64Content: await readFileAsBase64Content(file),
   };
 
-  const response = await httpClient.put<UserProfile>("/api/users/me/profile-photo", request);
+  const response = await httpClient.put<UserProfile>("/users/me/profile-photo", request);
 
   return response.data;
 }
 
 export async function getOwnProfilePhoto() {
-  const response = await httpClient.get<Blob>("/api/users/me/profile-photo", {
+  const response = await httpClient.get<Blob>("/users/me/profile-photo", {
     responseType: "blob",
   });
 
@@ -29,7 +29,7 @@ export async function getOwnProfilePhoto() {
 }
 
 export async function changePassword(request: ChangePasswordRequest): Promise<void> {
-  await httpClient.post("/api/auth/change-password", request);
+  await httpClient.post("/auth/change-password", request);
 }
 
 function readFileAsBase64Content(file: File) {

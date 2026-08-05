@@ -1,31 +1,32 @@
 package com.miletos.features.workflow.repository;
 
-import java.util.Optional;
-
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import com.miletos.features.company.repository.entity.Company;
 import com.miletos.features.workflow.repository.entity.Workflow;
 import com.miletos.features.workflow.repository.entity.WorkflowStatus;
 
 public interface WorkflowRepository extends JpaRepository<Workflow, Long> {
 
-        Optional<Workflow> findByIdAndCompany_Id(Long id, Long companyId);
+    Boolean existsByCompanyAndNameIgnoreCase(Company company, String name);
 
-        boolean existsByCompany_IdAndNormalizedName(Long companyId, String normalizedName);
+    Boolean existsByCompanyAndNameIgnoreCaseAndIdNot(
+            Company company, String name, Long id);
 
-        boolean existsByCompany_IdAndNormalizedNameAndIdNot(
-                        Long companyId, String normalizedName, Long id);
-
-        Page<Workflow> findAllByCompany_Id(Long companyId, Pageable pageable);
-
-        Page<Workflow> findAllByCompany_IdAndStatus(
-                        Long companyId, WorkflowStatus status, Pageable pageable);
-
-        Page<Workflow> findAllByCompany_IdAndNameContainingIgnoreCase(
-                        Long companyId, String name, Pageable pageable);
-
-        Page<Workflow> findAllByCompany_IdAndStatusAndNameContainingIgnoreCase(
-                        Long companyId, WorkflowStatus status, String name, Pageable pageable);
+    @Query("""
+            select workflow
+            from Workflow workflow
+            where workflow.company = :company
+              and (:status is null or workflow.status = :status)
+              and lower(workflow.name) like lower(concat('%', :search, '%'))
+            """)
+    Page<Workflow> findAllByFilters(
+            @Param("company") Company company,
+            @Param("status") WorkflowStatus status,
+            @Param("search") String search,
+            Pageable pageable);
 }

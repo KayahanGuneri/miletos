@@ -12,7 +12,7 @@ export interface ListCompaniesParams {
 }
 
 export async function listCompanies({ page = 0, size = 20 }: ListCompaniesParams = {}) {
-  const response = await httpClient.get<CompanyPageResponse>("/api/companies", {
+  const response = await httpClient.get<CompanyPageResponse>("/companies", {
     params: {
       page,
       size,
@@ -23,17 +23,17 @@ export async function listCompanies({ page = 0, size = 20 }: ListCompaniesParams
 }
 
 export async function createCompany(request: CreateCompanyRequest) {
-  const response = await httpClient.post<Company>("/api/companies", request);
+  const response = await httpClient.post<Company>("/companies", request);
 
   return response.data;
 }
 
 export async function updateCompany(companyId: number, request: UpdateCompanyRequest) {
-  const response = await httpClient.put<Company>(`/api/companies/${companyId}`, request);
+  const response = await httpClient.put<Company>(`/companies/${companyId}`, request);
 
   return response.data;
 }
 
 export async function deleteCompany(companyId: number) {
-  await httpClient.delete(`/api/companies/${companyId}`);
+  await httpClient.delete(`/companies/${companyId}`);
 }
