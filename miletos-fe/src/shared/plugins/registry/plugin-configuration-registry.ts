@@ -4,7 +4,7 @@ import type {
   PluginConfigurationDefinition,
   PluginConfigurationEditorProps,
   RegisteredPluginConfigurationDefinition,
-} from "@/shared/plugins/contracts/plugin-configuration";
+} from "@/shared/plugins/contracts/plugin-configuration-interfaces";
 import { delayConfigurationDefinition } from "@/shared/plugins/editors/delay/DelayConfiguration";
 import { httpTriggerConfigurationDefinition } from "@/shared/plugins/editors/http-trigger/HttpTriggerConfiguration";
 import { joinConfigurationDefinition } from "@/shared/plugins/editors/join/JoinConfiguration";

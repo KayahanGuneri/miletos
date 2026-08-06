@@ -1,13 +1,16 @@
 import { Box } from "@/components/lib/box/Box";
 import Button, { ButtonVariant } from "@/components/lib/button/Button";
 import { Typography } from "@/components/lib/typography/Typography";
-import { useActivateWorkflowMutation } from "@/app/(panel)/_modules/workflows/query/useActivateWorkflowMutation";
-import { useArchiveWorkflowMutation } from "@/app/(panel)/_modules/workflows/query/useArchiveWorkflowMutation";
-import { useRestoreWorkflowMutation } from "@/app/(panel)/_modules/workflows/query/useRestoreWorkflowMutation";
+import { workflowMessages } from "@/app/(panel)/_modules/workflows/messages/workflow-messages";
+import {
+  useActivateWorkflowMutation,
+  useArchiveWorkflowMutation,
+  useRestoreWorkflowMutation,
+} from "@/app/(panel)/_modules/workflows/query/workflow-mutations";
 import {
   type Workflow,
   type WorkflowSummary,
-} from "@/app/(panel)/_modules/workflows/types/workflow-types";
+} from "@/app/(panel)/_modules/workflows/types/workflow-interfaces";
 import styles from "../ui/WorkflowListPage.module.css";
 
 interface WorkflowLifecycleActionsProps {
@@ -27,16 +30,16 @@ export function WorkflowLifecycleActions({
   const archive = useArchiveWorkflowMutation();
   const restore = useRestoreWorkflowMutation();
   let mutation = restore;
-  let label = "Restore";
+  let label: string = workflowMessages.lifecycle.restore;
 
   switch (workflow.status) {
     case "DRAFT":
       mutation = activate;
-      label = "Activate";
+      label = workflowMessages.lifecycle.activate;
       break;
     case "ACTIVE":
       mutation = archive;
-      label = "Archive";
+      label = workflowMessages.lifecycle.archive;
       break;
     case "ARCHIVED":
       break;
@@ -57,7 +60,7 @@ export function WorkflowLifecycleActions({
           }
         }}
       >
-        {mutation.isPending ? "Updating..." : label}
+        {mutation.isPending ? workflowMessages.lifecycle.updating : label}
       </Button>
       {disabled && disabledReason ? (
         <Typography as="span" className={styles.workflowList__inlineError} role="status">

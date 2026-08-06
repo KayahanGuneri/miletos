@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Typography } from "@/components/lib/typography/Typography";
+import { workflowMessages } from "@/app/(panel)/_modules/workflows/messages/workflow-messages";
 import { type JsonObject } from "@/app/(panel)/_modules/workflows/types/workflow-types";
 import styles from "../ui/WorkflowEditorPage.module.css";
 
@@ -45,7 +46,7 @@ function JsonObjectEditorState({
           try {
             const parsed: unknown = JSON.parse(nextDraft);
             if (!isJsonObject(parsed)) {
-              setError("Enter a JSON object. Arrays and primitive values are not allowed.");
+              setError(workflowMessages.jsonEditor.notAnObject);
               onValidityChange(false);
               return;
             }
@@ -53,7 +54,7 @@ function JsonObjectEditorState({
             onValidityChange(true);
             onChange(parsed);
           } catch {
-            setError("Enter valid JSON before saving.");
+            setError(workflowMessages.jsonEditor.invalidJson);
             onValidityChange(false);
           }
         }}

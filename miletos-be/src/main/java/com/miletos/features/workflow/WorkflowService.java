@@ -18,7 +18,6 @@ import com.miletos.features.workflow.repository.WorkflowRepository;
 import com.miletos.features.workflow.repository.entity.Workflow;
 import com.miletos.features.workflow.repository.entity.WorkflowStatus;
 import com.miletos.features.workflow.service.WorkflowDefinitionPolicy;
-import com.miletos.security.AuthenticatedActorResolver;
 
 import lombok.RequiredArgsConstructor;
 
@@ -31,12 +30,10 @@ public class WorkflowService {
 
     private final WorkflowRepository workflowRepository;
     private final WorkflowMapper workflowMapper;
-    private final AuthenticatedActorResolver authenticatedActorResolver;
     private final WorkflowDefinitionPolicy workflowDefinitionPolicy;
 
     @Transactional
-    public Workflow createWorkflow(Workflow workflow) {
-        User user = authenticatedActorResolver.resolveCurrent();
+    public Workflow createWorkflow(User user, Workflow workflow) {
         Company company = user.getCompany();
 
         if (Boolean.TRUE.equals(workflowRepository.existsByCompanyAndNameIgnoreCase(
@@ -59,11 +56,11 @@ public class WorkflowService {
 
     @Transactional(readOnly = true)
     public Page<Workflow> listWorkflows(
+            User user,
             Integer page,
             Integer size,
             String search,
             WorkflowStatus status) {
-        User user = authenticatedActorResolver.resolveCurrent();
         Company company = user.getCompany();
         String normalizedSearch = normalizeSearch(search);
         PageRequest pageable = PageRequest.of(
@@ -73,22 +70,26 @@ public class WorkflowService {
                         Sort.Order.desc("updatedAt"),
                         Sort.Order.desc("id")));
 
-        return workflowRepository.findAllByFilters(
-                company,
-                status,
-                normalizedSearch,
-                pageable);
+        if (status == null) {
+            return normalizedSearch == null
+                    ? workflowRepository.findAllByCompany(company, pageable)
+                    : workflowRepository.findAllByCompanyAndNameContainingIgnoreCase(
+                            company, normalizedSearch, pageable);
+        }
+
+        return normalizedSearch == null
+                ? workflowRepository.findAllByCompanyAndStatus(company, status, pageable)
+                : workflowRepository.findAllByCompanyAndStatusAndNameContainingIgnoreCase(
+                        company, status, normalizedSearch, pageable);
     }
 
     @Transactional(readOnly = true)
-    public Workflow getWorkflowById(Long workflowId) {
-        User user = authenticatedActorResolver.resolveCurrent();
+    public Workflow getWorkflowById(User user, Long workflowId) {
         return findOwnedWorkflow(workflowId, user.getCompany());
     }
 
     @Transactional
-    public Workflow updateWorkflow(Long workflowId, Workflow changes) {
-        User user = authenticatedActorResolver.resolveCurrent();
+    public Workflow updateWorkflow(User user, Long workflowId, Workflow changes) {
         Company company = user.getCompany();
         Workflow workflow = findOwnedWorkflow(workflowId, company);
         if (workflow.getStatus() != WorkflowStatus.DRAFT) {
@@ -114,8 +115,7 @@ public class WorkflowService {
     }
 
     @Transactional
-    public Workflow activateWorkflow(Long workflowId) {
-        User user = authenticatedActorResolver.resolveCurrent();
+    public Workflow activateWorkflow(User user, Long workflowId) {
         Workflow workflow = findOwnedWorkflow(workflowId, user.getCompany());
         if (workflow.getStatus() != WorkflowStatus.DRAFT) {
             throw new WorkflowInvalidStateException();
@@ -129,8 +129,7 @@ public class WorkflowService {
     }
 
     @Transactional
-    public Workflow archiveWorkflow(Long workflowId) {
-        User user = authenticatedActorResolver.resolveCurrent();
+    public Workflow archiveWorkflow(User user, Long workflowId) {
         Workflow workflow = findOwnedWorkflow(workflowId, user.getCompany());
         if (workflow.getStatus() != WorkflowStatus.ACTIVE) {
             throw new WorkflowInvalidStateException();
@@ -144,8 +143,7 @@ public class WorkflowService {
     }
 
     @Transactional
-    public Workflow restoreWorkflow(Long workflowId) {
-        User user = authenticatedActorResolver.resolveCurrent();
+    public Workflow restoreWorkflow(User user, Long workflowId) {
         Workflow workflow = findOwnedWorkflow(workflowId, user.getCompany());
         if (workflow.getStatus() != WorkflowStatus.ARCHIVED) {
             throw new WorkflowInvalidStateException();
@@ -159,8 +157,7 @@ public class WorkflowService {
     }
 
     @Transactional
-    public void deleteWorkflow(Long workflowId) {
-        User user = authenticatedActorResolver.resolveCurrent();
+    public void deleteWorkflow(User user, Long workflowId) {
         Workflow workflow = findOwnedWorkflow(workflowId, user.getCompany());
         if (workflow.getStatus() == WorkflowStatus.ACTIVE) {
             throw new WorkflowInvalidStateException();
@@ -185,7 +182,7 @@ public class WorkflowService {
 
     private String normalizeSearch(String search) {
         if (search == null || search.isBlank()) {
-            return "";
+            return null;
         }
         return search.trim();
     }

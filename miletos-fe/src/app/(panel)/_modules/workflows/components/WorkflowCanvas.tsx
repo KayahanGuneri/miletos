@@ -18,11 +18,12 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { Typography } from "@/components/lib/typography/Typography";
+import { workflowMessages } from "@/app/(panel)/_modules/workflows/messages/workflow-messages";
 import {
   type WorkflowEdge,
   type WorkflowNode,
-  type WorkflowPlugin,
-} from "@/app/(panel)/_modules/workflows/types/workflow-types";
+} from "@/app/(panel)/_modules/workflows/types/workflow-interfaces";
+import { type WorkflowPlugin } from "@/app/(panel)/_modules/workflows/types/workflow-types";
 import { createClientId } from "@/app/(panel)/_modules/workflows/utils/workflow-utils";
 import {
   PLUGIN_DRAG_DATA_TYPE,
@@ -167,9 +168,9 @@ export function WorkflowCanvas({
   return (
     <section className={styles.workflowEditor__canvasPanel}>
       <header className={styles.workflowEditor__canvasHeader}>
-        <Typography as="h2">Workflow canvas</Typography>
+        <Typography as="h2">{workflowMessages.canvas.title}</Typography>
         <Typography as="span">
-          {workflowNodes.length} nodes · {workflowEdges.length} edges
+          {workflowMessages.canvas.graphSummary(workflowNodes.length, workflowEdges.length)}
         </Typography>
       </header>
       {/* React Flow measures this exact native container to calculate its viewport. */}

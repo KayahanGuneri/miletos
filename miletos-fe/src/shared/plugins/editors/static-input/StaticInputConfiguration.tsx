@@ -3,8 +3,8 @@ import type {
   PluginConfiguration,
   PluginConfigurationDefinition,
   PluginConfigurationEditorProps,
-  PluginConfigurationValue,
-} from "@/shared/plugins/contracts/plugin-configuration";
+} from "@/shared/plugins/contracts/plugin-configuration-interfaces";
+import type { PluginConfigurationValue } from "@/shared/plugins/contracts/plugin-configuration-types";
 import styles from "../../configuration/PluginConfigurationDialog.module.css";
 
 type StaticValueType = "unset" | "string" | "number" | "boolean" | "null" | "structured";

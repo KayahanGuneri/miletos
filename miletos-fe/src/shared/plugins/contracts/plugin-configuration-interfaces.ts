@@ -1,7 +1,8 @@
 import type { ComponentType } from "react";
-
-export type PluginConfigurationValue =
-  string | number | boolean | null | PluginConfiguration | PluginConfigurationValue[];
+import type {
+  PluginCategory,
+  PluginConfigurationValue,
+} from "@/shared/plugins/contracts/plugin-configuration-types";
 
 export interface PluginConfiguration {
   [key: string]: PluginConfigurationValue;
@@ -12,8 +13,6 @@ export interface PluginPort {
   displayName: string;
   description: string;
 }
-
-export type PluginCategory = "trigger" | "input" | "flow-control" | "output" | "other";
 
 export interface PluginDescriptor {
   type: string;

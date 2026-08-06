@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Box } from "@/components/lib/box/Box";
 import Button, { ButtonVariant } from "@/components/lib/button/Button";
+import { Input } from "@/components/lib/input/Input";
 import {
   Table,
   TableBody,
@@ -16,12 +17,14 @@ import { Typography } from "@/components/lib/typography/Typography";
 import { PageShell } from "@/components/layout/page-shell/PageShell";
 import { WorkflowDeleteConfirmation } from "@/app/(panel)/_modules/workflows/components/WorkflowDeleteConfirmation";
 import { WorkflowLifecycleActions } from "@/app/(panel)/_modules/workflows/components/WorkflowLifecycleActions";
-import { useDeleteWorkflowMutation } from "@/app/(panel)/_modules/workflows/query/useDeleteWorkflowMutation";
-import { useWorkflowsQuery } from "@/app/(panel)/_modules/workflows/query/useWorkflowsQuery";
+import { workflowMessages } from "@/app/(panel)/_modules/workflows/messages/workflow-messages";
+import { useDeleteWorkflowMutation } from "@/app/(panel)/_modules/workflows/query/workflow-mutations";
+import { useWorkflowsQuery } from "@/app/(panel)/_modules/workflows/query/workflow-queries";
 import {
-  type WorkflowStatus,
+  type WorkflowFilterState,
   type WorkflowSummary,
-} from "@/app/(panel)/_modules/workflows/types/workflow-types";
+} from "@/app/(panel)/_modules/workflows/types/workflow-interfaces";
+import { type WorkflowStatus } from "@/app/(panel)/_modules/workflows/types/workflow-types";
 import {
   formatWorkflowDate,
   formatWorkflowStatus,
@@ -33,40 +36,46 @@ import styles from "./ui/WorkflowListPage.module.css";
 
 const PAGE_SIZE = 20;
 
+const INITIAL_FILTERS: WorkflowFilterState = {
+  searchDraft: "",
+  search: "",
+};
+
 export function WorkflowListPage() {
   const currentUser = useCurrentUserQuery();
   const isAllowed = canManageWorkflows(currentUser.data);
   const [page, setPage] = useState(0);
-  const [searchDraft, setSearchDraft] = useState("");
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<WorkflowStatus | undefined>();
+  const [filters, setFilters] = useState<WorkflowFilterState>(INITIAL_FILTERS);
   const [deletingWorkflow, setDeletingWorkflow] = useState<WorkflowSummary | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const workflows = useWorkflowsQuery(
-    { page, size: PAGE_SIZE, search: search || undefined, status },
+    {
+      page,
+      size: PAGE_SIZE,
+      search: filters.search || undefined,
+      status: filters.status,
+    },
     isAllowed,
   );
   const deleteMutation = useDeleteWorkflowMutation();
 
   return (
     <PageShell
-      eyebrow="Workflow control plane"
-      title="Workflows"
-      description="Create workflow drafts, manage their lifecycle and inspect company-owned definitions."
+      eyebrow={workflowMessages.common.eyebrow}
+      title={workflowMessages.list.title}
+      description={workflowMessages.list.description}
       actions={
         isAllowed ? (
           <Link className={styles.workflowList__createLink} href="/workflows/new">
-            Create workflow
+            {workflowMessages.list.create}
           </Link>
         ) : null
       }
     >
       {!isAllowed ? (
         <Box className={styles.workflowList__state} role="alert">
-          <Typography as="strong">Workflow management is unavailable.</Typography>
-          <Typography as="span">
-            Only active company administrators can access this feature.
-          </Typography>
+          <Typography as="strong">{workflowMessages.list.forbiddenTitle}</Typography>
+          <Typography as="span">{workflowMessages.list.forbiddenDescription}</Typography>
         </Box>
       ) : (
         <section className={styles.workflowList__panel}>
@@ -75,32 +84,35 @@ export function WorkflowListPage() {
               className={styles.workflowList__searchForm}
               onSubmit={(event) => {
                 event.preventDefault();
-                setSearch(searchDraft.trim());
+                setFilters((current) => ({ ...current, search: current.searchDraft.trim() }));
                 setPage(0);
               }}
             >
               <label className={styles.workflowList__field}>
-                <Typography as="span">Search</Typography>
-                <input
+                <Typography as="span">{workflowMessages.list.searchLabel}</Typography>
+                <Input
                   type="search"
-                  placeholder="Search workflow names"
-                  value={searchDraft}
-                  onChange={(event) => setSearchDraft(event.target.value)}
+                  placeholder={workflowMessages.list.searchPlaceholder}
+                  value={filters.searchDraft}
+                  onChange={(event) =>
+                    setFilters((current) => ({ ...current, searchDraft: event.target.value }))
+                  }
                 />
               </label>
-              <Button type="submit">Search</Button>
+              <Button type="submit">{workflowMessages.list.searchSubmit}</Button>
             </form>
 
             <label className={styles.workflowList__field}>
-              <Typography as="span">Status</Typography>
+              <Typography as="span">{workflowMessages.list.statusLabel}</Typography>
               <select
-                value={status ?? ""}
+                value={filters.status ?? ""}
                 onChange={(event) => {
-                  setStatus((event.target.value || undefined) as WorkflowStatus | undefined);
+                  const status = (event.target.value || undefined) as WorkflowStatus | undefined;
+                  setFilters((current) => ({ ...current, status }));
                   setPage(0);
                 }}
               >
-                <option value="">All statuses</option>
+                <option value="">{workflowMessages.list.allStatuses}</option>
                 {WORKFLOW_STATUSES.map((value) => (
                   <option key={value} value={value}>
                     {formatWorkflowStatus(value)}
@@ -115,7 +127,9 @@ export function WorkflowListPage() {
               disabled={workflows.isFetching}
               onClick={() => void workflows.refetch()}
             >
-              {workflows.isFetching ? "Refreshing..." : "Refresh"}
+              {workflows.isFetching
+                ? workflowMessages.list.refreshing
+                : workflowMessages.list.refresh}
             </Button>
           </header>
 
@@ -137,7 +151,7 @@ export function WorkflowListPage() {
               onConfirm={async () => {
                 try {
                   await deleteMutation.mutateAsync(deletingWorkflow.id);
-                  setSuccessMessage(`Workflow ${deletingWorkflow.name} was deleted.`);
+                  setSuccessMessage(workflowMessages.list.deleted(deletingWorkflow.name));
                   setDeletingWorkflow(null);
                 } catch {
                   // The confirmation panel renders the normalized mutation error.
@@ -148,22 +162,22 @@ export function WorkflowListPage() {
 
           {workflows.isPending ? (
             <Box className={styles.workflowList__state}>
-              <Typography as="strong">Loading workflows...</Typography>
-              <Typography as="span">Reading the company workflow directory.</Typography>
+              <Typography as="strong">{workflowMessages.list.loadingTitle}</Typography>
+              <Typography as="span">{workflowMessages.list.loadingDescription}</Typography>
             </Box>
           ) : null}
 
           {workflows.isError ? (
             <Box className={styles.workflowList__state} role="alert">
-              <Typography as="strong">Workflows could not be loaded.</Typography>
+              <Typography as="strong">{workflowMessages.list.errorTitle}</Typography>
               <Typography as="span">{workflows.error.message}</Typography>
             </Box>
           ) : null}
 
           {workflows.isSuccess && workflows.data.content.length === 0 ? (
             <Box className={styles.workflowList__state}>
-              <Typography as="strong">No workflows found.</Typography>
-              <Typography as="span">Create a draft or adjust the current filters.</Typography>
+              <Typography as="strong">{workflowMessages.list.emptyTitle}</Typography>
+              <Typography as="span">{workflowMessages.list.emptyDescription}</Typography>
             </Box>
           ) : null}
 
@@ -173,18 +187,18 @@ export function WorkflowListPage() {
                 <Table className={styles.workflowList__table}>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>ID</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Revision</TableHead>
-                      <TableHead>Nodes</TableHead>
-                      <TableHead>Edges</TableHead>
-                      <TableHead>Created</TableHead>
-                      <TableHead>Updated</TableHead>
-                      <TableHead>Created by</TableHead>
-                      <TableHead>Updated by</TableHead>
-                      <TableHead>Actions</TableHead>
+                      <TableHead>{workflowMessages.list.columns.id}</TableHead>
+                      <TableHead>{workflowMessages.list.columns.name}</TableHead>
+                      <TableHead>{workflowMessages.list.columns.description}</TableHead>
+                      <TableHead>{workflowMessages.list.columns.status}</TableHead>
+                      <TableHead>{workflowMessages.list.columns.revision}</TableHead>
+                      <TableHead>{workflowMessages.list.columns.nodes}</TableHead>
+                      <TableHead>{workflowMessages.list.columns.edges}</TableHead>
+                      <TableHead>{workflowMessages.list.columns.created}</TableHead>
+                      <TableHead>{workflowMessages.list.columns.updated}</TableHead>
+                      <TableHead>{workflowMessages.list.columns.createdBy}</TableHead>
+                      <TableHead>{workflowMessages.list.columns.updatedBy}</TableHead>
+                      <TableHead>{workflowMessages.list.columns.actions}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -194,7 +208,9 @@ export function WorkflowListPage() {
                         <TableCell>
                           <Link href={`/workflows/${workflow.id}`}>{workflow.name}</Link>
                         </TableCell>
-                        <TableCell>{workflow.description ?? "—"}</TableCell>
+                        <TableCell>
+                          {workflow.description ?? workflowMessages.common.emptyValue}
+                        </TableCell>
                         <TableCell>
                           <Typography
                             as="span"
@@ -213,12 +229,17 @@ export function WorkflowListPage() {
                         <TableCell>{workflow.updatedBy.email}</TableCell>
                         <TableCell>
                           <Box className={styles.workflowList__rowActions}>
-                            <Link href={`/workflows/${workflow.id}`}>Open</Link>
+                            <Link href={`/workflows/${workflow.id}`}>
+                              {workflowMessages.list.open}
+                            </Link>
                             <WorkflowLifecycleActions
                               workflow={workflow}
                               onChanged={(changed) =>
                                 setSuccessMessage(
-                                  `Workflow ${changed.name} is now ${formatWorkflowStatus(changed.status).toLowerCase()}.`,
+                                  workflowMessages.list.statusChanged(
+                                    changed.name,
+                                    formatWorkflowStatus(changed.status).toLowerCase(),
+                                  ),
                                 )
                               }
                             />
@@ -232,7 +253,7 @@ export function WorkflowListPage() {
                                 deleteMutation.reset();
                               }}
                             >
-                              Delete
+                              {workflowMessages.list.delete}
                             </Button>
                           </Box>
                         </TableCell>
@@ -243,7 +264,10 @@ export function WorkflowListPage() {
               </Box>
               <footer className={styles.workflowList__pagination}>
                 <Typography as="span">
-                  Page {workflows.data.page + 1} of {Math.max(workflows.data.totalPages, 1)}
+                  {workflowMessages.list.pagination(
+                    workflows.data.page + 1,
+                    Math.max(workflows.data.totalPages, 1),
+                  )}
                 </Typography>
                 <Box className={styles.workflowList__actions}>
                   <Button
@@ -252,7 +276,7 @@ export function WorkflowListPage() {
                     disabled={workflows.data.first || workflows.isFetching}
                     onClick={() => setPage((value) => Math.max(value - 1, 0))}
                   >
-                    Previous
+                    {workflowMessages.list.previous}
                   </Button>
                   <Button
                     type="button"
@@ -260,7 +284,7 @@ export function WorkflowListPage() {
                     disabled={workflows.data.last || workflows.isFetching}
                     onClick={() => setPage((value) => value + 1)}
                   >
-                    Next
+                    {workflowMessages.list.next}
                   </Button>
                 </Box>
               </footer>

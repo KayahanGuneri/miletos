@@ -1,7 +1,5 @@
-import {
-  type PluginCategory,
-  type PluginDescriptor,
-} from "@/shared/plugins/contracts/plugin-configuration";
+import { type PluginDescriptor } from "@/shared/plugins/contracts/plugin-configuration-interfaces";
+import { type PluginCategory } from "@/shared/plugins/contracts/plugin-configuration-types";
 
 export const PLUGIN_CATEGORY_ORDER: readonly PluginCategory[] = [
   "trigger",

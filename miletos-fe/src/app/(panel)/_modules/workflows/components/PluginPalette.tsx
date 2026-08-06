@@ -1,5 +1,6 @@
 import { Box } from "@/components/lib/box/Box";
 import { Typography } from "@/components/lib/typography/Typography";
+import { workflowMessages } from "@/app/(panel)/_modules/workflows/messages/workflow-messages";
 import { type WorkflowPlugin } from "@/app/(panel)/_modules/workflows/types/workflow-types";
 import { writePluginDragData } from "@/shared/plugins/drag-data/plugin-drag-data";
 import {
@@ -7,7 +8,7 @@ import {
   PLUGIN_CATEGORY_ORDER,
   resolvePluginCategory,
 } from "@/shared/plugins/registry/plugin-palette-registry";
-import { type PluginCategory } from "@/shared/plugins/contracts/plugin-configuration";
+import { type PluginCategory } from "@/shared/plugins/contracts/plugin-configuration-types";
 import styles from "../ui/WorkflowEditorPage.module.css";
 
 interface PluginPaletteProps {
@@ -56,10 +57,14 @@ function PluginPaletteCard({ plugin, readOnly }: PluginPaletteCardProps) {
       data-disabled={readOnly}
       aria-label={
         readOnly
-          ? `${plugin.displayName}; workflow is read-only`
-          : `Drag ${plugin.displayName} onto the workflow canvas`
+          ? workflowMessages.pluginPalette.readOnlyCardLabel(plugin.displayName)
+          : workflowMessages.pluginPalette.draggableCardLabel(plugin.displayName)
       }
-      title={readOnly ? "Workflow is read-only" : "Drag onto the canvas to add this node"}
+      title={
+        readOnly
+          ? workflowMessages.pluginPalette.readOnlyCardTitle
+          : workflowMessages.pluginPalette.draggableCardTitle
+      }
       onDragStart={(event) => {
         if (readOnly) {
           event.preventDefault();
@@ -74,10 +79,15 @@ function PluginPaletteCard({ plugin, readOnly }: PluginPaletteCardProps) {
       </Typography>
       <Typography as="p">{plugin.description}</Typography>
       <Typography as="small">
-        {plugin.inputPorts.length} inputs · {plugin.outputPorts.length} outputs
+        {workflowMessages.pluginPalette.portSummary(
+          plugin.inputPorts.length,
+          plugin.outputPorts.length,
+        )}
       </Typography>
       <Typography as="small">
-        {readOnly ? "Available for inspection only" : "Drag to canvas"}
+        {readOnly
+          ? workflowMessages.pluginPalette.readOnlyHint
+          : workflowMessages.pluginPalette.dragHint}
       </Typography>
     </article>
   );
@@ -89,13 +99,13 @@ export function PluginPalette({ plugins, isLoading, errorMessage, readOnly }: Pl
   return (
     <section className={styles.workflowEditor__sidePanel}>
       <Typography as="p" className={styles.workflowEditor__eyebrow}>
-        Plugin palette
+        {workflowMessages.pluginPalette.eyebrow}
       </Typography>
-      <Typography as="h2">Nodes</Typography>
+      <Typography as="h2">{workflowMessages.pluginPalette.title}</Typography>
       <Typography as="p" className={styles.workflowEditor__muted}>
-        Drag an installed runtime plugin onto the workflow canvas.
+        {workflowMessages.pluginPalette.description}
       </Typography>
-      {isLoading ? <Typography as="p">Loading plugins...</Typography> : null}
+      {isLoading ? <Typography as="p">{workflowMessages.pluginPalette.loading}</Typography> : null}
       {errorMessage ? (
         <Typography as="p" className={styles.workflowEditor__fieldError} role="alert">
           {errorMessage}
@@ -103,7 +113,7 @@ export function PluginPalette({ plugins, isLoading, errorMessage, readOnly }: Pl
       ) : null}
       {!isLoading && !errorMessage && plugins.length === 0 ? (
         <Typography as="p" className={styles.workflowEditor__muted}>
-          No runtime plugins are currently available.
+          {workflowMessages.pluginPalette.empty}
         </Typography>
       ) : null}
       {!isLoading && !errorMessage ? (

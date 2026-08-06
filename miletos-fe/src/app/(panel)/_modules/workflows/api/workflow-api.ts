@@ -6,7 +6,7 @@ import {
   type Workflow,
   type WorkflowListParams,
   type WorkflowPageResponse,
-} from "@/app/(panel)/_modules/workflows/types/workflow-types";
+} from "@/app/(panel)/_modules/workflows/types/workflow-interfaces";
 
 const WORKFLOWS_PATH = "/workflows";
 

@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Box } from "@/components/lib/box/Box";
 import Button, { ButtonVariant } from "@/components/lib/button/Button";
+import { Input } from "@/components/lib/input/Input";
 import { Typography } from "@/components/lib/typography/Typography";
-import { type WorkflowSummary } from "@/app/(panel)/_modules/workflows/types/workflow-types";
+import { workflowMessages } from "@/app/(panel)/_modules/workflows/messages/workflow-messages";
+import { type WorkflowSummary } from "@/app/(panel)/_modules/workflows/types/workflow-interfaces";
 import styles from "../ui/WorkflowListPage.module.css";
 
 interface WorkflowDeleteConfirmationProps {
@@ -24,15 +26,16 @@ export function WorkflowDeleteConfirmation({
   const matches = confirmationName === workflow.name;
 
   return (
-    <section className={styles.workflowList__deletePanel} aria-label="Delete workflow">
-      <Typography as="h2">Delete {workflow.name}</Typography>
-      <Typography as="p">
-        This permanently removes the workflow. Type the exact workflow name to continue.
-      </Typography>
+    <section
+      className={styles.workflowList__deletePanel}
+      aria-label={workflowMessages.deleteConfirmation.panelLabel}
+    >
+      <Typography as="h2">{workflowMessages.deleteConfirmation.title(workflow.name)}</Typography>
+      <Typography as="p">{workflowMessages.deleteConfirmation.description}</Typography>
 
       <label className={styles.workflowList__field}>
-        <Typography as="span">Workflow name</Typography>
-        <input
+        <Typography as="span">{workflowMessages.deleteConfirmation.nameLabel}</Typography>
+        <Input
           autoFocus
           value={confirmationName}
           onChange={(event) => setConfirmationName(event.target.value)}
@@ -52,7 +55,7 @@ export function WorkflowDeleteConfirmation({
           disabled={isDeleting}
           onClick={onCancel}
         >
-          Cancel
+          {workflowMessages.deleteConfirmation.cancel}
         </Button>
         <Button
           type="button"
@@ -60,7 +63,9 @@ export function WorkflowDeleteConfirmation({
           disabled={!matches || isDeleting}
           onClick={onConfirm}
         >
-          {isDeleting ? "Deleting..." : "Delete workflow"}
+          {isDeleting
+            ? workflowMessages.deleteConfirmation.deleting
+            : workflowMessages.deleteConfirmation.confirm}
         </Button>
       </Box>
     </section>

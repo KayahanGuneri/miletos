@@ -5,7 +5,7 @@ import { Box } from "@/components/lib/box/Box";
 import Button, { ButtonVariant } from "@/components/lib/button/Button";
 import { Dialog } from "@/components/lib/dialog/Dialog";
 import { Typography } from "@/components/lib/typography/Typography";
-import type { PluginConfiguration } from "@/shared/plugins/contracts/plugin-configuration";
+import type { PluginConfiguration } from "@/shared/plugins/contracts/plugin-configuration-interfaces";
 import { getPluginConfigurationDefinition } from "@/shared/plugins/registry/plugin-configuration-registry";
 import styles from "./PluginConfigurationDialog.module.css";
 

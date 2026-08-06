@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { XYPosition } from "@xyflow/react";
 import { Box } from "@/components/lib/box/Box";
 import Button, { ButtonVariant } from "@/components/lib/button/Button";
+import { Input } from "@/components/lib/input/Input";
 import { Typography } from "@/components/lib/typography/Typography";
 import { PageShell } from "@/components/layout/page-shell/PageShell";
 import { JsonObjectEditor } from "@/app/(panel)/_modules/workflows/components/JsonObjectEditor";
@@ -14,17 +15,24 @@ import { PluginPalette } from "@/app/(panel)/_modules/workflows/components/Plugi
 import { WorkflowCanvas } from "@/app/(panel)/_modules/workflows/components/WorkflowCanvas";
 import { WorkflowDeleteConfirmation } from "@/app/(panel)/_modules/workflows/components/WorkflowDeleteConfirmation";
 import { WorkflowLifecycleActions } from "@/app/(panel)/_modules/workflows/components/WorkflowLifecycleActions";
-import { useCreateWorkflowMutation } from "@/app/(panel)/_modules/workflows/query/useCreateWorkflowMutation";
-import { useDeleteWorkflowMutation } from "@/app/(panel)/_modules/workflows/query/useDeleteWorkflowMutation";
-import { useUpdateWorkflowMutation } from "@/app/(panel)/_modules/workflows/query/useUpdateWorkflowMutation";
-import { useWorkflowPluginsQuery } from "@/app/(panel)/_modules/workflows/query/useWorkflowPluginsQuery";
-import { useWorkflowQuery } from "@/app/(panel)/_modules/workflows/query/useWorkflowQuery";
+import { workflowMessages } from "@/app/(panel)/_modules/workflows/messages/workflow-messages";
 import {
-  type JsonObject,
+  useCreateWorkflowMutation,
+  useDeleteWorkflowMutation,
+  useUpdateWorkflowMutation,
+} from "@/app/(panel)/_modules/workflows/query/workflow-mutations";
+import {
+  useWorkflowPluginsQuery,
+  useWorkflowQuery,
+} from "@/app/(panel)/_modules/workflows/query/workflow-queries";
+import {
   type SaveWorkflowRequest,
   type Workflow,
   type WorkflowEdge,
   type WorkflowNode,
+} from "@/app/(panel)/_modules/workflows/types/workflow-interfaces";
+import {
+  type JsonObject,
   type WorkflowPlugin,
 } from "@/app/(panel)/_modules/workflows/types/workflow-types";
 import {
@@ -44,8 +52,7 @@ interface WorkflowEditorPageProps {
   workflowId?: number;
 }
 
-const INVALID_CONFIGURATION_MESSAGE =
-  "Correct the selected node configuration or delete the node to discard it.";
+const INVALID_CONFIGURATION_MESSAGE = workflowMessages.editor.invalidConfiguration;
 
 function toEditableRequest(workflow: Workflow): SaveWorkflowRequest {
   return {
@@ -175,18 +182,17 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
 
   const lifecyclePending = saving || deleteMutation.isPending;
   let lifecycleDisabled = lifecyclePending;
-  let lifecycleDisabledReason = lifecyclePending
-    ? "Wait for the current workflow operation to finish."
+  let lifecycleDisabledReason: string | undefined = lifecyclePending
+    ? workflowMessages.editor.operationPending
     : undefined;
 
   if (detail.data?.status === "DRAFT") {
     if (isDirty) {
       lifecycleDisabled = true;
-      lifecycleDisabledReason = "Save the current draft before activating it.";
+      lifecycleDisabledReason = workflowMessages.editor.unsavedDraft;
     } else if (!metadataValid || !configurationValid || hasInvalidStoredConfiguration) {
       lifecycleDisabled = true;
-      lifecycleDisabledReason =
-        "Resolve metadata and node configuration errors before activating it.";
+      lifecycleDisabledReason = workflowMessages.editor.unresolvedErrors;
     }
   }
 
@@ -247,15 +253,15 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
   async function saveWorkflow() {
     const normalizedName = name.trim();
     if (normalizedName.length < 3 || normalizedName.length > 120) {
-      setLocalError("Workflow name must contain between 3 and 120 characters.");
+      setLocalError(workflowMessages.editor.invalidName);
       return;
     }
     if (description.trim().length > 1000) {
-      setLocalError("Description must not exceed 1000 characters.");
+      setLocalError(workflowMessages.editor.invalidDescription);
       return;
     }
     if (!metadataValid || !configurationValid) {
-      setLocalError("Resolve JSON editor errors before saving.");
+      setLocalError(workflowMessages.editor.invalidJson);
       return;
     }
     setLocalError(null);
@@ -271,7 +277,7 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
       } else if (workflowId) {
         const updated = await updateMutation.mutateAsync({ workflowId, request });
         loadServerWorkflow(updated);
-        setSuccessMessage("Workflow draft saved.");
+        setSuccessMessage(workflowMessages.editor.saved);
       }
     } catch {
       // The normalized mutation error is rendered below.
@@ -281,12 +287,12 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
   if (!isAllowed) {
     return (
       <PageShell
-        eyebrow="Workflow control plane"
-        title="Workflow access unavailable"
-        description="Only active company administrators can manage workflows."
+        eyebrow={workflowMessages.common.eyebrow}
+        title={workflowMessages.editor.forbiddenTitle}
+        description={workflowMessages.editor.forbiddenDescription}
       >
         <Box className={styles.workflowEditor__state} role="alert">
-          <Typography as="strong">You do not have permission to access this page.</Typography>
+          <Typography as="strong">{workflowMessages.editor.forbiddenState}</Typography>
         </Box>
       </PageShell>
     );
@@ -295,12 +301,12 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
   if (!hasValidWorkflowId) {
     return (
       <PageShell
-        eyebrow="Workflow control plane"
-        title="Workflow unavailable"
-        description="The workflow identifier is invalid."
+        eyebrow={workflowMessages.common.eyebrow}
+        title={workflowMessages.editor.unavailableTitle}
+        description={workflowMessages.editor.invalidIdentifierDescription}
       >
         <Box className={styles.workflowEditor__state} role="alert">
-          <Typography as="strong">Open a workflow from the company directory.</Typography>
+          <Typography as="strong">{workflowMessages.editor.invalidIdentifierState}</Typography>
         </Box>
       </PageShell>
     );
@@ -309,12 +315,12 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
   if (!isNew && detail.isPending) {
     return (
       <PageShell
-        eyebrow="Workflow control plane"
-        title="Loading workflow"
-        description="Reading the company-owned workflow definition."
+        eyebrow={workflowMessages.common.eyebrow}
+        title={workflowMessages.editor.loadingTitle}
+        description={workflowMessages.editor.loadingDescription}
       >
         <Box className={styles.workflowEditor__state}>
-          <Typography as="strong">Loading workflow...</Typography>
+          <Typography as="strong">{workflowMessages.editor.loadingState}</Typography>
         </Box>
       </PageShell>
     );
@@ -323,9 +329,9 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
   if (!isNew && detail.isError) {
     return (
       <PageShell
-        eyebrow="Workflow control plane"
-        title="Workflow unavailable"
-        description="The workflow could not be loaded."
+        eyebrow={workflowMessages.common.eyebrow}
+        title={workflowMessages.editor.unavailableTitle}
+        description={workflowMessages.editor.loadErrorDescription}
       >
         <Box className={styles.workflowEditor__state} role="alert">
           <Typography as="strong">{detail.error.message}</Typography>
@@ -337,12 +343,12 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
   if (!isNew && (persistedBaseline === null || initializedWorkflowId !== detail.data?.id)) {
     return (
       <PageShell
-        eyebrow="Workflow control plane"
-        title="Loading workflow"
-        description="Preparing the editable workflow state."
+        eyebrow={workflowMessages.common.eyebrow}
+        title={workflowMessages.editor.loadingTitle}
+        description={workflowMessages.editor.preparingDescription}
       >
         <Box className={styles.workflowEditor__state}>
-          <Typography as="strong">Preparing workflow editor...</Typography>
+          <Typography as="strong">{workflowMessages.editor.preparingState}</Typography>
         </Box>
       </PageShell>
     );
@@ -350,17 +356,22 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
 
   return (
     <PageShell
-      eyebrow="Workflow control plane"
-      title={isNew ? "Create workflow" : name || "Workflow editor"}
+      eyebrow={workflowMessages.common.eyebrow}
+      title={
+        isNew ? workflowMessages.editor.createTitle : name || workflowMessages.editor.fallbackTitle
+      }
       description={
         isNew
-          ? "Build a local draft and save it when ready."
-          : `Revision ${detail.data?.revision ?? "—"} · ${formatWorkflowStatus(detail.data?.status ?? "DRAFT")}`
+          ? workflowMessages.editor.createDescription
+          : workflowMessages.editor.revisionDescription(
+              detail.data?.revision.toString() ?? workflowMessages.common.emptyValue,
+              formatWorkflowStatus(detail.data?.status ?? "DRAFT"),
+            )
       }
       actions={
         <>
           <Link className={styles.workflowEditor__backLink} href="/workflows">
-            Back to workflows
+            {workflowMessages.editor.back}
           </Link>
           {detail.data ? (
             <WorkflowLifecycleActions
@@ -370,7 +381,9 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
               onChanged={(workflow) => {
                 loadServerWorkflow(workflow);
                 setSuccessMessage(
-                  `Workflow is now ${formatWorkflowStatus(workflow.status).toLowerCase()}.`,
+                  workflowMessages.editor.statusChanged(
+                    formatWorkflowStatus(workflow.status).toLowerCase(),
+                  ),
                 );
               }}
             />
@@ -381,8 +394,8 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
       <section className={styles.workflowEditor__metadataPanel}>
         <Box className={styles.workflowEditor__formGrid}>
           <label className={styles.workflowEditor__field}>
-            <Typography as="span">Name</Typography>
-            <input
+            <Typography as="span">{workflowMessages.editor.nameLabel}</Typography>
+            <Input
               maxLength={120}
               readOnly={readOnly}
               value={name}
@@ -390,7 +403,7 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
             />
           </label>
           <label className={styles.workflowEditor__field}>
-            <Typography as="span">Description</Typography>
+            <Typography as="span">{workflowMessages.editor.descriptionLabel}</Typography>
             <textarea
               maxLength={1000}
               rows={3}
@@ -402,7 +415,7 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
         </Box>
         {readOnly ? (
           <Typography as="p" className={styles.workflowEditor__readOnlyNotice}>
-            Active and archived workflows are read-only. Restore an archived workflow to edit it.
+            {workflowMessages.editor.readOnlyNotice}
           </Typography>
         ) : null}
         {localError || mutationError ? (
@@ -467,9 +480,9 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
       </Box>
 
       <section className={styles.workflowEditor__advancedPanel}>
-        <Typography as="h2">Advanced metadata</Typography>
+        <Typography as="h2">{workflowMessages.editor.advancedMetadataTitle}</Typography>
         <JsonObjectEditor
-          label="Workflow metadata JSON"
+          label={workflowMessages.editor.metadataLabel}
           value={metadata}
           readOnly={readOnly}
           resetKey={editorResetVersion}
@@ -484,7 +497,7 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
           disabled={readOnly || saving || !metadataValid || !configurationValid}
           onClick={() => void saveWorkflow()}
         >
-          {saving ? "Saving..." : "Save draft"}
+          {saving ? workflowMessages.editor.saving : workflowMessages.editor.save}
         </Button>
         {!isNew && detail.data && detail.data.status !== "ACTIVE" ? (
           <Button
@@ -495,7 +508,7 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
               deleteMutation.reset();
             }}
           >
-            Delete workflow
+            {workflowMessages.editor.delete}
           </Button>
         ) : null}
       </footer>

@@ -3,8 +3,6 @@ package com.miletos.features.workflow.repository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 
 import com.miletos.features.company.repository.entity.Company;
 import com.miletos.features.workflow.repository.entity.Workflow;
@@ -17,16 +15,14 @@ public interface WorkflowRepository extends JpaRepository<Workflow, Long> {
     Boolean existsByCompanyAndNameIgnoreCaseAndIdNot(
             Company company, String name, Long id);
 
-    @Query("""
-            select workflow
-            from Workflow workflow
-            where workflow.company = :company
-              and (:status is null or workflow.status = :status)
-              and lower(workflow.name) like lower(concat('%', :search, '%'))
-            """)
-    Page<Workflow> findAllByFilters(
-            @Param("company") Company company,
-            @Param("status") WorkflowStatus status,
-            @Param("search") String search,
-            Pageable pageable);
+    Page<Workflow> findAllByCompany(Company company, Pageable pageable);
+
+    Page<Workflow> findAllByCompanyAndStatus(
+            Company company, WorkflowStatus status, Pageable pageable);
+
+    Page<Workflow> findAllByCompanyAndNameContainingIgnoreCase(
+            Company company, String name, Pageable pageable);
+
+    Page<Workflow> findAllByCompanyAndStatusAndNameContainingIgnoreCase(
+            Company company, WorkflowStatus status, String name, Pageable pageable);
 }

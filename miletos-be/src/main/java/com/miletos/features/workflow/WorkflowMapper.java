@@ -116,15 +116,18 @@ public interface WorkflowMapper {
 
     WorkflowAuditUserResponse toAuditUserResponse(User user);
 
-    default WorkflowPageResponse toPageResponse(Page<Workflow> page) {
-        return new WorkflowPageResponse(
-                toSummaryResponses(page.getContent()),
-                page.getNumber(),
-                page.getSize(),
-                page.getTotalElements(),
-                page.getTotalPages(),
-                page.isFirst(),
-                page.isLast());
+    @Mapping(target = "content", source = "page", qualifiedByName = "pageContent")
+    @Mapping(target = "page", source = "number")
+    @Mapping(target = "size", source = "size")
+    @Mapping(target = "totalElements", source = "totalElements")
+    @Mapping(target = "totalPages", source = "totalPages")
+    @Mapping(target = "first", source = "first")
+    @Mapping(target = "last", source = "last")
+    WorkflowPageResponse toPageResponse(Page<Workflow> page);
+
+    @Named("pageContent")
+    default List<WorkflowSummaryResponse> pageContent(Page<Workflow> page) {
+        return toSummaryResponses(page.getContent());
     }
 
     @Named("trimRequired")

@@ -1,4 +1,4 @@
-import { type WorkflowListParams } from "@/app/(panel)/_modules/workflows/types/workflow-types";
+import { type WorkflowListParams } from "@/app/(panel)/_modules/workflows/types/workflow-interfaces";
 
 export const workflowQueryKeys = {
   all: ["workflows"] as const,

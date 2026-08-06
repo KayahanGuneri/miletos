@@ -1,10 +1,9 @@
 import { Box } from "@/components/lib/box/Box";
 import Button, { ButtonVariant } from "@/components/lib/button/Button";
 import { Typography } from "@/components/lib/typography/Typography";
-import {
-  type WorkflowNode,
-  type WorkflowPlugin,
-} from "@/app/(panel)/_modules/workflows/types/workflow-types";
+import { workflowMessages } from "@/app/(panel)/_modules/workflows/messages/workflow-messages";
+import { type WorkflowNode } from "@/app/(panel)/_modules/workflows/types/workflow-interfaces";
+import { type WorkflowPlugin } from "@/app/(panel)/_modules/workflows/types/workflow-types";
 import styles from "../ui/WorkflowEditorPage.module.css";
 
 interface NodePropertiesPanelProps {
@@ -25,36 +24,38 @@ export function NodePropertiesPanel({
   return (
     <section className={styles.workflowEditor__sidePanel}>
       <Typography as="p" className={styles.workflowEditor__eyebrow}>
-        Properties
+        {workflowMessages.nodeProperties.eyebrow}
       </Typography>
-      <Typography as="h2">Selected node</Typography>
+      <Typography as="h2">{workflowMessages.nodeProperties.title}</Typography>
       {!node ? (
         <Typography as="p" className={styles.workflowEditor__muted}>
-          Select a node on the canvas to inspect its configuration.
+          {workflowMessages.nodeProperties.empty}
         </Typography>
       ) : (
         <Box className={styles.workflowEditor__properties}>
           <Typography as="span">
-            <Typography as="strong">Node ID</Typography>
+            <Typography as="strong">{workflowMessages.nodeProperties.nodeId}</Typography>
             {node.nodeId}
           </Typography>
           <Typography as="span">
-            <Typography as="strong">Plugin type</Typography>
+            <Typography as="strong">{workflowMessages.nodeProperties.pluginType}</Typography>
             {node.pluginType}
           </Typography>
           <Typography as="span">
-            <Typography as="strong">Plugin version</Typography>
+            <Typography as="strong">{workflowMessages.nodeProperties.pluginVersion}</Typography>
             {node.pluginVersion}
           </Typography>
           {plugin ? (
             <Typography as="span">
-              <Typography as="strong">Plugin</Typography>
+              <Typography as="strong">{workflowMessages.nodeProperties.plugin}</Typography>
               {plugin.displayName}
             </Typography>
           ) : null}
           <Box className={styles.workflowEditor__propertyActions}>
             <Button type="button" variant={ButtonVariant.Secondary} onClick={onConfigure}>
-              {readOnly ? "View configuration" : "Configure"}
+              {readOnly
+                ? workflowMessages.nodeProperties.viewConfiguration
+                : workflowMessages.nodeProperties.configure}
             </Button>
             <Button
               type="button"
@@ -62,7 +63,7 @@ export function NodePropertiesPanel({
               disabled={readOnly}
               onClick={onDelete}
             >
-              Delete node
+              {workflowMessages.nodeProperties.delete}
             </Button>
           </Box>
         </Box>

@@ -2,7 +2,7 @@ import { Typography } from "@/components/lib/typography/Typography";
 import type {
   PluginConfigurationDefinition,
   PluginConfigurationEditorProps,
-} from "@/shared/plugins/contracts/plugin-configuration";
+} from "@/shared/plugins/contracts/plugin-configuration-interfaces";
 import styles from "../../configuration/PluginConfigurationDialog.module.css";
 
 interface DelayValues {
