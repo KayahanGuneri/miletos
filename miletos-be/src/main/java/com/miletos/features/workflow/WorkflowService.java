@@ -1,7 +1,5 @@
 package com.miletos.features.workflow;
 
-import java.util.Objects;
-
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -33,8 +31,8 @@ public class WorkflowService {
     private final WorkflowDefinitionPolicy workflowDefinitionPolicy;
 
     @Transactional
-    public Workflow createWorkflow(User user, Workflow workflow) {
-        Company company = user.getCompany();
+    public Workflow createWorkflow(Workflow workflow) {
+        Company company = workflow.getCompany();
 
         if (Boolean.TRUE.equals(workflowRepository.existsByCompanyAndNameIgnoreCase(
                 company, workflow.getName()))) {
@@ -43,13 +41,7 @@ public class WorkflowService {
 
         JsonNode definition = workflowDefinitionPolicy.validateAndNormalizeDefinition(
                 workflow.getDefinitionJson());
-        workflowMapper.prepareForCreate(
-                company,
-                user,
-                definition,
-                WorkflowStatus.DRAFT,
-                1L,
-                workflow);
+        workflowMapper.applyNormalizedDefinition(definition, workflow);
 
         return workflowRepository.save(workflow);
     }
@@ -89,8 +81,8 @@ public class WorkflowService {
     }
 
     @Transactional
-    public Workflow updateWorkflow(User user, Long workflowId, Workflow changes) {
-        Company company = user.getCompany();
+    public Workflow updateWorkflow(Long workflowId, Workflow changes) {
+        Company company = changes.getCompany();
         Workflow workflow = findOwnedWorkflow(workflowId, company);
         if (workflow.getStatus() != WorkflowStatus.DRAFT) {
             throw new WorkflowInvalidStateException();
@@ -107,7 +99,6 @@ public class WorkflowService {
         workflowMapper.applyContentUpdate(
                 changes,
                 definition,
-                user,
                 revision,
                 workflow);
 
@@ -170,14 +161,9 @@ public class WorkflowService {
     private Workflow findOwnedWorkflow(
             Long workflowId,
             Company company) {
-        Workflow workflow = workflowRepository
-                .findById(workflowId)
+        return workflowRepository
+                .findByIdAndCompany(workflowId, company)
                 .orElseThrow(WorkflowNotFoundException::new);
-        if (!Objects.equals(workflow.getCompany().getId(), company.getId())) {
-            throw new WorkflowNotFoundException();
-        }
-
-        return workflow;
     }
 
     private String normalizeSearch(String search) {

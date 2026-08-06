@@ -15,7 +15,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.miletos.features.company.repository.entity.Company;
 import com.miletos.features.user.repository.entity.User;
 import com.miletos.features.workflow.controller.request.CreateWorkflowRequest;
 import com.miletos.features.workflow.controller.request.NodePositionRequest;
@@ -36,60 +35,50 @@ import com.miletos.features.workflow.repository.entity.WorkflowStatus;
 public interface WorkflowMapper {
 
     @Mapping(target = "id", ignore = true)
-    @Mapping(target = "company", ignore = true)
-    @Mapping(target = "name", source = "name", qualifiedByName = "trimRequired")
-    @Mapping(target = "description", source = "description", qualifiedByName = "trimToNull")
-    @Mapping(target = "status", ignore = true)
-    @Mapping(target = "revision", ignore = true)
+    @Mapping(target = "company", source = "user.company")
+    @Mapping(target = "name", source = "request.name", qualifiedByName = "trimRequired")
+    @Mapping(target = "description", source = "request.description", qualifiedByName = "trimToNull")
+    @Mapping(target = "status", constant = "DRAFT")
+    @Mapping(target = "revision", constant = "1L")
     @Mapping(
             target = "definitionJson",
             expression = "java(toDefinitionJson(request.nodes(), request.edges(), request.metadata()))")
-    @Mapping(target = "createdBy", ignore = true)
-    @Mapping(target = "updatedBy", ignore = true)
-    @Mapping(target = "createdAt", ignore = true)
-    @Mapping(target = "updatedAt", ignore = true)
-    Workflow toEntity(CreateWorkflowRequest request);
-
-    @Mapping(target = "id", ignore = true)
-    @Mapping(target = "company", ignore = true)
-    @Mapping(target = "name", source = "name", qualifiedByName = "trimRequired")
-    @Mapping(target = "description", source = "description", qualifiedByName = "trimToNull")
-    @Mapping(target = "status", ignore = true)
-    @Mapping(target = "revision", ignore = true)
-    @Mapping(
-            target = "definitionJson",
-            expression = "java(toDefinitionJson(request.nodes(), request.edges(), request.metadata()))")
-    @Mapping(target = "createdBy", ignore = true)
-    @Mapping(target = "updatedBy", ignore = true)
-    @Mapping(target = "createdAt", ignore = true)
-    @Mapping(target = "updatedAt", ignore = true)
-    Workflow toEntity(UpdateWorkflowRequest request);
-
-    @BeanMapping(ignoreByDefault = true)
-    @Mapping(target = "company", source = "company")
-    @Mapping(target = "status", source = "status")
-    @Mapping(target = "revision", source = "revision")
-    @Mapping(target = "definitionJson", source = "definitionJson")
     @Mapping(target = "createdBy", source = "user")
     @Mapping(target = "updatedBy", source = "user")
-    void prepareForCreate(
-            Company company,
-            User user,
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
+    Workflow toEntity(CreateWorkflowRequest request, User user);
+
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "company", source = "user.company")
+    @Mapping(target = "name", source = "request.name", qualifiedByName = "trimRequired")
+    @Mapping(target = "description", source = "request.description", qualifiedByName = "trimToNull")
+    @Mapping(target = "status", ignore = true)
+    @Mapping(target = "revision", ignore = true)
+    @Mapping(
+            target = "definitionJson",
+            expression = "java(toDefinitionJson(request.nodes(), request.edges(), request.metadata()))")
+    @Mapping(target = "createdBy", ignore = true)
+    @Mapping(target = "updatedBy", source = "user")
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
+    Workflow toEntity(UpdateWorkflowRequest request, User user);
+
+    @BeanMapping(ignoreByDefault = true)
+    @Mapping(target = "definitionJson", source = "definitionJson")
+    void applyNormalizedDefinition(
             JsonNode definitionJson,
-            WorkflowStatus status,
-            Long revision,
             @MappingTarget Workflow workflow);
 
     @BeanMapping(ignoreByDefault = true)
-    @Mapping(target = "name", source = "source.name")
-    @Mapping(target = "description", source = "source.description")
+    @Mapping(target = "name", source = "changes.name")
+    @Mapping(target = "description", source = "changes.description")
     @Mapping(target = "definitionJson", source = "definitionJson")
     @Mapping(target = "revision", source = "revision")
-    @Mapping(target = "updatedBy", source = "user")
+    @Mapping(target = "updatedBy", source = "changes.updatedBy")
     void applyContentUpdate(
-            Workflow source,
+            Workflow changes,
             JsonNode definitionJson,
-            User user,
             Long revision,
             @MappingTarget Workflow target);
 

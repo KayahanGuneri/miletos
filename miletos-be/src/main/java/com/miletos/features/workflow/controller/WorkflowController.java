@@ -45,8 +45,8 @@ public class WorkflowController {
             @Valid @RequestBody CreateWorkflowRequest request,
             @AuthenticationPrincipal(expression = "subject") String actorEmail) {
         User user = authenticatedActorResolver.resolve(actorEmail);
-        Workflow workflow = workflowMapper.toEntity(request);
-        Workflow createdWorkflow = workflowService.createWorkflow(user, workflow);
+        Workflow workflow = workflowMapper.toEntity(request, user);
+        Workflow createdWorkflow = workflowService.createWorkflow(workflow);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(workflowMapper.toResponse(createdWorkflow));
     }
@@ -82,10 +82,10 @@ public class WorkflowController {
             @Valid @RequestBody UpdateWorkflowRequest request,
             @AuthenticationPrincipal(expression = "subject") String actorEmail) {
         User user = authenticatedActorResolver.resolve(actorEmail);
-        Workflow changes = workflowMapper.toEntity(request);
+        Workflow changes = workflowMapper.toEntity(request, user);
         return ResponseEntity.ok(
                 workflowMapper.toResponse(
-                        workflowService.updateWorkflow(user, workflowId, changes)));
+                        workflowService.updateWorkflow(workflowId, changes)));
     }
 
     @Authorize(RequiredRole.COMPANY_ADMIN)
