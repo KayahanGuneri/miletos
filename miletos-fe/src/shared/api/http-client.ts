@@ -8,8 +8,14 @@ if (!apiBaseUrl) {
   throw new Error("NEXT_PUBLIC_API_BASE_URL is required");
 }
 
+function resolveApiBaseUrl(baseUrl: string) {
+  const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
+
+  return normalizedBaseUrl.endsWith("/api") ? normalizedBaseUrl : `${normalizedBaseUrl}/api`;
+}
+
 export const httpClient = axios.create({
-  baseURL: apiBaseUrl,
+  baseURL: resolveApiBaseUrl(apiBaseUrl),
   timeout: 15000,
 });
 

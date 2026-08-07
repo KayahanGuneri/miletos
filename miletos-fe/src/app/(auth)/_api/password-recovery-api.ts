@@ -6,14 +6,11 @@ import {
 import { httpClient } from "@/shared/api/http-client";
 
 export async function requestPasswordReset(request: ForgotPasswordRequest): Promise<void> {
-  await httpClient.post("/api/auth/forgot-password", request);
+  await httpClient.post("/auth/forgot-password", request);
 }
 
 export async function resetPassword(request: ResetPasswordRequest) {
-  const response = await httpClient.post<ResetPasswordResponse>(
-    "/api/auth/reset-password",
-    request,
-  );
+  const response = await httpClient.post<ResetPasswordResponse>("/auth/reset-password", request);
 
   return response.data;
 }
