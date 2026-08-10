@@ -76,7 +76,11 @@ func mapGRPCError(err error) error {
 		return execution.WorkflowValidationGRPCStatus(err)
 	case errors.Is(err, ErrInvalidTrigger):
 		return status.Error(codes.InvalidArgument, "cron trigger request is invalid")
-	case errors.Is(err, execution.ErrAsyncUnavailable), errors.Is(err, ErrSchedulerUnavailable):
+	case errors.Is(err, repository.ErrStateTransition),
+		errors.Is(err, ErrBindingInvariant):
+		return status.Error(codes.FailedPrecondition, "cron trigger state is invalid")
+	case errors.Is(err, execution.ErrAsyncUnavailable),
+		errors.Is(err, ErrSchedulerUnavailable):
 		return status.Error(codes.FailedPrecondition, "cron trigger service is unavailable")
 	default:
 		return status.Error(codes.Internal, "an unexpected internal error occurred")

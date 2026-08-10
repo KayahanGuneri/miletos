@@ -1,7 +1,10 @@
 import { Box } from "@/components/lib/box/Box";
 import Button, { ButtonVariant } from "@/components/lib/button/Button";
 import { Typography } from "@/components/lib/typography/Typography";
-import { workflowMessages } from "@/app/(panel)/_modules/workflows/messages/workflow-messages";
+import {
+  runtimeErrorMessage,
+  workflowMessages,
+} from "@/app/(panel)/_modules/workflows/messages/workflow-messages";
 import {
   useActivateWorkflowMutation,
   useArchiveWorkflowMutation,
@@ -55,9 +58,7 @@ export function WorkflowLifecycleActions({
           try {
             const changed = await mutation.mutateAsync(workflow.id);
             onChanged?.(changed);
-          } catch {
-            // The normalized mutation error is rendered below.
-          }
+          } catch {}
         }}
       >
         {mutation.isPending ? workflowMessages.lifecycle.updating : label}
@@ -69,7 +70,7 @@ export function WorkflowLifecycleActions({
       ) : null}
       {mutation.error ? (
         <Typography as="span" className={styles.workflowList__inlineError} role="alert">
-          {mutation.error.message}
+          {runtimeErrorMessage(mutation.error)}
         </Typography>
       ) : null}
     </Box>

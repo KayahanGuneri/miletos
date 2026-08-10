@@ -13,6 +13,7 @@ import (
 
 	"miletos-go/internal/features/workflow-runtime/execution"
 	executionmodel "miletos-go/internal/features/workflow-runtime/execution/model"
+	"miletos-go/internal/features/workflow-runtime/execution/repository"
 	"miletos-go/internal/features/workflow-runtime/plugin"
 	"miletos-go/internal/features/workflow-runtime/workflow"
 )
@@ -183,9 +184,15 @@ func (service *Service) Disable(
 	companyID string,
 	triggerID string,
 ) (Binding, error) {
-	binding, err := service.triggers.Disable(ctx, companyID, triggerID)
+	binding, changed, err := service.triggers.Disable(ctx, companyID, triggerID)
+	if err != nil {
+		return Binding{}, err
+	}
+	if !changed && binding.Status != StatusDisabled {
+		return Binding{}, repository.ErrStateTransition
+	}
 	binding.TokenHash = nil
-	return binding, err
+	return binding, nil
 }
 
 func (service *Service) DisableWorkflow(ctx context.Context, companyID, workflowID string) (int, error) {

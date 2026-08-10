@@ -93,8 +93,10 @@ func mapTriggerGRPCError(err error) error {
 	case errors.Is(err, ErrInvalidTrigger),
 		errors.Is(err, ErrMethodNotAllowed):
 		return status.Error(codes.InvalidArgument, "HTTP trigger request is invalid")
-	case errors.Is(err, ErrPublicURLUnavailable),
-		errors.Is(err, ErrBindingInvariant):
+	case errors.Is(err, ErrBindingInvariant),
+		errors.Is(err, repository.ErrStateTransition):
+		return status.Error(codes.FailedPrecondition, "HTTP trigger state is invalid")
+	case errors.Is(err, ErrPublicURLUnavailable):
 		return status.Error(codes.FailedPrecondition, "HTTP trigger service is unavailable")
 	default:
 		return status.Error(codes.Internal, "an unexpected internal error occurred")

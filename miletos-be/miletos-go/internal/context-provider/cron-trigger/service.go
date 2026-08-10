@@ -15,6 +15,7 @@ import (
 	"miletos-go/internal/features/workflow-runtime/cronexpr"
 	"miletos-go/internal/features/workflow-runtime/execution"
 	executionmodel "miletos-go/internal/features/workflow-runtime/execution/model"
+	"miletos-go/internal/features/workflow-runtime/execution/repository"
 	"miletos-go/internal/features/workflow-runtime/plugin"
 	"miletos-go/internal/features/workflow-runtime/workflow"
 )
@@ -69,9 +70,6 @@ func (service *Service) Create(
 		return Binding{}, execution.ErrAsyncUnavailable
 	}
 	request.Workflow.CompanyID = request.CompanyID
-	// Graph and plugin validation runs first so that an invalid cron expression
-	// or timezone is reported with its stable plugin validation code instead of
-	// a generic invalid-trigger error.
 	if err := service.workflowService.Validate(request.Workflow); err != nil {
 		return Binding{}, err
 	}
@@ -131,7 +129,14 @@ func (service *Service) Disable(
 	companyID string,
 	triggerID string,
 ) (Binding, error) {
-	return service.triggers.Disable(ctx, companyID, triggerID)
+	binding, changed, err := service.triggers.Disable(ctx, companyID, triggerID)
+	if err != nil {
+		return Binding{}, err
+	}
+	if !changed && binding.Status != StatusDisabled {
+		return Binding{}, repository.ErrStateTransition
+	}
+	return binding, nil
 }
 
 func (service *Service) DisableWorkflow(ctx context.Context, companyID, workflowID string) (int, error) {

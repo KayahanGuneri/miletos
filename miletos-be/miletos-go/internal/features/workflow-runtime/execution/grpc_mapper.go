@@ -31,6 +31,13 @@ func mapWorkflowFromGRPC(
 	definition *runtimev1.WorkflowDefinition,
 	companyID string,
 ) workflow.Workflow {
+	return MapWorkflowFromGRPC(definition, companyID)
+}
+
+func MapWorkflowFromGRPC(
+	definition *runtimev1.WorkflowDefinition,
+	companyID string,
+) workflow.Workflow {
 	mappedWorkflow := workflow.Workflow{
 		ID:        definition.GetWorkflowId(),
 		CompanyID: companyID,

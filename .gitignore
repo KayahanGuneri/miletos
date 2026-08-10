@@ -180,3 +180,11 @@ playwright/.cache/
 eslint-report.*
 .gocache/
 .tools/
+
+# ============================================================
+# GO GENERATED PROTOBUF
+# ============================================================
+
+# Authoritative source: miletos-be/contracts/proto/
+# Do not commit regenerated Go stubs from this directory.
+/miletos-be/miletos-go/internal/shared/grpc/generated/

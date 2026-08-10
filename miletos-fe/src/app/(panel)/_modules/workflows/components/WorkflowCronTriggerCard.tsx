@@ -2,9 +2,11 @@
 
 import { Box } from "@/components/lib/box/Box";
 import Button, { ButtonVariant } from "@/components/lib/button/Button";
+import { DescriptionListItem } from "@/components/lib/description-list-item/DescriptionListItem";
 import { Typography } from "@/components/lib/typography/Typography";
 import {
   runtimeErrorMessage,
+  runtimeStatusLabel,
   workflowMessages,
 } from "@/app/(panel)/_modules/workflows/messages/workflow-messages";
 import {
@@ -51,17 +53,13 @@ export function WorkflowCronTriggerCard({
   async function create() {
     try {
       await createTrigger.mutateAsync({ workflowId, triggerNodeId });
-    } catch {
-      // The failure is rendered from its stable backend error code below.
-    }
+    } catch {}
   }
 
   async function disable(triggerId: string) {
     try {
       await disableTrigger.mutateAsync({ workflowId, triggerId });
-    } catch {
-      // The failure is rendered from its stable backend error code below.
-    }
+    } catch {}
   }
 
   return (
@@ -94,30 +92,22 @@ export function WorkflowCronTriggerCard({
       ) : null}
       {trigger?.status === "ACTIVE" ? (
         <dl className={styles.workflowRuntime__details}>
-          <div>
-            <dt>{messages.status}</dt>
-            <dd>{trigger.status}</dd>
-          </div>
-          <div>
-            <dt>{messages.expression}</dt>
-            <dd>{trigger.cronExpression}</dd>
-          </div>
-          <div>
-            <dt>{messages.timezone}</dt>
-            <dd>{trigger.timezone}</dd>
-          </div>
-          <div>
-            <dt>{messages.nextFire}</dt>
-            <dd>{displayTime(trigger.nextFireAt)}</dd>
-          </div>
-          <div>
-            <dt>{messages.lastScheduled}</dt>
-            <dd>{displayTime(trigger.lastScheduledAt)}</dd>
-          </div>
-          <div>
-            <dt>{messages.lastFired}</dt>
-            <dd>{displayTime(trigger.lastFiredAt)}</dd>
-          </div>
+          <DescriptionListItem term={messages.status}>
+            {runtimeStatusLabel(trigger.status)}
+          </DescriptionListItem>
+          <DescriptionListItem term={messages.expression}>
+            {trigger.cronExpression}
+          </DescriptionListItem>
+          <DescriptionListItem term={messages.timezone}>{trigger.timezone}</DescriptionListItem>
+          <DescriptionListItem term={messages.nextFire}>
+            {displayTime(trigger.nextFireAt)}
+          </DescriptionListItem>
+          <DescriptionListItem term={messages.lastScheduled}>
+            {displayTime(trigger.lastScheduledAt)}
+          </DescriptionListItem>
+          <DescriptionListItem term={messages.lastFired}>
+            {displayTime(trigger.lastFiredAt)}
+          </DescriptionListItem>
         </dl>
       ) : null}
       {error ? (

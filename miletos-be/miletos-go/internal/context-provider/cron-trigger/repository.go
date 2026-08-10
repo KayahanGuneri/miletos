@@ -102,26 +102,32 @@ func (triggerRepository *Repository) Disable(
 	ctx context.Context,
 	companyID string,
 	triggerID string,
-) (Binding, error) {
+) (Binding, bool, error) {
 	now := time.Now().UTC()
-	result := triggerRepository.dbClient.DB(ctx).
-		Table("workflow_runtime.cron_trigger_bindings").
-		Where("company_id = ? AND trigger_id = ? AND status = ?", companyID, triggerID, StatusActive).
-		Updates(map[string]any{
-			"status": StatusDisabled, "disabled_at": now, "updated_at": now,
-			"lock_version": gorm.Expr("lock_version + 1"),
-		})
+	var records []bindingRecord
+	result := triggerRepository.dbClient.DB(ctx).Raw(`
+		UPDATE workflow_runtime.cron_trigger_bindings
+		SET status = ?,
+			disabled_at = ?,
+			updated_at = ?,
+			lock_version = lock_version + 1
+		WHERE company_id = ?
+		  AND trigger_id = ?
+		  AND status = ?
+		RETURNING *`,
+		StatusDisabled, now, now, companyID, triggerID, StatusActive,
+	).Scan(&records)
 	if result.Error != nil {
-		return Binding{}, fmt.Errorf("disable cron trigger: %w", result.Error)
+		return Binding{}, false, fmt.Errorf("disable cron trigger: %w", result.Error)
+	}
+	if len(records) == 1 {
+		return bindingFromRecord(records[0]), true, nil
 	}
 	binding, err := triggerRepository.FindByID(ctx, companyID, triggerID)
 	if err != nil {
-		return Binding{}, err
+		return Binding{}, false, err
 	}
-	if result.RowsAffected == 0 && binding.Status != StatusDisabled {
-		return Binding{}, repository.ErrStateTransition
-	}
-	return binding, nil
+	return binding, false, nil
 }
 
 func (triggerRepository *Repository) DisableWorkflow(
@@ -171,9 +177,6 @@ func (triggerRepository *Repository) ClaimDue(
 	occurrences := make([]DueOccurrence, 0, len(records))
 	for _, record := range records {
 		binding := bindingFromRecord(record)
-		// Missed occurrences are coalesced: the overdue boundary is claimed once
-		// and the schedule jumps straight to the first boundary after the current
-		// scheduler time instead of replaying every boundary that elapsed.
 		scheduledAt := binding.NextFireAt.UTC()
 		advanceFrom := scheduledAt.Add(time.Second)
 		if advanceFrom.Before(now.UTC()) {
@@ -184,15 +187,6 @@ func (triggerRepository *Repository) ClaimDue(
 			return nil, fmt.Errorf("advance cron trigger %s: %w", binding.ID, err)
 		}
 		occurrenceID := fmt.Sprintf("cron_occurrence_%s_%d", binding.ID, scheduledAt.UnixNano())
-		occurrence := occurrenceRecord{
-			OccurrenceID: occurrenceID, TriggerID: binding.ID, CompanyID: binding.CompanyID,
-			WorkflowID: binding.WorkflowID, SnapshotID: binding.SnapshotID,
-			ScheduledAt: scheduledAt, Status: OccurrencePending, NextAttemptAt: now.UTC(),
-			CreatedAt: now.UTC(), UpdatedAt: now.UTC(),
-		}
-		if err := transaction.DB(ctx).Table("workflow_runtime.cron_trigger_occurrences").Create(&occurrence).Error; err != nil {
-			return nil, fmt.Errorf("persist cron occurrence %s: %w", binding.ID, err)
-		}
 		result, err := transaction.Exec(ctx, `
 			UPDATE workflow_runtime.cron_trigger_bindings
 			SET next_fire_at = $4,
@@ -211,9 +205,16 @@ func (triggerRepository *Repository) ClaimDue(
 			return nil, fmt.Errorf("claim cron trigger %s: %w", binding.ID, err)
 		}
 		if result.RowsAffected() != 1 {
-			// Another worker already advanced this binding. Skip it so the rest
-			// of the due set in this transaction can still be claimed.
 			continue
+		}
+		occurrence := occurrenceRecord{
+			OccurrenceID: occurrenceID, TriggerID: binding.ID, CompanyID: binding.CompanyID,
+			WorkflowID: binding.WorkflowID, SnapshotID: binding.SnapshotID,
+			ScheduledAt: scheduledAt, Status: OccurrencePending, NextAttemptAt: now.UTC(),
+			CreatedAt: now.UTC(), UpdatedAt: now.UTC(),
+		}
+		if err := transaction.DB(ctx).Table("workflow_runtime.cron_trigger_occurrences").Create(&occurrence).Error; err != nil {
+			return nil, fmt.Errorf("persist cron occurrence %s: %w", binding.ID, err)
 		}
 		binding.NextFireAt = nextFireAt
 		binding.LastScheduledAt = &scheduledAt
@@ -275,12 +276,24 @@ func (triggerRepository *Repository) MarkOccurrenceSucceeded(ctx context.Context
 		WHERE occurrence_id = $1`, occurrenceID, executionID, now).Error
 }
 
-func (triggerRepository *Repository) MarkOccurrenceFailed(ctx context.Context, occurrenceID string, attempt int, failureCode, failureMessage string) error {
+func (triggerRepository *Repository) MarkOccurrenceFailed(
+	ctx context.Context,
+	occurrenceID string,
+	attempt int,
+	failureCode string,
+) error {
 	now := time.Now().UTC()
 	retryAt := now.Add(time.Duration(min(attempt, 10)) * time.Minute)
 	return triggerRepository.dbClient.DB(ctx).Exec(`UPDATE workflow_runtime.cron_trigger_occurrences
-		SET status = 'FAILED', failure_code = $2, failure_message = $3, next_attempt_at = $4, updated_at = $5, lock_version = lock_version + 1
-		WHERE occurrence_id = $1`, occurrenceID, failureCode, failureMessage, retryAt, now).Error
+		SET status = 'FAILED',
+			failure_code = $2,
+			failure_message = NULL,
+			next_attempt_at = $3,
+			updated_at = $4,
+			lock_version = lock_version + 1
+		WHERE occurrence_id = $1`,
+		occurrenceID, failureCode, retryAt, now,
+	).Error
 }
 
 func min(left, right int) int {

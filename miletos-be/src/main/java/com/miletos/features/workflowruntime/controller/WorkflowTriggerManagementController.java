@@ -5,7 +5,7 @@ import com.miletos.features.user.repository.entity.User;
 import com.miletos.features.workflowruntime.client.WorkflowRuntimeResponse;
 import com.miletos.features.workflowruntime.controller.request.CreateWorkflowTriggerRequest;
 import com.miletos.features.workflowruntime.service.WorkflowTriggerManagementService;
-import com.miletos.security.AuthenticatedActorResolver;
+import com.miletos.security.CurrentUser;
 import com.miletos.security.authorization.Authorize;
 import com.miletos.security.authorization.RequiredRole;
 import jakarta.validation.Valid;
@@ -13,7 +13,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,16 +27,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class WorkflowTriggerManagementController {
 
   private final WorkflowTriggerManagementService triggerManagementService;
-  private final AuthenticatedActorResolver authenticatedActorResolver;
 
   @Authorize(RequiredRole.COMPANY_ADMIN)
   @PostMapping(value = "/triggers/http", consumes = MediaType.APPLICATION_JSON_VALUE)
   public ResponseEntity<byte[]> createHTTPTrigger(
       @PathVariable Long workflowId,
       @Valid @RequestBody CreateWorkflowTriggerRequest request,
-      @AuthenticationPrincipal(expression = "subject") String actorEmail,
+      @CurrentUser User user,
       @RequestHeader HttpHeaders browserHeaders) {
-    User user = authenticatedActorResolver.resolve(actorEmail);
     return response(
         triggerManagementService.createHTTPTrigger(
             user, workflowId, request.triggerNodeId(), browserHeaders));
@@ -47,9 +44,8 @@ public class WorkflowTriggerManagementController {
   @GetMapping("/triggers/http")
   public ResponseEntity<byte[]> getActiveHTTPTrigger(
       @PathVariable Long workflowId,
-      @AuthenticationPrincipal(expression = "subject") String actorEmail,
+      @CurrentUser User user,
       @RequestHeader HttpHeaders browserHeaders) {
-    User user = authenticatedActorResolver.resolve(actorEmail);
     return response(triggerManagementService.getActiveHTTPTrigger(user, workflowId, browserHeaders));
   }
 
@@ -58,9 +54,8 @@ public class WorkflowTriggerManagementController {
   public ResponseEntity<byte[]> getHTTPTrigger(
       @PathVariable Long workflowId,
       @PathVariable String triggerId,
-      @AuthenticationPrincipal(expression = "subject") String actorEmail,
+      @CurrentUser User user,
       @RequestHeader HttpHeaders browserHeaders) {
-    User user = authenticatedActorResolver.resolve(actorEmail);
     return response(
         triggerManagementService.getHTTPTrigger(user, workflowId, triggerId, browserHeaders));
   }
@@ -70,9 +65,8 @@ public class WorkflowTriggerManagementController {
   public ResponseEntity<byte[]> disableHTTPTrigger(
       @PathVariable Long workflowId,
       @PathVariable String triggerId,
-      @AuthenticationPrincipal(expression = "subject") String actorEmail,
+      @CurrentUser User user,
       @RequestHeader HttpHeaders browserHeaders) {
-    User user = authenticatedActorResolver.resolve(actorEmail);
     return response(
         triggerManagementService.disableHTTPTrigger(user, workflowId, triggerId, browserHeaders));
   }
@@ -82,9 +76,8 @@ public class WorkflowTriggerManagementController {
   public ResponseEntity<byte[]> createCronTrigger(
       @PathVariable Long workflowId,
       @Valid @RequestBody CreateWorkflowTriggerRequest request,
-      @AuthenticationPrincipal(expression = "subject") String actorEmail,
+      @CurrentUser User user,
       @RequestHeader HttpHeaders browserHeaders) {
-    User user = authenticatedActorResolver.resolve(actorEmail);
     return response(
         triggerManagementService.createCronTrigger(
             user, workflowId, request.triggerNodeId(), browserHeaders));
@@ -94,9 +87,8 @@ public class WorkflowTriggerManagementController {
   @GetMapping("/triggers/cron")
   public ResponseEntity<byte[]> getActiveCronTrigger(
       @PathVariable Long workflowId,
-      @AuthenticationPrincipal(expression = "subject") String actorEmail,
+      @CurrentUser User user,
       @RequestHeader HttpHeaders browserHeaders) {
-    User user = authenticatedActorResolver.resolve(actorEmail);
     return response(triggerManagementService.getActiveCronTrigger(user, workflowId, browserHeaders));
   }
 
@@ -105,9 +97,8 @@ public class WorkflowTriggerManagementController {
   public ResponseEntity<byte[]> getCronTrigger(
       @PathVariable Long workflowId,
       @PathVariable String triggerId,
-      @AuthenticationPrincipal(expression = "subject") String actorEmail,
+      @CurrentUser User user,
       @RequestHeader HttpHeaders browserHeaders) {
-    User user = authenticatedActorResolver.resolve(actorEmail);
     return response(
         triggerManagementService.getCronTrigger(user, workflowId, triggerId, browserHeaders));
   }
@@ -117,9 +108,8 @@ public class WorkflowTriggerManagementController {
   public ResponseEntity<byte[]> disableCronTrigger(
       @PathVariable Long workflowId,
       @PathVariable String triggerId,
-      @AuthenticationPrincipal(expression = "subject") String actorEmail,
+      @CurrentUser User user,
       @RequestHeader HttpHeaders browserHeaders) {
-    User user = authenticatedActorResolver.resolve(actorEmail);
     return response(
         triggerManagementService.disableCronTrigger(user, workflowId, triggerId, browserHeaders));
   }
@@ -129,9 +119,8 @@ public class WorkflowTriggerManagementController {
   public ResponseEntity<byte[]> runWorkflow(
       @PathVariable Long workflowId,
       @RequestBody(required = false) JsonNode request,
-      @AuthenticationPrincipal(expression = "subject") String actorEmail,
+      @CurrentUser User user,
       @RequestHeader HttpHeaders browserHeaders) {
-    User user = authenticatedActorResolver.resolve(actorEmail);
     return response(triggerManagementService.runWorkflow(user, workflowId, request, browserHeaders));
   }
 

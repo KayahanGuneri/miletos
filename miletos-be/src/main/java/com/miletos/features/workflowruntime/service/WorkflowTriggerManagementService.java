@@ -54,7 +54,7 @@ public class WorkflowTriggerManagementService {
       throw domain(ErrorCode.WORKFLOW_TRIGGER_ROOT_REQUIRED, HttpStatus.UNPROCESSABLE_ENTITY);
     }
     if (!isCompatibleTriggerPlugin(
-        triggerNode, "HTTP_WEBHOOK", "http-trigger", activeWorkflow.companyId(), browserHeaders)) {
+        triggerNode, "HTTP_WEBHOOK", activeWorkflow.companyId(), browserHeaders)) {
       throw domain(ErrorCode.WORKFLOW_TRIGGER_TYPE_INVALID, HttpStatus.UNPROCESSABLE_ENTITY);
     }
     String method = resolveHTTPMethod(activeWorkflow.trusted().configuration(triggerNode.getNodeId()));
@@ -120,7 +120,7 @@ public class WorkflowTriggerManagementService {
       throw domain(ErrorCode.WORKFLOW_TRIGGER_ROOT_REQUIRED, HttpStatus.UNPROCESSABLE_ENTITY);
     }
     if (!isCompatibleTriggerPlugin(
-        triggerNode, "CRON", "cron-trigger", activeWorkflow.companyId(), browserHeaders)) {
+        triggerNode, "CRON", activeWorkflow.companyId(), browserHeaders)) {
       throw domain(ErrorCode.WORKFLOW_TRIGGER_TYPE_INVALID, HttpStatus.UNPROCESSABLE_ENTITY);
     }
     CronConfiguration cronConfiguration =
@@ -226,7 +226,6 @@ public class WorkflowTriggerManagementService {
   private boolean isCompatibleTriggerPlugin(
       WorkflowNode triggerNode,
       String requiredOrigin,
-      String requiredContextProvider,
       String companyId,
       HttpHeaders browserHeaders) {
     Plugin plugin =
@@ -235,9 +234,7 @@ public class WorkflowTriggerManagementService {
             .filter(candidate -> candidate.getVersion().equals(triggerNode.getPluginVersion()))
             .findFirst()
             .orElse(null);
-    return plugin != null
-        && plugin.getAllowedRootOriginsList().contains(requiredOrigin)
-        && requiredContextProvider.equals(plugin.getContextProvider());
+    return plugin != null && plugin.getAllowedRootOriginsList().contains(requiredOrigin);
   }
 
   private boolean isAsyncTrigger(TrustedTriggerType triggerType) {

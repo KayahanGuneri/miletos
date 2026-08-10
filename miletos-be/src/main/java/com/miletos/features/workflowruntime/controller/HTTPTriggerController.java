@@ -3,7 +3,6 @@ package com.miletos.features.workflowruntime.controller;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,7 +17,7 @@ import com.miletos.features.workflowruntime.controller.request.LegacyCreateHTTPT
 import com.miletos.features.workflowruntime.documentation.WorkflowRuntimeSchemas;
 import com.miletos.features.workflowruntime.service.WorkflowRuntimeService;
 import com.miletos.features.workflowruntime.service.WorkflowTriggerManagementService;
-import com.miletos.security.AuthenticatedActorResolver;
+import com.miletos.security.CurrentUser;
 import com.miletos.security.authorization.Authorize;
 import com.miletos.security.authorization.RequiredRole;
 
@@ -40,7 +39,6 @@ public class HTTPTriggerController {
 
     private final WorkflowRuntimeService workflowRuntimeService;
     private final WorkflowTriggerManagementService triggerManagementService;
-    private final AuthenticatedActorResolver authenticatedActorResolver;
 
     @Authorize(RequiredRole.COMPANY_ADMIN)
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -91,9 +89,8 @@ public class HTTPTriggerController {
     })
     public ResponseEntity<byte[]> create(
             @Valid @RequestBody LegacyCreateHTTPTriggerRequest body,
-            @AuthenticationPrincipal(expression = "subject") String actorEmail,
+            @CurrentUser User user,
             @RequestHeader HttpHeaders browserHeaders) {
-        User user = authenticatedActorResolver.resolve(actorEmail);
         return toResponseEntity(
                 triggerManagementService.createHTTPTrigger(
                         user, body.workflowId(), body.triggerNodeId(), browserHeaders));
@@ -127,12 +124,12 @@ public class HTTPTriggerController {
                             schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
     })
     public ResponseEntity<byte[]> get(
-            @AuthenticationPrincipal(expression = "subject") String actorEmail,
+            @CurrentUser User user,
             @PathVariable String triggerId,
             @RequestHeader HttpHeaders browserHeaders) {
         return toResponseEntity(
                 workflowRuntimeService.getHTTPTrigger(
-                        actorEmail, triggerId, browserHeaders));
+                        user, triggerId, browserHeaders));
     }
 
     @Authorize(RequiredRole.COMPANY_ADMIN)
@@ -163,12 +160,12 @@ public class HTTPTriggerController {
                             schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
     })
     public ResponseEntity<byte[]> disable(
-            @AuthenticationPrincipal(expression = "subject") String actorEmail,
+            @CurrentUser User user,
             @PathVariable String triggerId,
             @RequestHeader HttpHeaders browserHeaders) {
         return toResponseEntity(
                 workflowRuntimeService.disableHTTPTrigger(
-                        actorEmail, triggerId, browserHeaders));
+                        user, triggerId, browserHeaders));
     }
 
     private ResponseEntity<byte[]> toResponseEntity(

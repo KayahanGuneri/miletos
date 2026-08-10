@@ -1,4 +1,5 @@
 import { type ApiError } from "@/shared/api/api-error";
+import { type WorkflowStatus } from "@/app/(panel)/_modules/workflows/types/workflow-types";
 
 export const workflowMessages = {
   common: {
@@ -141,12 +142,31 @@ export const workflowMessages = {
     title: "Runtime actions",
     description:
       "Bind triggers or run the persisted revision without sending the editable browser graph.",
-    draftStatusReason: "Activate the workflow before creating triggers or running it.",
-    archivedStatusReason:
-      "Restore and activate the workflow before creating triggers or running it.",
+    statusReasons: {
+      DRAFT: "Activate the workflow before creating triggers or running it.",
+      ARCHIVED: "Restore and activate the workflow before creating triggers or running it.",
+    } as Partial<Record<WorkflowStatus, string>>,
     notYet: "Not yet",
     yes: "Yes",
     no: "No",
+    statusLabels: {
+      ACTIVE: "Active",
+      DISABLED: "Disabled",
+      VALIDATING: "Validating",
+      QUEUED: "Queued",
+      RUNNING: "Running",
+      SUCCEEDED: "Succeeded",
+      FAILED: "Failed",
+    } as Record<string, string>,
+    modeLabels: {
+      ASYNC: "Asynchronous",
+      SYNC: "Synchronous",
+    } as Record<string, string>,
+    originLabels: {
+      MANUAL_DIRECT: "Manual",
+      HTTP_WEBHOOK: "HTTP webhook",
+      CRON: "Cron",
+    } as Record<string, string>,
     errors: {
       fallback: "The runtime operation could not be completed. Try again.",
       byCode: {
@@ -228,10 +248,6 @@ export const workflowMessages = {
   },
 } as const;
 
-/**
- * Renders a runtime or trigger failure from its stable backend error code. The
- * backend message stays on the normalized ApiError for diagnostics only.
- */
 export function runtimeErrorMessage(error: ApiError | null | undefined) {
   if (!error) {
     return undefined;
@@ -239,4 +255,20 @@ export function runtimeErrorMessage(error: ApiError | null | undefined) {
   return (
     workflowMessages.runtime.errors.byCode[error.code] ?? workflowMessages.runtime.errors.fallback
   );
+}
+
+export function runtimeStatusLabel(status: string) {
+  return workflowMessages.runtime.statusLabels[status] ?? status;
+}
+
+export function runtimeModeLabel(mode: string) {
+  return workflowMessages.runtime.modeLabels[mode] ?? mode;
+}
+
+export function runtimeOriginLabel(origin: string) {
+  return workflowMessages.runtime.originLabels[origin] ?? origin;
+}
+
+export function workflowStatusReason(status: WorkflowStatus) {
+  return workflowMessages.runtime.statusReasons[status];
 }

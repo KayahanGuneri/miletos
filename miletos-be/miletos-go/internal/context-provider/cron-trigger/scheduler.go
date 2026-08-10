@@ -72,7 +72,16 @@ func (scheduler *Scheduler) poll(ctx context.Context) {
 			return
 		}
 		if err := scheduler.fire(ctx, occurrence); err != nil {
-			slog.Error("fire cron occurrence", "trigger_id", occurrence.TriggerID, "occurrence_id", occurrence.ID, "error", err)
+			if errors.Is(err, context.Canceled) {
+				return
+			}
+			slog.Error(
+				"fire cron occurrence",
+				"trigger_id", occurrence.TriggerID,
+				"occurrence_id", occurrence.ID,
+				"workflow_id", occurrence.WorkflowID,
+				"error", err,
+			)
 		}
 	}
 }
@@ -80,7 +89,7 @@ func (scheduler *Scheduler) poll(ctx context.Context) {
 func (scheduler *Scheduler) fire(ctx context.Context, occurrence Occurrence) error {
 	binding, err := scheduler.service.triggers.FindByID(ctx, occurrence.CompanyID, occurrence.TriggerID)
 	if err != nil {
-		return scheduler.fail(ctx, occurrence, "BINDING_UNAVAILABLE")
+		return scheduler.fail(ctx, occurrence, "BINDING_UNAVAILABLE", err)
 	}
 	if binding.Status != StatusActive {
 		return scheduler.service.triggers.MarkOccurrenceSucceeded(ctx, occurrence.ID, "")
@@ -89,11 +98,24 @@ func (scheduler *Scheduler) fire(ctx context.Context, occurrence Occurrence) err
 		Binding: binding, OccurrenceID: occurrence.ID, ScheduledAt: occurrence.ScheduledAt, FiredAt: time.Now().UTC(),
 	})
 	if err != nil {
-		return scheduler.fail(ctx, occurrence, "EXECUTION_UNAVAILABLE")
+		return scheduler.fail(ctx, occurrence, "EXECUTION_UNAVAILABLE", err)
 	}
 	return scheduler.service.triggers.MarkOccurrenceSucceeded(ctx, occurrence.ID, outcome.Execution.ID)
 }
 
-func (scheduler *Scheduler) fail(ctx context.Context, occurrence Occurrence, code string) error {
-	return scheduler.service.triggers.MarkOccurrenceFailed(ctx, occurrence.ID, occurrence.AttemptCount, code, "cron execution could not be created")
+func (scheduler *Scheduler) fail(
+	ctx context.Context,
+	occurrence Occurrence,
+	code string,
+	cause error,
+) error {
+	if err := scheduler.service.triggers.MarkOccurrenceFailed(
+		ctx,
+		occurrence.ID,
+		occurrence.AttemptCount,
+		code,
+	); err != nil {
+		return errors.Join(cause, err)
+	}
+	return cause
 }

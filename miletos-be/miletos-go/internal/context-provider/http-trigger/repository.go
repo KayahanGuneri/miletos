@@ -119,26 +119,32 @@ func (triggerRepository *Repository) Disable(
 	ctx context.Context,
 	companyID string,
 	triggerID string,
-) (Binding, error) {
+) (Binding, bool, error) {
 	now := time.Now().UTC()
-	result := triggerRepository.dbClient.DB(ctx).
-		Table("workflow_runtime.http_trigger_bindings").
-		Where("company_id = ? AND trigger_id = ? AND status = ?", companyID, triggerID, StatusActive).
-		Updates(map[string]any{
-			"status": StatusDisabled, "disabled_at": now, "updated_at": now,
-			"lock_version": gorm.Expr("lock_version + 1"),
-		})
+	var records []triggerBindingRecord
+	result := triggerRepository.dbClient.DB(ctx).Raw(`
+		UPDATE workflow_runtime.http_trigger_bindings
+		SET status = ?,
+			disabled_at = ?,
+			updated_at = ?,
+			lock_version = lock_version + 1
+		WHERE company_id = ?
+		  AND trigger_id = ?
+		  AND status = ?
+		RETURNING *`,
+		StatusDisabled, now, now, companyID, triggerID, StatusActive,
+	).Scan(&records)
 	if result.Error != nil {
-		return Binding{}, fmt.Errorf("disable HTTP trigger: %w", result.Error)
+		return Binding{}, false, fmt.Errorf("disable HTTP trigger: %w", result.Error)
+	}
+	if len(records) == 1 {
+		return bindingFromRecord(records[0]), true, nil
 	}
 	binding, err := triggerRepository.FindByID(ctx, companyID, triggerID)
 	if err != nil {
-		return Binding{}, err
+		return Binding{}, false, err
 	}
-	if result.RowsAffected == 0 && binding.Status != StatusDisabled {
-		return Binding{}, repository.ErrStateTransition
-	}
-	return binding, nil
+	return binding, false, nil
 }
 
 func (triggerRepository *Repository) DisableWorkflow(

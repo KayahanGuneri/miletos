@@ -36,7 +36,6 @@ export function WorkflowHTTPTriggerCard({
   const binding = useWorkflowHTTPTriggerQuery(workflowId, active);
   const createTrigger = useCreateWorkflowHTTPTriggerMutation();
   const disableTrigger = useDisableWorkflowHTTPTriggerMutation();
-  // The one-time public URL is never persisted; it exists only for this render.
   const [publicUrl, setPublicUrl] = useState<string | null>(null);
 
   const trigger = active ? (binding.data ?? null) : null;
@@ -48,18 +47,14 @@ export function WorkflowHTTPTriggerCard({
     try {
       const created = await createTrigger.mutateAsync({ workflowId, triggerNodeId });
       setPublicUrl(created.publicUrl);
-    } catch {
-      // The failure is rendered from its stable backend error code below.
-    }
+    } catch {}
   }
 
   async function disable(triggerId: string) {
     try {
       await disableTrigger.mutateAsync({ workflowId, triggerId });
       setPublicUrl(null);
-    } catch {
-      // The failure is rendered from its stable backend error code below.
-    }
+    } catch {}
   }
 
   return (

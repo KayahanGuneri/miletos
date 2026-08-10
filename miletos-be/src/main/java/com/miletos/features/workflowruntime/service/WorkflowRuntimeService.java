@@ -202,29 +202,36 @@ public class WorkflowRuntimeService {
         }
 
         public WorkflowRuntimeResponse getHTTPTrigger(
-                        String actorEmail,
+                        User user,
                         String triggerId,
                         HttpHeaders browserHeaders) {
                 return runtimeClient.getHTTPTrigger(
                                 triggerId,
-                                resolveCompanyId(actorEmail, browserHeaders),
+                                resolveCompanyId(user, browserHeaders),
                                 browserHeaders);
         }
 
         public WorkflowRuntimeResponse disableHTTPTrigger(
-                        String actorEmail,
+                        User user,
                         String triggerId,
                         HttpHeaders browserHeaders) {
                 return runtimeClient.disableHTTPTrigger(
                                 triggerId,
-                                resolveCompanyId(actorEmail, browserHeaders),
+                                resolveCompanyId(user, browserHeaders),
                                 browserHeaders);
         }
 
         private String resolveCompanyId(
                         String actorEmail,
                         HttpHeaders browserHeaders) {
-                User authenticatedUser = authenticatedActorResolver.resolve(actorEmail);
+                return resolveCompanyId(
+                                authenticatedActorResolver.resolve(actorEmail),
+                                browserHeaders);
+        }
+
+        private String resolveCompanyId(
+                        User authenticatedUser,
+                        HttpHeaders browserHeaders) {
                 List<String> headerValues = browserHeaders.get(COMPANY_HEADER);
                 List<String> requestedCompanyIds = (headerValues == null
                                 ? List.<String>of()

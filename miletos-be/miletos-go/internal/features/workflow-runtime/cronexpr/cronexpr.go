@@ -63,12 +63,12 @@ func Parse(expression string, timezone string) (Schedule, error) {
 	}, nil
 }
 
-func ValidationCode(err error) string {
+func ValidationCode(err error) (string, bool) {
 	var validationError *ValidationError
 	if errors.As(err, &validationError) {
-		return validationError.Code
+		return validationError.Code, true
 	}
-	return "INVALID"
+	return "", false
 }
 
 func Next(expression string, timezone string, from time.Time) (time.Time, Schedule, error) {

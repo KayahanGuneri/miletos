@@ -80,9 +80,6 @@ func builtinDefinition(nodeType, displayName, description string, input, output 
 	return definition
 }
 
-// core.output is the generic workflow output boundary. It shares the terminal
-// handler because it returns its single input unchanged and performs no
-// external side effect.
 func outputRegistration() NodeRegistration {
 	registration := builtinRegistration(
 		"core.output",
@@ -207,9 +204,17 @@ func validateCronTrigger(configuration map[string]any) error {
 	}
 	timezone, _ := configuration["timezone"].(string)
 	if _, err := cronexpr.Parse(expression, timezone); err != nil {
+		code, ok := cronexpr.ValidationCode(err)
+		if !ok {
+			return &NodeError{
+				Category: "INTERNAL",
+				Code:     "CRON_TRIGGER_UNEXPECTED",
+				Message:  "Cron trigger configuration could not be validated.",
+			}
+		}
 		return &NodeError{
 			Category: "VALIDATION",
-			Code:     "CRON_TRIGGER_" + cronexpr.ValidationCode(err),
+			Code:     "CRON_TRIGGER_" + code,
 			Message:  "Cron trigger configuration is invalid.",
 		}
 	}
