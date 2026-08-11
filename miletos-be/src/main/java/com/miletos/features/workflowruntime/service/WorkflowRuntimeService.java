@@ -201,50 +201,37 @@ public class WorkflowRuntimeService {
                                 browserHeaders);
         }
 
-        public WorkflowRuntimeResponse createHTTPTrigger(
-                        String actorEmail,
-                        JsonNode body,
-                        HttpHeaders browserHeaders) {
-                String companyId = resolveCompanyId(actorEmail, browserHeaders);
-                ResolvedExecutionMode resolvedMode = executionPolicyResolver.resolve(
-                                ExecutionModePolicy.AUTO,
-                                TrustedTriggerType.HTTP_WEBHOOK);
-                if (resolvedMode != ResolvedExecutionMode.ASYNC) {
-                        throw new IllegalStateException(
-                                        "HTTP webhook execution policy must resolve to ASYNC");
-                }
-                LOGGER.info(
-                                "HTTP trigger execution mode resolved: companyId={}, triggerType={}, mode={}",
-                                companyId,
-                                TrustedTriggerType.HTTP_WEBHOOK,
-                                resolvedMode);
-                return runtimeClient.createHTTPTrigger(body, companyId, browserHeaders);
-        }
-
         public WorkflowRuntimeResponse getHTTPTrigger(
-                        String actorEmail,
+                        User user,
                         String triggerId,
                         HttpHeaders browserHeaders) {
                 return runtimeClient.getHTTPTrigger(
                                 triggerId,
-                                resolveCompanyId(actorEmail, browserHeaders),
+                                resolveCompanyId(user, browserHeaders),
                                 browserHeaders);
         }
 
         public WorkflowRuntimeResponse disableHTTPTrigger(
-                        String actorEmail,
+                        User user,
                         String triggerId,
                         HttpHeaders browserHeaders) {
                 return runtimeClient.disableHTTPTrigger(
                                 triggerId,
-                                resolveCompanyId(actorEmail, browserHeaders),
+                                resolveCompanyId(user, browserHeaders),
                                 browserHeaders);
         }
 
         private String resolveCompanyId(
                         String actorEmail,
                         HttpHeaders browserHeaders) {
-                User authenticatedUser = authenticatedActorResolver.resolve(actorEmail);
+                return resolveCompanyId(
+                                authenticatedActorResolver.resolve(actorEmail),
+                                browserHeaders);
+        }
+
+        private String resolveCompanyId(
+                        User authenticatedUser,
+                        HttpHeaders browserHeaders) {
                 List<String> headerValues = browserHeaders.get(COMPANY_HEADER);
                 List<String> requestedCompanyIds = (headerValues == null
                                 ? List.<String>of()

@@ -1,10 +1,6 @@
 package execution
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
-
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -32,6 +28,13 @@ func mapGRPCExecuteRequest(
 }
 
 func mapWorkflowFromGRPC(
+	definition *runtimev1.WorkflowDefinition,
+	companyID string,
+) workflow.Workflow {
+	return MapWorkflowFromGRPC(definition, companyID)
+}
+
+func MapWorkflowFromGRPC(
 	definition *runtimev1.WorkflowDefinition,
 	companyID string,
 ) workflow.Workflow {
@@ -292,8 +295,16 @@ func mapGRPCRecoveryOutcome(outcome RecoveryOutcome) *runtimev1.RecoveryResponse
 	}
 }
 
-func grpcFingerprint(value any, mode string) string {
-	encoded, _ := json.Marshal(map[string]any{"request": value, "mode": mode})
-	digest := sha256.Sum256(encoded)
-	return hex.EncodeToString(digest[:])
+func manualExecutionFingerprint(
+	definition workflow.Workflow,
+	startInput map[string]any,
+	mode string,
+) string {
+	return Fingerprint(map[string]any{
+		"workflowId":       definition.ID,
+		"workflowRevision": definition.Revision,
+		"origin":           string(model.ExecutionOriginManualDirect),
+		"mode":             mode,
+		"initialVariables": startInput,
+	})
 }

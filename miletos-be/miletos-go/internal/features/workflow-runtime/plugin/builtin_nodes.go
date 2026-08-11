@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"miletos-go/internal/features/workflow-runtime/cronexpr"
 )
 
 func RegisterBuiltinNodes(registry *NodeRegistry) error {
@@ -16,8 +18,10 @@ func RegisterBuiltinNodes(registry *NodeRegistry) error {
 		{builtinRegistration("core.pass-through", "Pass Through", "Forwards one incoming payload without changing it", true, true, passThrough, nil)},
 		{builtinRegistration("core.delay", "Delay", "Delays forwarding one incoming payload", true, true, delay, validateDelay)},
 		{builtinRegistration("core.terminal", "Terminal", "Receives final workflow output", true, false, terminal, nil)},
+		{outputRegistration()},
 		{joinRegistration()},
 		{httpTriggerRegistration()},
+		{cronTriggerRegistration()},
 	}
 	for _, builtin := range registrations {
 		if err := registry.RegisterNode(builtin.registration); err != nil {
@@ -76,6 +80,20 @@ func builtinDefinition(nodeType, displayName, description string, input, output 
 	return definition
 }
 
+func outputRegistration() NodeRegistration {
+	registration := builtinRegistration(
+		"core.output",
+		"Output",
+		"Represents a generic workflow output boundary and returns its input unchanged",
+		true,
+		false,
+		terminal,
+		nil,
+	)
+	registration.AllowedExecutionSources = nil
+	return registration
+}
+
 func joinRegistration() NodeRegistration {
 	registration := builtinRegistration(
 		"core.join",
@@ -109,6 +127,25 @@ func httpTriggerRegistration() NodeRegistration {
 	definition.OutputEdgeConstraint.Minimum = 1
 	registration.Definition = definition
 	registration.AllowedExecutionSources = []string{"HTTP_WEBHOOK"}
+	registration.ContextProvider = "http-trigger"
+	return registration
+}
+
+func cronTriggerRegistration() NodeRegistration {
+	registration := builtinRegistration(
+		"core.cron-trigger",
+		"Cron Trigger",
+		"Fires on a five-field cron schedule and forwards scheduler metadata",
+		false,
+		true,
+		cronTrigger,
+		validateCronTrigger,
+	)
+	definition := registration.Definition
+	definition.OutputEdgeConstraint.Minimum = 1
+	registration.Definition = definition
+	registration.AllowedExecutionSources = []string{"CRON"}
+	registration.ContextProvider = "cron-trigger"
 	return registration
 }
 
@@ -154,6 +191,34 @@ func validateHTTPTrigger(configuration map[string]any) error {
 			Message:  "configuration.method must be GET, POST, PUT, PATCH, or DELETE",
 		}
 	}
+}
+
+func validateCronTrigger(configuration map[string]any) error {
+	expression, ok := configuration["expression"].(string)
+	if !ok || strings.TrimSpace(expression) == "" {
+		return &NodeError{
+			Category: "VALIDATION",
+			Code:     "CRON_TRIGGER_EXPRESSION_REQUIRED",
+			Message:  "configuration.expression is required",
+		}
+	}
+	timezone, _ := configuration["timezone"].(string)
+	if _, err := cronexpr.Parse(expression, timezone); err != nil {
+		code, ok := cronexpr.ValidationCode(err)
+		if !ok {
+			return &NodeError{
+				Category: "INTERNAL",
+				Code:     "CRON_TRIGGER_UNEXPECTED",
+				Message:  "Cron trigger configuration could not be validated.",
+			}
+		}
+		return &NodeError{
+			Category: "VALIDATION",
+			Code:     "CRON_TRIGGER_" + code,
+			Message:  "Cron trigger configuration is invalid.",
+		}
+	}
+	return nil
 }
 
 func boolUint(value bool) uint {
@@ -215,6 +280,27 @@ func httpTrigger(_ context.Context, _ NodeExecutionContext, _ map[string]any, in
 				Category: "VALIDATION",
 				Code:     "HTTP_TRIGGER_INPUT_INVALID",
 				Message:  "HTTP trigger input is missing required request metadata.",
+			}
+		}
+	}
+	return payload, nil
+}
+
+func cronTrigger(_ context.Context, _ NodeExecutionContext, _ map[string]any, input any) (any, error) {
+	payload, ok := input.(map[string]any)
+	if !ok {
+		return nil, &NodeError{
+			Category: "VALIDATION",
+			Code:     "CRON_TRIGGER_INPUT_INVALID",
+			Message:  "Cron trigger input is missing or invalid.",
+		}
+	}
+	for _, field := range []string{"triggerId", "cronExpression", "timezone", "scheduledAt", "firedAt"} {
+		if value, ok := payload[field].(string); !ok || strings.TrimSpace(value) == "" {
+			return nil, &NodeError{
+				Category: "VALIDATION",
+				Code:     "CRON_TRIGGER_INPUT_INVALID",
+				Message:  "Cron trigger input is missing required scheduler metadata.",
 			}
 		}
 	}

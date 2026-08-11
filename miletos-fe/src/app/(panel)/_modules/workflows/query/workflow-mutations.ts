@@ -5,17 +5,34 @@ import {
   activateWorkflow,
   archiveWorkflow,
   createWorkflow,
+  createWorkflowCronTrigger,
+  createWorkflowHTTPTrigger,
   deleteWorkflow,
+  disableWorkflowCronTrigger,
+  disableWorkflowHTTPTrigger,
   restoreWorkflow,
+  runWorkflow,
   updateWorkflow,
 } from "@/app/(panel)/_modules/workflows/api/workflow-api";
 import { workflowQueryKeys } from "@/app/(panel)/_modules/workflows/query/workflow-query-keys";
 import {
+  type CreateCronTriggerResponse,
+  type CreateHTTPTriggerResponse,
+  type CreateTriggerVariables,
+  type CronTrigger,
+  type DisableTriggerVariables,
+  type HTTPTrigger,
+  type RunWorkflowVariables,
   type SaveWorkflowRequest,
   type UpdateWorkflowVariables,
   type Workflow,
+  type WorkflowExecutionResponse,
 } from "@/app/(panel)/_modules/workflows/types/workflow-interfaces";
 import { type ApiError, toApiError } from "@/shared/api/api-error";
+
+function normalizeError(error: unknown): never {
+  throw toApiError(error);
+}
 
 export function useCreateWorkflowMutation() {
   const queryClient = useQueryClient();
@@ -115,6 +132,88 @@ export function useRestoreWorkflowMutation() {
     onSuccess: (workflow) => {
       queryClient.setQueryData(workflowQueryKeys.detail(workflow.id), workflow);
       void queryClient.invalidateQueries({ queryKey: workflowQueryKeys.lists() });
+    },
+  });
+}
+
+export function useCreateWorkflowHTTPTriggerMutation() {
+  const queryClient = useQueryClient();
+  return useMutation<CreateHTTPTriggerResponse, ApiError, CreateTriggerVariables>({
+    mutationFn: async ({ workflowId, triggerNodeId }) => {
+      try {
+        return await createWorkflowHTTPTrigger(workflowId, { triggerNodeId });
+      } catch (error) {
+        return normalizeError(error);
+      }
+    },
+    onSuccess: (created, variables) => {
+      queryClient.setQueryData(
+        workflowQueryKeys.httpTrigger(variables.workflowId),
+        created.trigger,
+      );
+    },
+  });
+}
+
+export function useDisableWorkflowHTTPTriggerMutation() {
+  const queryClient = useQueryClient();
+  return useMutation<HTTPTrigger, ApiError, DisableTriggerVariables>({
+    mutationFn: async ({ workflowId, triggerId }) => {
+      try {
+        return await disableWorkflowHTTPTrigger(workflowId, triggerId);
+      } catch (error) {
+        return normalizeError(error);
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.setQueryData(workflowQueryKeys.httpTrigger(variables.workflowId), null);
+    },
+  });
+}
+
+export function useCreateWorkflowCronTriggerMutation() {
+  const queryClient = useQueryClient();
+  return useMutation<CreateCronTriggerResponse, ApiError, CreateTriggerVariables>({
+    mutationFn: async ({ workflowId, triggerNodeId }) => {
+      try {
+        return await createWorkflowCronTrigger(workflowId, { triggerNodeId });
+      } catch (error) {
+        return normalizeError(error);
+      }
+    },
+    onSuccess: (created, variables) => {
+      queryClient.setQueryData(
+        workflowQueryKeys.cronTrigger(variables.workflowId),
+        created.trigger,
+      );
+    },
+  });
+}
+
+export function useDisableWorkflowCronTriggerMutation() {
+  const queryClient = useQueryClient();
+  return useMutation<CronTrigger, ApiError, DisableTriggerVariables>({
+    mutationFn: async ({ workflowId, triggerId }) => {
+      try {
+        return await disableWorkflowCronTrigger(workflowId, triggerId);
+      } catch (error) {
+        return normalizeError(error);
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.setQueryData(workflowQueryKeys.cronTrigger(variables.workflowId), null);
+    },
+  });
+}
+
+export function useRunWorkflowMutation() {
+  return useMutation<WorkflowExecutionResponse, ApiError, RunWorkflowVariables>({
+    mutationFn: async ({ workflowId, initialVariables, idempotencyKey }) => {
+      try {
+        return await runWorkflow(workflowId, { initialVariables }, idempotencyKey);
+      } catch (error) {
+        return normalizeError(error);
+      }
     },
   });
 }

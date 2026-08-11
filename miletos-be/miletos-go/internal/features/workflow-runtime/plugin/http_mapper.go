@@ -42,18 +42,17 @@ func mapPluginList(registrations []NodeRegistration) pluginListResponse {
 
 func mapPlugin(registration NodeRegistration) pluginResponse {
 	definition := registration.Definition
-	declaresHTTPWebhook := declaresExecutionSource(registration, "HTTP_WEBHOOK")
 	return pluginResponse{
 		Type: definition.Type, Version: definition.Version,
 		DisplayName: definition.DisplayName, Description: definition.Description,
 		InputMode:               definition.InputMode,
-		AcceptsInitialVariables: CanReceiveEntryInput(definition) || declaresHTTPWebhook,
+		AcceptsInitialVariables: CanReceiveEntryInput(definition) && allowsExecutionSource(registration, "MANUAL_DIRECT"),
 		InputPorts:              mapPorts(definition.InputPorts),
 		OutputPorts:             mapPorts(definition.OutputPorts),
 		InputEdgeConstraint:     mapEdgeConstraint(definition.InputEdgeConstraint),
 		OutputEdgeConstraint:    mapEdgeConstraint(definition.OutputEdgeConstraint),
 		AllowedRootOrigins:      append([]string(nil), registration.AllowedExecutionSources...),
-		ContextProvider:         contextProviderName(declaresHTTPWebhook),
+		ContextProvider:         registration.ContextProvider,
 	}
 }
 
@@ -73,11 +72,4 @@ func mapEdgeConstraint(constraint EdgeConstraint) pluginEdgeConstraintResponse {
 		Maximum:   constraint.Maximum,
 		Unlimited: constraint.Maximum == nil,
 	}
-}
-
-func contextProviderName(allowsHTTPWebhook bool) string {
-	if allowsHTTPWebhook {
-		return "http-trigger"
-	}
-	return ""
 }

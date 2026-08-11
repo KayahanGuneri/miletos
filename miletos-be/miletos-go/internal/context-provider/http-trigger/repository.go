@@ -3,7 +3,6 @@ package httptrigger
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
@@ -62,61 +61,107 @@ func (triggerRepository *Repository) FindByID(
 	companyID string,
 	triggerID string,
 ) (Binding, error) {
-	var record triggerBindingRecord
-	err := triggerRepository.dbClient.DB(ctx).
+	var records []triggerBindingRecord
+	result := triggerRepository.dbClient.DB(ctx).
 		Table("workflow_runtime.http_trigger_bindings").
 		Where("company_id = ? AND trigger_id = ?", companyID, triggerID).
-		Take(&record).Error
-	if err != nil {
-		return Binding{}, mapBindingFindError(err)
+		Limit(1).Find(&records)
+	if result.Error != nil {
+		return Binding{}, fmt.Errorf("find HTTP trigger binding: %w", result.Error)
 	}
-	return bindingFromRecord(record), nil
+	if result.RowsAffected == 0 {
+		return Binding{}, repository.ErrNotFound
+	}
+	return bindingFromRecord(records[0]), nil
 }
 
 func (triggerRepository *Repository) FindActiveByTokenHash(
 	ctx context.Context,
 	tokenHash []byte,
 ) (Binding, error) {
-	var record triggerBindingRecord
-	err := triggerRepository.dbClient.DB(ctx).
+	var records []triggerBindingRecord
+	result := triggerRepository.dbClient.DB(ctx).
 		Table("workflow_runtime.http_trigger_bindings").
 		Where("token_hash = ? AND status = ?", tokenHash, StatusActive).
-		Take(&record).Error
-	if err != nil {
-		return Binding{}, mapBindingFindError(err)
+		Limit(1).Find(&records)
+	if result.Error != nil {
+		return Binding{}, fmt.Errorf("find active HTTP trigger binding: %w", result.Error)
 	}
-	return bindingFromRecord(record), nil
+	if result.RowsAffected == 0 {
+		return Binding{}, repository.ErrNotFound
+	}
+	return bindingFromRecord(records[0]), nil
+}
+
+func (triggerRepository *Repository) FindActiveByWorkflow(
+	ctx context.Context,
+	companyID string,
+	workflowID string,
+) (Binding, error) {
+	var records []triggerBindingRecord
+	result := triggerRepository.dbClient.DB(ctx).
+		Table("workflow_runtime.http_trigger_bindings").
+		Where(
+			"company_id = ? AND workflow_id = ? AND status = ?",
+			companyID, workflowID, StatusActive,
+		).
+		Limit(1).Find(&records)
+	if result.Error != nil {
+		return Binding{}, fmt.Errorf("find active HTTP trigger by workflow: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return Binding{}, repository.ErrNotFound
+	}
+	return bindingFromRecord(records[0]), nil
 }
 
 func (triggerRepository *Repository) Disable(
 	ctx context.Context,
 	companyID string,
 	triggerID string,
-) (Binding, error) {
+) (Binding, bool, error) {
+	now := time.Now().UTC()
+	var records []triggerBindingRecord
+	result := triggerRepository.dbClient.DB(ctx).Raw(`
+		UPDATE workflow_runtime.http_trigger_bindings
+		SET status = ?,
+			disabled_at = ?,
+			updated_at = ?,
+			lock_version = lock_version + 1
+		WHERE company_id = ?
+		  AND trigger_id = ?
+		  AND status = ?
+		RETURNING *`,
+		StatusDisabled, now, now, companyID, triggerID, StatusActive,
+	).Scan(&records)
+	if result.Error != nil {
+		return Binding{}, false, fmt.Errorf("disable HTTP trigger: %w", result.Error)
+	}
+	if len(records) == 1 {
+		return bindingFromRecord(records[0]), true, nil
+	}
+	binding, err := triggerRepository.FindByID(ctx, companyID, triggerID)
+	if err != nil {
+		return Binding{}, false, err
+	}
+	return binding, false, nil
+}
+
+func (triggerRepository *Repository) DisableWorkflow(
+	ctx context.Context,
+	companyID string,
+	workflowID string,
+) (int, error) {
 	now := time.Now().UTC()
 	result := triggerRepository.dbClient.DB(ctx).
 		Table("workflow_runtime.http_trigger_bindings").
-		Where("company_id = ? AND trigger_id = ? AND status = ?", companyID, triggerID, StatusActive).
+		Where("company_id = ? AND workflow_id = ? AND status = ?", companyID, workflowID, StatusActive).
 		Updates(map[string]any{
 			"status": StatusDisabled, "disabled_at": now, "updated_at": now,
 			"lock_version": gorm.Expr("lock_version + 1"),
 		})
 	if result.Error != nil {
-		return Binding{}, fmt.Errorf("disable HTTP trigger: %w", result.Error)
+		return 0, fmt.Errorf("disable workflow HTTP triggers: %w", result.Error)
 	}
-	binding, err := triggerRepository.FindByID(ctx, companyID, triggerID)
-	if err != nil {
-		return Binding{}, err
-	}
-	if result.RowsAffected == 0 && binding.Status != StatusDisabled {
-		return Binding{}, repository.ErrStateTransition
-	}
-	return binding, nil
-}
-
-func mapBindingFindError(err error) error {
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return repository.ErrNotFound
-	}
-	return err
+	return int(result.RowsAffected), nil
 }

@@ -3,7 +3,6 @@ package com.miletos.features.workflowruntime.controller;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -12,11 +11,17 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import com.miletos.features.user.repository.entity.User;
 import com.miletos.features.workflowruntime.client.WorkflowRuntimeResponse;
+import com.miletos.features.workflowruntime.controller.request.LegacyCreateHTTPTriggerRequest;
 import com.miletos.features.workflowruntime.documentation.WorkflowRuntimeSchemas;
 import com.miletos.features.workflowruntime.service.WorkflowRuntimeService;
+import com.miletos.features.workflowruntime.service.WorkflowTriggerManagementService;
+import com.miletos.security.CurrentUser;
 import com.miletos.security.authorization.Authorize;
+import com.miletos.security.authorization.RequiredRole;
+
+import jakarta.validation.Valid;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -33,12 +38,13 @@ import lombok.RequiredArgsConstructor;
 public class HTTPTriggerController {
 
     private final WorkflowRuntimeService workflowRuntimeService;
+    private final WorkflowTriggerManagementService triggerManagementService;
 
-    @Authorize
-    @PostMapping
+    @Authorize(RequiredRole.COMPANY_ADMIN)
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     @Operation(
             summary = "Create an HTTP trigger",
-            description = "Creates an immutable ASYNC HTTP webhook binding. "
+            description = "Creates an immutable ASYNC HTTP webhook binding from a persisted workflow. "
                     + "The public URL is returned only by this successful response.")
     @io.swagger.v3.oas.annotations.parameters.RequestBody(
             required = true,
@@ -46,7 +52,7 @@ public class HTTPTriggerController {
                     mediaType = "application/json",
                     schema = @Schema(
                             implementation =
-                                    WorkflowRuntimeSchemas.CreateHTTPTriggerRequest.class)))
+                                    LegacyCreateHTTPTriggerRequest.class)))
     @ApiResponses({
             @ApiResponse(
                     responseCode = "201",
@@ -82,14 +88,15 @@ public class HTTPTriggerController {
                             schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
     })
     public ResponseEntity<byte[]> create(
-            @AuthenticationPrincipal(expression = "subject") String actorEmail,
-            @RequestBody JsonNode body,
+            @Valid @RequestBody LegacyCreateHTTPTriggerRequest body,
+            @CurrentUser User user,
             @RequestHeader HttpHeaders browserHeaders) {
         return toResponseEntity(
-                workflowRuntimeService.createHTTPTrigger(actorEmail, body, browserHeaders));
+                triggerManagementService.createHTTPTrigger(
+                        user, body.workflowId(), body.triggerNodeId(), browserHeaders));
     }
 
-    @Authorize
+    @Authorize(RequiredRole.COMPANY_ADMIN)
     @GetMapping("/{triggerId}")
     @Operation(summary = "Get an HTTP trigger without its secret URL")
     @ApiResponses({
@@ -117,15 +124,15 @@ public class HTTPTriggerController {
                             schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
     })
     public ResponseEntity<byte[]> get(
-            @AuthenticationPrincipal(expression = "subject") String actorEmail,
+            @CurrentUser User user,
             @PathVariable String triggerId,
             @RequestHeader HttpHeaders browserHeaders) {
         return toResponseEntity(
                 workflowRuntimeService.getHTTPTrigger(
-                        actorEmail, triggerId, browserHeaders));
+                        user, triggerId, browserHeaders));
     }
 
-    @Authorize
+    @Authorize(RequiredRole.COMPANY_ADMIN)
     @PostMapping("/{triggerId}/disable")
     @Operation(summary = "Idempotently disable an HTTP trigger")
     @ApiResponses({
@@ -153,12 +160,12 @@ public class HTTPTriggerController {
                             schema = @Schema(implementation = WorkflowRuntimeSchemas.ApiError.class)))
     })
     public ResponseEntity<byte[]> disable(
-            @AuthenticationPrincipal(expression = "subject") String actorEmail,
+            @CurrentUser User user,
             @PathVariable String triggerId,
             @RequestHeader HttpHeaders browserHeaders) {
         return toResponseEntity(
                 workflowRuntimeService.disableHTTPTrigger(
-                        actorEmail, triggerId, browserHeaders));
+                        user, triggerId, browserHeaders));
     }
 
     private ResponseEntity<byte[]> toResponseEntity(

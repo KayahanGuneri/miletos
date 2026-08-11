@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+
 import type {
   PluginCategory,
   PluginConfigurationValue,
@@ -14,14 +15,26 @@ export interface PluginPort {
   description: string;
 }
 
+export interface PluginEdgeConstraint {
+  minimum: number;
+  maximum?: number;
+  unlimited: boolean;
+}
+
 export interface PluginDescriptor {
   type: string;
   version: string;
   displayName: string;
   description: string;
   category: PluginCategory;
+  inputMode: string;
+  acceptsInitialVariables: boolean;
   inputPorts: PluginPort[];
   outputPorts: PluginPort[];
+  inputEdgeConstraint: PluginEdgeConstraint;
+  outputEdgeConstraint: PluginEdgeConstraint;
+  allowedRootOrigins: string[];
+  contextProvider?: string;
 }
 
 export interface PluginConfigurationValidationResult {

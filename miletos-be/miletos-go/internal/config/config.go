@@ -36,6 +36,10 @@ type Config struct {
 	ReconciliationQueuedStale       time.Duration
 	ReconciliationRunningStale      time.Duration
 	ReconciliationRetryPendingStale time.Duration
+	CronEnabled                     bool
+	CronPollInterval                time.Duration
+	CronBatchSize                   int
+	OutputDirectory                 string
 }
 
 func Load() (Config, error) {
@@ -89,11 +93,34 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	cronEnabled, err := getEnvBool("MILETOS_RUNTIME_CRON_ENABLED", false)
+	if err != nil {
+		return Config{}, err
+	}
+	cronPollInterval, err := getEnvDuration("MILETOS_RUNTIME_CRON_POLL_INTERVAL", 15*time.Second)
+	if err != nil || cronPollInterval <= 0 {
+		if err != nil {
+			return Config{}, err
+		}
+		return Config{}, fmt.Errorf("MILETOS_RUNTIME_CRON_POLL_INTERVAL must be positive")
+	}
+	cronBatchSize, err := getEnvInt("MILETOS_RUNTIME_CRON_BATCH_SIZE", 50)
+	if err != nil {
+		return Config{}, err
+	}
+	if cronBatchSize < 1 || cronBatchSize > 1000 {
+		return Config{}, fmt.Errorf("MILETOS_RUNTIME_CRON_BATCH_SIZE must be between 1 and 1000")
+	}
 	publicTriggerBaseURL, err := normalizedPublicTriggerBaseURL(
 		getEnv("MILETOS_RUNTIME_PUBLIC_TRIGGER_BASE_URL", ""),
 	)
 	if err != nil {
 		return Config{}, err
+	}
+
+	outputDirectory := getEnv("MILETOS_RUNTIME_OUTPUT_DIRECTORY", "output")
+	if outputDirectory == "" {
+		return Config{}, fmt.Errorf("MILETOS_RUNTIME_OUTPUT_DIRECTORY must not be blank")
 	}
 
 	configuration := Config{
@@ -105,6 +132,7 @@ func Load() (Config, error) {
 		GRPCPort:             grpcPort,
 		PublicTriggerBaseURL: publicTriggerBaseURL,
 		PostgreSQLURL:        postgresqlURL,
+		OutputDirectory:      outputDirectory,
 		KafkaEnabled:         kafkaEnabled,
 		KafkaBrokers:         getEnvStrings("MILETOS_RUNTIME_KAFKA_BROKERS", "127.0.0.1:9092"),
 		KafkaClientID: getEnv(
@@ -131,6 +159,9 @@ func Load() (Config, error) {
 		ReconciliationQueuedStale:       queuedStale,
 		ReconciliationRunningStale:      runningStale,
 		ReconciliationRetryPendingStale: retryPendingStale,
+		CronEnabled:                     cronEnabled,
+		CronPollInterval:                cronPollInterval,
+		CronBatchSize:                   cronBatchSize,
 	}
 
 	switch strings.ToLower(getEnv("MILETOS_RUNTIME_LOG_LEVEL", "info")) {

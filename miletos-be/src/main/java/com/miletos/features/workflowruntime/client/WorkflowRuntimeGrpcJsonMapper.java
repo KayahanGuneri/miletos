@@ -1,6 +1,8 @@
 package com.miletos.features.workflowruntime.client;
 
 import com.miletos.features.workflowruntime.grpc.generated.CreateHTTPTriggerResponse;
+import com.miletos.features.workflowruntime.grpc.generated.CreateCronTriggerResponse;
+import com.miletos.features.workflowruntime.grpc.generated.CronTriggerResponse;
 import com.miletos.features.workflowruntime.grpc.generated.EdgeConstraint;
 import com.miletos.features.workflowruntime.grpc.generated.ExecutionDefinition;
 import com.miletos.features.workflowruntime.grpc.generated.ExecutionError;
@@ -112,4 +114,8 @@ public interface WorkflowRuntimeGrpcJsonMapper {
   WorkflowRuntimeBrowserDtos.HTTPTriggerResponse map(HTTPTriggerResponse source);
 
   WorkflowRuntimeBrowserDtos.CreateHTTPTriggerResponse map(CreateHTTPTriggerResponse source);
+
+  WorkflowRuntimeBrowserDtos.CronTriggerResponse map(CronTriggerResponse source);
+
+  WorkflowRuntimeBrowserDtos.CreateCronTriggerResponse map(CreateCronTriggerResponse source);
 }

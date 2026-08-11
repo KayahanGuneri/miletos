@@ -31,6 +31,7 @@ type NodeRegistration struct {
 	Handler                 NodeHandler
 	Validator               NodeConfigurationValidator
 	AllowedExecutionSources []string
+	ContextProvider         string
 }
 
 func CanReceiveEntryInput(definition NodeDefinition) bool {

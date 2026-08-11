@@ -13,7 +13,9 @@ import (
 	"google.golang.org/grpc"
 
 	"miletos-go/internal/config"
+	crontrigger "miletos-go/internal/context-provider/cron-trigger"
 	httptrigger "miletos-go/internal/context-provider/http-trigger"
+	triggerlifecycle "miletos-go/internal/context-provider/trigger-lifecycle"
 	"miletos-go/internal/features/workflow-runtime/execution"
 	"miletos-go/internal/features/workflow-runtime/execution/queue"
 	"miletos-go/internal/features/workflow-runtime/execution/repository"
@@ -40,6 +42,7 @@ type Application struct {
 	nodeProcessor    *execution.NodeProcessor
 	outboxDispatcher *execution.OutboxDispatcher
 	reconciler       *execution.Reconciler
+	cronScheduler    *crontrigger.Scheduler
 }
 
 func Build(
@@ -98,6 +101,15 @@ func Build(
 	if err := plugin.RegisterBuiltinNodes(registry); err != nil {
 		return nil, err
 	}
+	if err := plugin.RegisterOutputDestinationNodes(registry, plugin.OutputNodeRuntime{
+		Database: dbClient,
+		HTTPClient: &http.Client{
+			Timeout: 15 * time.Second,
+		},
+		OutputDirectory: configuration.OutputDirectory,
+	}); err != nil {
+		return nil, err
+	}
 	workflowService := workflow.NewWorkflowService(workflowRepository, registry)
 	scheduler := execution.NewScheduler(
 		workflowRepository, executionRepository, nodeQueue,
@@ -130,6 +142,20 @@ func Build(
 		workflowService, executionRepository, scheduler,
 		application.nodeProcessor, configuration.KafkaEnabled,
 	)
+	if configuration.CronEnabled && !configuration.KafkaEnabled {
+		return nil, fmt.Errorf("cron scheduling requires Kafka-backed asynchronous execution")
+	}
+	cronService := crontrigger.NewService(
+		crontrigger.NewRepository(dbClient), workflowRepository, workflowService, executionService, registry,
+	)
+	if configuration.CronEnabled {
+		application.cronScheduler, err = crontrigger.NewScheduler(
+			cronService, configuration.CronPollInterval, configuration.CronBatchSize,
+		)
+		if err != nil {
+			return nil, err
+		}
+	}
 	queryService := execution.NewExecutionQueryService(executionRepository, workflowRepository)
 	recoveryService := execution.NewRecoveryService(
 		workflowRepository, executionRepository, workflowService, scheduler,
@@ -182,6 +208,12 @@ func Build(
 	runtimev1.RegisterHTTPTriggerServiceServer(
 		application.grpcServer, httptrigger.NewGRPCService(httpTriggerService),
 	)
+	runtimev1.RegisterCronTriggerServiceServer(
+		application.grpcServer, crontrigger.NewGRPCService(cronService),
+	)
+	runtimev1.RegisterTriggerLifecycleServiceServer(
+		application.grpcServer, triggerlifecycle.NewGRPCService(httpTriggerService, cronService),
+	)
 	return application, nil
 }
 
@@ -193,6 +225,9 @@ func (application *Application) Run(ctx context.Context) error {
 		if err := application.reconciler.RunOnce(runContext); err != nil {
 			return fmt.Errorf("startup reconciliation: %w", err)
 		}
+	}
+	if application.cronScheduler != nil {
+		application.cronScheduler.Start(runContext)
 	}
 	failures := make(chan error, 4)
 	go application.runHTTP(failures)
@@ -223,6 +258,9 @@ func (application *Application) Run(ctx context.Context) error {
 	case serviceFailure = <-failures:
 	}
 	cancelRun()
+	if application.cronScheduler != nil {
+		application.cronScheduler.Stop()
+	}
 	shutdownContext, cancelShutdown := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancelShutdown()
 	if err := application.httpServer.Shutdown(shutdownContext); err != nil {

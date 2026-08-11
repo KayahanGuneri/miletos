@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -10,8 +9,6 @@ import (
 	"miletos-go/internal/features/workflow-runtime/execution/persistence"
 	workflowfeature "miletos-go/internal/features/workflow-runtime/workflow"
 	"miletos-go/internal/shared/database"
-
-	"gorm.io/gorm"
 )
 
 type ExecutionRepository struct {
@@ -31,25 +28,25 @@ func (repository *ExecutionRepository) FindIdempotent(
 	if key == "" {
 		return model.Execution{}, false, nil
 	}
-	var keyRecord struct {
+	var keyRecords []struct {
 		RequestFingerprint  string `gorm:"column:request_fingerprint"`
 		WorkflowExecutionID string `gorm:"column:workflow_execution_id"`
 	}
-	err := repository.dbClient.DB(ctx).
+	result := repository.dbClient.DB(ctx).
 		Table("workflow_runtime.http_idempotency_keys").
 		Select("request_fingerprint, workflow_execution_id").
 		Where("company_id = ? AND idempotency_key = ?", companyID, key).
-		Take(&keyRecord).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+		Limit(1).Find(&keyRecords)
+	if result.Error != nil {
+		return model.Execution{}, false, fmt.Errorf("find idempotent execution: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
 		return model.Execution{}, false, nil
 	}
-	if err != nil {
-		return model.Execution{}, false, fmt.Errorf("find idempotent execution: %w", err)
-	}
-	if keyRecord.RequestFingerprint != fingerprint {
+	if keyRecords[0].RequestFingerprint != fingerprint {
 		return model.Execution{}, false, ErrIdempotencyConflict
 	}
-	execution, err := repository.FindByID(ctx, companyID, keyRecord.WorkflowExecutionID)
+	execution, err := repository.FindByID(ctx, companyID, keyRecords[0].WorkflowExecutionID)
 	return execution, true, err
 }
 

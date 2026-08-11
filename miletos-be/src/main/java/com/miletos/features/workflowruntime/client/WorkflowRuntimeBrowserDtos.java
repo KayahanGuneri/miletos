@@ -187,4 +187,22 @@ final class WorkflowRuntimeBrowserDtos {
       String disabledAt) {}
 
   record CreateHTTPTriggerResponse(HTTPTriggerResponse trigger, String publicUrl) {}
+
+  record CronTriggerResponse(
+      String triggerId,
+      String workflowId,
+      long workflowRevision,
+      String snapshotId,
+      String triggerNodeId,
+      String cronExpression,
+      String timezone,
+      String status,
+      String nextFireAt,
+      String lastScheduledAt,
+      String lastFiredAt,
+      String createdAt,
+      String updatedAt,
+      String disabledAt) {}
+
+  record CreateCronTriggerResponse(CronTriggerResponse trigger) {}
 }

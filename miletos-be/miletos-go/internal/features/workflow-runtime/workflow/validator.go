@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -160,7 +161,7 @@ func ValidateWorkflowDefinition(
 		if validateConfiguration != nil {
 			if err := validateConfiguration(node.Type, version, node.Configuration); err != nil {
 				issues = append(issues, ValidationIssue{
-					Code: "INVALID_PLUGIN_CONFIGURATION", Field: "configuration",
+					Code: configurationIssueCode(err), Field: "configuration",
 					Reason: err.Error(), NodeID: node.ID,
 					PluginType: node.Type, PluginVersion: version,
 				})
@@ -303,6 +304,17 @@ func ValidateExecutionRequest(workflow Workflow) error {
 		return fmt.Errorf("workflow cannot contain more than 5000 edges")
 	}
 	return nil
+}
+
+// configurationIssueCode keeps the stable code a plugin validator declared, for
+// example CRON_TRIGGER_TIMEZONE_INVALID, instead of collapsing every
+// configuration failure into one generic code.
+func configurationIssueCode(err error) string {
+	var nodeError *plugin.NodeError
+	if errors.As(err, &nodeError) && strings.TrimSpace(nodeError.Code) != "" {
+		return nodeError.Code
+	}
+	return "INVALID_PLUGIN_CONFIGURATION"
 }
 
 func normalizedVersion(version string) string {

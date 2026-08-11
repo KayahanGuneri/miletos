@@ -1,0 +1,125 @@
+.workflowRuntime__panel {
+  margin-bottom: 18px;
+  padding: 20px;
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.workflowRuntime__panel > header h2,
+.workflowRuntime__card h3 {
+  margin: 0;
+  color: var(--color-text);
+}
+
+.workflowRuntime__panel > header p,
+.workflowRuntime__card > p,
+.workflowRuntime__muted {
+  margin: 6px 0 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.workflowRuntime__card {
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-surface-soft);
+}
+
+.workflowRuntime__card h3 {
+  font-size: 15px;
+}
+
+.workflowRuntime__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.workflowRuntime__secret,
+.workflowRuntime__result {
+  padding: 12px;
+  border: 1px solid #fedf89;
+  border-radius: 12px;
+  color: #93370d;
+  background: var(--color-warning-soft);
+}
+
+.workflowRuntime__secret p {
+  margin: 5px 0 10px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.workflowRuntime__secret input {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 9px;
+  color: var(--color-text);
+  background: #fff;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+}
+
+.workflowRuntime__details,
+.workflowRuntime__result dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.workflowRuntime__details div,
+.workflowRuntime__result dl div {
+  min-width: 0;
+}
+
+.workflowRuntime__details dt,
+.workflowRuntime__result dt {
+  color: var(--color-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.workflowRuntime__details dd,
+.workflowRuntime__result dd {
+  margin: 4px 0 0;
+  color: var(--color-text);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.workflowRuntime__result {
+  margin-top: 14px;
+  color: var(--color-text);
+  border-color: #abefc6;
+  background: var(--color-success-soft);
+}
+
+.workflowRuntime__result dl {
+  margin-top: 10px;
+}
+
+.workflowRuntime__error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+@media (max-width: 640px) {
+  .workflowRuntime__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

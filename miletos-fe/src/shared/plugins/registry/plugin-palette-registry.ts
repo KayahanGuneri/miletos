@@ -19,11 +19,16 @@ export const PLUGIN_CATEGORY_LABELS: Record<PluginCategory, string> = {
 
 const CATEGORY_BY_PLUGIN_TYPE: Readonly<Record<string, PluginCategory>> = {
   "core.http-trigger": "trigger",
+  "core.cron-trigger": "trigger",
   "core.static-input": "input",
   "core.delay": "flow-control",
   "core.join": "flow-control",
   "core.pass-through": "flow-control",
   "core.terminal": "output",
+  "core.output": "output",
+  "core.rest-output": "output",
+  "core.database-output": "output",
+  "core.csv-output": "output",
 };
 
 function isPluginCategory(value: unknown): value is PluginCategory {

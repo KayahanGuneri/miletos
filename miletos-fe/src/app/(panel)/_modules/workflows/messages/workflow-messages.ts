@@ -1,3 +1,6 @@
+import { type ApiError } from "@/shared/api/api-error";
+import { type WorkflowStatus } from "@/app/(panel)/_modules/workflows/types/workflow-types";
+
 export const workflowMessages = {
   common: {
     eyebrow: "Workflow control plane",
@@ -135,4 +138,137 @@ export const workflowMessages = {
     graphSummary: (nodeCount: number, edgeCount: number) =>
       `${nodeCount} nodes · ${edgeCount} edges`,
   },
+  runtime: {
+    title: "Runtime actions",
+    description:
+      "Bind triggers or run the persisted revision without sending the editable browser graph.",
+    statusReasons: {
+      DRAFT: "Activate the workflow before creating triggers or running it.",
+      ARCHIVED: "Restore and activate the workflow before creating triggers or running it.",
+    } as Partial<Record<WorkflowStatus, string>>,
+    notYet: "Not yet",
+    yes: "Yes",
+    no: "No",
+    statusLabels: {
+      ACTIVE: "Active",
+      DISABLED: "Disabled",
+      VALIDATING: "Validating",
+      QUEUED: "Queued",
+      RUNNING: "Running",
+      SUCCEEDED: "Succeeded",
+      FAILED: "Failed",
+    } as Record<string, string>,
+    modeLabels: {
+      ASYNC: "Asynchronous",
+      SYNC: "Synchronous",
+    } as Record<string, string>,
+    originLabels: {
+      MANUAL_DIRECT: "Manual",
+      HTTP_WEBHOOK: "HTTP webhook",
+      CRON: "Cron",
+    } as Record<string, string>,
+    errors: {
+      fallback: "The runtime operation could not be completed. Try again.",
+      byCode: {
+        WORKFLOW_NOT_FOUND: "This workflow no longer exists.",
+        WORKFLOW_INVALID_STATE: "Activate the workflow before binding a trigger or running it.",
+        WORKFLOW_TRIGGER_ROOT_REQUIRED:
+          "The persisted workflow must have exactly one root node and it must be the trigger node.",
+        WORKFLOW_TRIGGER_NODE_NOT_FOUND:
+          "The trigger node is not part of the persisted workflow revision.",
+        WORKFLOW_TRIGGER_TYPE_INVALID: "The root plugin does not support this trigger type.",
+        HTTP_TRIGGER_CONFIGURATION_INVALID:
+          "The HTTP trigger node needs a valid HTTP method. Configure the node and save the workflow.",
+        CRON_TRIGGER_CONFIGURATION_INVALID:
+          "The cron trigger node needs a valid expression. Configure the node and save the workflow.",
+        MANUAL_WORKFLOW_EXECUTION_INVALID:
+          "The manual run request is invalid. Reopen the dialog and run it again.",
+        TRIGGER_NOT_FOUND: "The trigger binding no longer exists.",
+        TRIGGER_RUNTIME_UNAVAILABLE:
+          "The workflow runtime is currently unavailable. Try again shortly.",
+        WORKFLOW_VALIDATION_FAILED: "The persisted workflow failed runtime validation.",
+        INVALID_EXECUTION_ORIGIN: "The workflow root plugins do not support this execution origin.",
+        INVALID_EXECUTION_REQUEST: "The runtime rejected the request as invalid.",
+        IDEMPOTENCY_KEY_REUSED: "This submission key was already used for a different request.",
+        EXECUTION_UNAVAILABLE: "Workflow execution is currently unavailable. Try again shortly.",
+        FAILED_PRECONDITION: "The operation conflicts with the current runtime state.",
+        NOT_FOUND: "The requested runtime resource was not found.",
+      } as Record<string, string>,
+    },
+    http: {
+      title: "HTTP webhook",
+      description: (rootNodeId: string) =>
+        `Create an asynchronous public binding for root ${rootNodeId}.`,
+      create: "Create HTTP trigger",
+      creating: "Creating...",
+      disable: "Disable HTTP trigger",
+      disabling: "Disabling...",
+      boundNotice:
+        "An active HTTP trigger is bound. The one-time public URL is shown only at creation.",
+      secretTitle: "Save this secret URL now",
+      secretDescription:
+        "It contains the webhook secret and is returned only once. It is kept only in this page memory and is not written to browser storage.",
+      publicUrlLabel: "HTTP trigger public URL",
+    },
+    cron: {
+      title: "Cron schedule",
+      description: (rootNodeId: string) =>
+        `Create a schedule from root ${rootNodeId}'s persisted configuration.`,
+      create: "Create cron trigger",
+      creating: "Creating...",
+      disable: "Disable cron trigger",
+      disabling: "Disabling...",
+      status: "Status",
+      expression: "Expression",
+      timezone: "Timezone",
+      nextFire: "Next fire",
+      lastScheduled: "Last scheduled",
+      lastFired: "Last fired",
+    },
+    manual: {
+      title: "Manual run",
+      description: "Run this persisted active revision with a fresh idempotency key.",
+      open: "Run workflow",
+      dialogTitle: "Run workflow",
+      dialogDescription: "Start this persisted active revision with a new idempotent submission.",
+      close: "Close",
+      run: "Run workflow",
+      running: "Running...",
+      initialVariablesLabel: "Initial variables JSON (optional)",
+      initialVariablesUnsupported:
+        "The compatible root plugins do not accept initial variables. This run will use an empty object.",
+      executionStarted: "Execution started",
+      executionId: "Execution ID",
+      status: "Status",
+      mode: "Mode",
+      origin: "Origin",
+      replayed: "Replayed",
+      scheduledRoots: "Scheduled roots",
+    },
+  },
 } as const;
+
+export function runtimeErrorMessage(error: ApiError | null | undefined) {
+  if (!error) {
+    return undefined;
+  }
+  return (
+    workflowMessages.runtime.errors.byCode[error.code] ?? workflowMessages.runtime.errors.fallback
+  );
+}
+
+export function runtimeStatusLabel(status: string) {
+  return workflowMessages.runtime.statusLabels[status] ?? status;
+}
+
+export function runtimeModeLabel(mode: string) {
+  return workflowMessages.runtime.modeLabels[mode] ?? mode;
+}
+
+export function runtimeOriginLabel(origin: string) {
+  return workflowMessages.runtime.originLabels[origin] ?? origin;
+}
+
+export function workflowStatusReason(status: WorkflowStatus) {
+  return workflowMessages.runtime.statusReasons[status];
+}

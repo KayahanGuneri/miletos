@@ -5,7 +5,7 @@ export type ApiFieldErrors = Record<string, string>;
 export interface ApiErrorResponse {
   code: string;
   message: string;
-  path: string;
+  path?: string;
   timestamp: string;
   fieldErrors?: ApiFieldErrors | null;
 }
@@ -34,7 +34,7 @@ export function isApiErrorResponse(value: unknown): value is ApiErrorResponse {
   return (
     typeof value.code === "string" &&
     typeof value.message === "string" &&
-    typeof value.path === "string" &&
+    (value.path === undefined || typeof value.path === "string") &&
     typeof value.timestamp === "string"
   );
 }

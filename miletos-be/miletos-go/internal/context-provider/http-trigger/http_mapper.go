@@ -2,6 +2,8 @@ package httptrigger
 
 import (
 	"net/http"
+	"net/url"
+	"sort"
 	"strings"
 
 	"miletos-go/internal/features/workflow-runtime/execution"
@@ -84,6 +86,73 @@ func safeHeaders(headers http.Header) map[string][]string {
 			continue
 		}
 		result[http.CanonicalHeaderKey(name)] = append([]string(nil), values...)
+	}
+	return result
+}
+
+// fingerprintExcludedHeaders are hop-by-hop / transport / client-control values
+// that must not participate in logical request identity. safeHeaders still keeps
+// many of these for the workflow payload; only the idempotency fingerprint
+// strips them.
+var fingerprintExcludedHeaders = map[string]bool{
+	"connection":         true,
+	"keep-alive":         true,
+	"proxy-authenticate": true,
+	"te":                 true,
+	"trailers":           true,
+	"transfer-encoding":  true,
+	"upgrade":            true,
+	"content-length":     true,
+	"host":               true,
+	"accept":             true,
+	"accept-encoding":    true,
+	"user-agent":         true,
+	"date":               true,
+	"expect":             true,
+	"forwarded":          true,
+	"via":                true,
+	"origin":             true,
+	"referer":            true,
+	"cache-control":      true,
+	"pragma":             true,
+	"priority":           true,
+	"postman-token":      true,
+}
+
+func fingerprintHeaders(headers map[string][]string) map[string][]string {
+	if headers == nil {
+		return map[string][]string{}
+	}
+	result := make(map[string][]string, len(headers))
+	for name, values := range headers {
+		normalized := strings.ToLower(name)
+		if fingerprintExcludedHeaders[normalized] ||
+			strings.HasPrefix(normalized, "x-forwarded-") ||
+			strings.HasPrefix(normalized, "sec-fetch-") ||
+			strings.HasPrefix(normalized, "sec-ch-") {
+			continue
+		}
+		sorted := append([]string(nil), values...)
+		sort.Strings(sorted)
+		result[http.CanonicalHeaderKey(name)] = sorted
+	}
+	return result
+}
+
+func fingerprintQuery(query any) map[string][]string {
+	values, ok := query.(url.Values)
+	if !ok {
+		if typed, typedOK := query.(map[string][]string); typedOK {
+			values = url.Values(typed)
+		} else {
+			return map[string][]string{}
+		}
+	}
+	result := make(map[string][]string, len(values))
+	for key, items := range values {
+		sorted := append([]string(nil), items...)
+		sort.Strings(sorted)
+		result[key] = sorted
 	}
 	return result
 }
