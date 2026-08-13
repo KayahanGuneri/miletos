@@ -11,6 +11,7 @@ export interface NodePosition {
 
 export interface WorkflowNode {
   nodeId: string;
+  displayName?: string | null;
   pluginType: string;
   pluginVersion: string;
   configuration: JsonObject;

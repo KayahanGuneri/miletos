@@ -67,12 +67,16 @@ export function useWorkflowPluginsQuery(enabled = true) {
   });
 }
 
-export function useWorkflowHTTPTriggerQuery(workflowId: number, enabled: boolean) {
+export function useWorkflowHTTPTriggerQuery(
+  workflowId: number,
+  triggerNodeId: string,
+  enabled: boolean,
+) {
   return useQuery<HTTPTrigger | null, ApiError>({
-    queryKey: workflowQueryKeys.httpTrigger(workflowId),
+    queryKey: workflowQueryKeys.httpTrigger(workflowId, triggerNodeId),
     queryFn: async () => {
       try {
-        return await getActiveWorkflowHTTPTrigger(workflowId);
+        return await getActiveWorkflowHTTPTrigger(workflowId, triggerNodeId);
       } catch (error) {
         const apiError = toApiError(error);
         if (isMissingActiveTrigger(apiError)) {
@@ -81,14 +85,14 @@ export function useWorkflowHTTPTriggerQuery(workflowId: number, enabled: boolean
         throw apiError;
       }
     },
-    enabled: enabled && Number.isSafeInteger(workflowId) && workflowId > 0,
+    enabled:
+      enabled &&
+      Number.isSafeInteger(workflowId) &&
+      workflowId > 0 &&
+      triggerNodeId.trim().length > 0,
   });
 }
 
-/**
- * Drops every cached trigger binding of one workflow. A binding belongs to the
- * persisted active revision, so it must not survive the workflow leaving ACTIVE.
- */
 export function useResetWorkflowTriggerBindings() {
   const queryClient = useQueryClient();
   return useCallback(

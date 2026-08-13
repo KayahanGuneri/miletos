@@ -172,6 +172,7 @@ func ValidateWorkflowDefinition(
 	edges := append([]Edge(nil), workflow.Edges...)
 	sort.SliceStable(edges, func(left, right int) bool { return edges[left].ID < edges[right].ID })
 	edgeIDs := make(map[string]struct{}, len(edges))
+	edgeKeys := make(map[string]string, len(edges))
 	validEdges := make([]Edge, 0, len(edges))
 	incoming := make(map[string]uint, len(nodes))
 	outgoing := make(map[string]uint, len(nodes))
@@ -259,6 +260,25 @@ func ValidateWorkflowDefinition(
 					PluginVersion: normalizedVersion(target.Version),
 					Expected:      portNames(descriptor.InputPorts), Actual: edge.TargetInputPort,
 				})
+			}
+		}
+		if !sourcePortBlank && !targetPortBlank {
+			edgeKey := strings.Join([]string{
+				edge.SourceNodeID, edge.SourceOutputPort, edge.TargetNodeID, edge.TargetInputPort,
+			}, "\x00")
+			if existingEdgeID, exists := edgeKeys[edgeKey]; exists {
+				structurallyValid = false
+				issues = append(issues, ValidationIssue{
+					Code: "DUPLICATE_EDGE", Field: "definition.edges",
+					Reason: fmt.Sprintf(
+						"Edge duplicates the connection already declared by edge %q.",
+						existingEdgeID,
+					),
+					EdgeID: edge.ID,
+					Actual: existingEdgeID,
+				})
+			} else {
+				edgeKeys[edgeKey] = edge.ID
 			}
 		}
 		if structurallyValid {

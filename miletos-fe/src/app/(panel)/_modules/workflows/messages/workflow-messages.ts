@@ -110,6 +110,7 @@ export const workflowMessages = {
     eyebrow: "Properties",
     title: "Selected node",
     empty: "Select a node on the canvas to inspect its configuration.",
+    displayName: "Node name",
     nodeId: "Node ID",
     pluginType: "Plugin type",
     pluginVersion: "Plugin version",

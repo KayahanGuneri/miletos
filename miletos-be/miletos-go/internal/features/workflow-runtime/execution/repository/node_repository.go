@@ -712,8 +712,22 @@ func (repository *ExecutionRepository) MarkNodeSkipped(
 	companyID string,
 	executionID string,
 	nodeID string,
+	skipReason string,
 ) error {
 	now := time.Now().UTC()
+	reason := strings.TrimSpace(skipReason)
+	if reason == "" {
+		reason = string(model.SkipReasonDependencyFailed)
+	}
+	switch reason {
+	case string(model.SkipReasonOutOfTriggerScope), string(model.SkipReasonDependencyFailed):
+	default:
+		return fmt.Errorf("invalid node skip reason %q", reason)
+	}
+	failureSummary, err := encodeJSON(map[string]any{"skipReason": reason})
+	if err != nil {
+		return err
+	}
 	transaction, err := repository.dbClient.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin node skip transition: %w", err)
@@ -724,11 +738,11 @@ func (repository *ExecutionRepository) MarkNodeSkipped(
 	err = transaction.QueryRow(ctx, `
 		UPDATE workflow_runtime.node_executions
 		SET status = 'SKIPPED', finished_at = $4, updated_at = $4,
-			output_summary = NULL, failure_summary = NULL, lock_version = lock_version + 1
+			output_summary = NULL, failure_summary = $5, lock_version = lock_version + 1
 		WHERE company_id = $1 AND workflow_execution_id = $2 AND node_id = $3
 		  AND status = 'PENDING'
 		RETURNING node_execution_id`,
-		companyID, executionID, nodeID, now,
+		companyID, executionID, nodeID, now, failureSummary,
 	).Scan(&nodeExecutionID)
 	if errors.Is(err, sql.ErrNoRows) {
 		state, findErr := repository.FindNode(ctx, companyID, executionID, nodeID)
@@ -748,8 +762,8 @@ func (repository *ExecutionRepository) MarkNodeSkipped(
 	}
 	if err := recordEvent(
 		ctx, transaction, executionID, nodeExecutionID, "NODE_SKIPPED",
-		model.NodePending, model.NodeSkipped, "Node skipped because a dependency failed",
-		map[string]any{},
+		model.NodePending, model.NodeSkipped, skipReasonMessage(reason),
+		map[string]any{"skipReason": reason},
 	); err != nil {
 		return fmt.Errorf("record node skipped event: %w", err)
 	}
@@ -757,6 +771,15 @@ func (repository *ExecutionRepository) MarkNodeSkipped(
 		return fmt.Errorf("commit node skip transition: %w", err)
 	}
 	return nil
+}
+
+func skipReasonMessage(reason string) string {
+	switch reason {
+	case string(model.SkipReasonOutOfTriggerScope):
+		return "Node skipped because it is outside the selected trigger scope"
+	default:
+		return "Node skipped because a dependency failed"
+	}
 }
 
 func (repository *ExecutionRepository) PrepareRetry(ctx context.Context, job model.NodeJob) (model.NodeJob, error) {

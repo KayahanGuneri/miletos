@@ -2,7 +2,7 @@ import type { PluginDescriptor } from "@/shared/plugins/contracts/plugin-configu
 
 export const PLUGIN_DRAG_DATA_TYPE = "application/x-miletos-workflow-plugin";
 
-interface PluginDragData {
+export interface PluginDragData {
   pluginType: string;
   pluginVersion: string;
 }

@@ -15,17 +15,18 @@ import { PluginPalette } from "@/app/(panel)/_modules/workflows/components/Plugi
 import { WorkflowCanvas } from "@/app/(panel)/_modules/workflows/components/WorkflowCanvas";
 import { WorkflowDeleteConfirmation } from "@/app/(panel)/_modules/workflows/components/WorkflowDeleteConfirmation";
 import { WorkflowLifecycleActions } from "@/app/(panel)/_modules/workflows/components/WorkflowLifecycleActions";
+import { WorkflowRuntimeActions } from "@/app/(panel)/_modules/workflows/components/WorkflowRuntimeActions";
 import { workflowMessages } from "@/app/(panel)/_modules/workflows/messages/workflow-messages";
 import {
   useCreateWorkflowMutation,
   useDeleteWorkflowMutation,
   useUpdateWorkflowMutation,
+  useUploadWorkflowInputFileMutation,
 } from "@/app/(panel)/_modules/workflows/query/workflow-mutations";
 import {
   useWorkflowPluginsQuery,
   useWorkflowQuery,
 } from "@/app/(panel)/_modules/workflows/query/workflow-queries";
-import { WorkflowRuntimeActions } from "@/app/(panel)/_modules/workflows/components/WorkflowRuntimeActions";
 import {
   type SaveWorkflowRequest,
   type Workflow,
@@ -80,6 +81,7 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
   const createMutation = useCreateWorkflowMutation();
   const updateMutation = useUpdateWorkflowMutation();
   const deleteMutation = useDeleteWorkflowMutation();
+  const uploadMutation = useUploadWorkflowInputFileMutation();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [nodes, setNodes] = useState<WorkflowNode[]>([]);
@@ -127,6 +129,10 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
     () => nodes.find((node) => node.nodeId === selectedNodeId) ?? null,
     [nodes, selectedNodeId],
   );
+  const configurationNode = useMemo(
+    () => nodes.find((node) => node.nodeId === configurationNodeId) ?? null,
+    [configurationNodeId, nodes],
+  );
   const selectedPlugin = useMemo(
     () =>
       selectedNode
@@ -137,10 +143,6 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
           )
         : undefined,
     [plugins.data?.items, selectedNode],
-  );
-  const configurationNode = useMemo(
-    () => nodes.find((node) => node.nodeId === configurationNodeId) ?? null,
-    [configurationNodeId, nodes],
   );
   const configurationPlugin = useMemo(
     () =>
@@ -209,6 +211,7 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
       ...current,
       {
         nodeId,
+        displayName: plugin.displayName,
         pluginType: plugin.type,
         pluginVersion: plugin.version,
         configuration,
@@ -407,7 +410,7 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
             <Typography as="span">{workflowMessages.editor.descriptionLabel}</Typography>
             <textarea
               maxLength={1000}
-              rows={3}
+              rows={4}
               readOnly={readOnly}
               value={description}
               onChange={(event) => setDescription(event.target.value)}
@@ -473,6 +476,16 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
           node={selectedNode}
           plugin={selectedPlugin}
           readOnly={readOnly}
+          workflowId={detail.data?.id}
+          workflowStatus={detail.data?.status}
+          canManageTriggers={isAllowed}
+          onDisplayNameChange={(displayName) =>
+            setNodes((current) =>
+              current.map((node) =>
+                node.nodeId === selectedNode?.nodeId ? { ...node, displayName } : node,
+              ),
+            )
+          }
           onConfigure={() => {
             if (!selectedNode) {
               return;
@@ -547,6 +560,13 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
           pluginVersion={configurationNode.pluginVersion}
           configuration={configurationNode.configuration}
           readOnly={readOnly}
+          uploadPending={uploadMutation.isPending}
+          uploadError={uploadMutation.isError}
+          onUploadFile={async (file) => {
+            uploadMutation.reset();
+            const uploaded = await uploadMutation.mutateAsync(file);
+            return uploaded.fileName;
+          }}
           onValidityChange={configurationValidityChange}
           onClose={() => {
             setConfigurationNodeId(null);

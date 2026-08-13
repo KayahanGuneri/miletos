@@ -166,6 +166,7 @@ temp/
 uploads/
 storage/
 local-data/
+miletos-be/miletos-go/input/
 
 
 # ============================================================

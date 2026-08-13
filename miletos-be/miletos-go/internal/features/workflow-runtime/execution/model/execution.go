@@ -32,7 +32,12 @@ const (
 	NodeSkipped      NodeStatus = "SKIPPED"
 	NodeCancelled    NodeStatus = "CANCELLED"
 	NodeTimedOut     NodeStatus = "TIMED_OUT"
+
+	SkipReasonOutOfTriggerScope SkipReason = "OUT_OF_TRIGGER_SCOPE"
+	SkipReasonDependencyFailed  SkipReason = "DEPENDENCY_FAILED"
 )
+
+type SkipReason string
 
 const (
 	FailureCategoryValidation FailureCategory = "VALIDATION"

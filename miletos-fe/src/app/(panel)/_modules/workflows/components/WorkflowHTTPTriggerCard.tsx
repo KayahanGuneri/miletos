@@ -24,6 +24,7 @@ interface WorkflowHTTPTriggerCardProps {
   canManage: boolean;
   active: boolean;
   statusReason?: string;
+  compact?: boolean;
 }
 
 export function WorkflowHTTPTriggerCard({
@@ -32,8 +33,9 @@ export function WorkflowHTTPTriggerCard({
   canManage,
   active,
   statusReason,
+  compact = false,
 }: WorkflowHTTPTriggerCardProps) {
-  const binding = useWorkflowHTTPTriggerQuery(workflowId, active);
+  const binding = useWorkflowHTTPTriggerQuery(workflowId, triggerNodeId, active);
   const createTrigger = useCreateWorkflowHTTPTriggerMutation();
   const disableTrigger = useDisableWorkflowHTTPTriggerMutation();
   const [publicUrl, setPublicUrl] = useState<string | null>(null);
@@ -52,14 +54,14 @@ export function WorkflowHTTPTriggerCard({
 
   async function disable(triggerId: string) {
     try {
-      await disableTrigger.mutateAsync({ workflowId, triggerId });
+      await disableTrigger.mutateAsync({ workflowId, triggerId, triggerNodeId });
       setPublicUrl(null);
     } catch {}
   }
 
   return (
-    <Box className={styles.workflowRuntime__card}>
-      <Typography as="h3">{messages.title}</Typography>
+    <Box className={compact ? undefined : styles.workflowRuntime__card}>
+      {!compact ? <Typography as="h3">{messages.title}</Typography> : null}
       <Typography as="p">{messages.description(triggerNodeId)}</Typography>
       <Box className={styles.workflowRuntime__actions}>
         <Button

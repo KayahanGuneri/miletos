@@ -16,8 +16,9 @@
 
 .workflowEditor__formGrid {
   display: grid;
-  grid-template-columns: minmax(260px, 0.7fr) minmax(360px, 1.3fr);
+  grid-template-columns: 1fr;
   gap: 16px;
+  align-items: start;
 }
 
 .workflowEditor__field,
@@ -45,7 +46,11 @@
 }
 
 .workflowEditor__field input {
-  min-height: 44px;
+  min-height: 40px;
+}
+
+.workflowEditor__field textarea {
+  min-height: 6.5rem;
 }
 
 .workflowEditor__field input:focus,

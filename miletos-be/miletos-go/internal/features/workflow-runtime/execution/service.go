@@ -186,6 +186,7 @@ func (service *ExecutionService) ExecuteSync(
 			failed[nodeID] = true
 			if err := service.executions.MarkNodeSkipped(
 				ctx, definition.CompanyID, execution.ID, nodeID,
+				string(model.SkipReasonDependencyFailed),
 			); err != nil {
 				return ExecutionOutcome{}, err
 			}
@@ -273,18 +274,13 @@ func (service *ExecutionService) ExecuteTriggerFromSnapshot(
 	if err := service.workflows.Validate(snapshotWorkflow); err != nil {
 		return ExecutionOutcome{}, err
 	}
-	if err := service.validateExecutionStart(
-		snapshotWorkflow, startInput, origin,
-	); err != nil {
-		return ExecutionOutcome{}, err
-	}
-	rootNodes := workflow.Roots(snapshotWorkflow)
-	if len(rootNodes) != 1 || rootNodes[0].ID != triggerNodeID {
+	triggerNode, isRoot := findRootNode(snapshotWorkflow, triggerNodeID)
+	if !isRoot {
 		return ExecutionOutcome{}, ErrInvalidExecutionOrigin
 	}
 	if !service.scheduler.registry.DeclaresExecutionSource(
-		rootNodes[0].Type,
-		rootNodes[0].Version,
+		triggerNode.Type,
+		triggerNode.Version,
 		string(origin),
 	) {
 		return ExecutionOutcome{}, ErrInvalidExecutionOrigin
@@ -304,12 +300,33 @@ func (service *ExecutionService) ExecuteTriggerFromSnapshot(
 	if err != nil {
 		return ExecutionOutcome{}, err
 	}
+	inScope := workflow.Downstream(snapshotWorkflow, []string{triggerNodeID})
+	for _, node := range snapshotWorkflow.Nodes {
+		if inScope[node.ID] {
+			continue
+		}
+		if err := service.executions.MarkNodeSkipped(
+			ctx, snapshotWorkflow.CompanyID, execution.ID, node.ID,
+			string(model.SkipReasonOutOfTriggerScope),
+		); err != nil {
+			return ExecutionOutcome{}, err
+		}
+	}
 	scheduled, err := service.scheduler.Activate(ctx, execution, startInput)
 	if err != nil {
 		return ExecutionOutcome{}, err
 	}
 	execution.Status = model.ExecutionQueued
 	return ExecutionOutcome{Execution: execution, ScheduledEntryNodes: scheduled}, nil
+}
+
+func findRootNode(definition workflow.Workflow, nodeID string) (workflow.WorkflowNode, bool) {
+	for _, root := range workflow.Roots(definition) {
+		if root.ID == nodeID {
+			return root, true
+		}
+	}
+	return workflow.WorkflowNode{}, false
 }
 
 func (service *ExecutionService) validateExecutionStart(

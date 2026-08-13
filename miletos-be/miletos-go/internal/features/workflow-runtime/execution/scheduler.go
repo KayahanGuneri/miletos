@@ -225,6 +225,7 @@ func (scheduler *Scheduler) Finalize(
 			if blocked[state.NodeID] {
 				if err := scheduler.executions.MarkNodeSkipped(
 					ctx, execution.CompanyID, execution.ID, state.NodeID,
+					string(model.SkipReasonDependencyFailed),
 				); err != nil {
 					return err
 				}

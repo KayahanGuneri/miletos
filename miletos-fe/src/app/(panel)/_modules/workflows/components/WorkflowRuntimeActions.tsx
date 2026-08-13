@@ -3,7 +3,6 @@
 import { useEffect, useMemo } from "react";
 import { Typography } from "@/components/lib/typography/Typography";
 import { WorkflowCronTriggerCard } from "@/app/(panel)/_modules/workflows/components/WorkflowCronTriggerCard";
-import { WorkflowHTTPTriggerCard } from "@/app/(panel)/_modules/workflows/components/WorkflowHTTPTriggerCard";
 import { WorkflowManualRunCard } from "@/app/(panel)/_modules/workflows/components/WorkflowManualRunCard";
 import {
   workflowMessages,
@@ -40,11 +39,7 @@ function WorkflowRuntimeActionsState({
       (plugin) => plugin.type === node.pluginType && plugin.version === node.pluginVersion,
     ),
   }));
-  const onlyRoot = descriptors.length === 1 ? descriptors[0] : undefined;
-  const httpRoot = supportsExecutionOrigin(onlyRoot?.plugin, "HTTP_WEBHOOK")
-    ? onlyRoot?.node
-    : undefined;
-  const cronRoot = supportsExecutionOrigin(onlyRoot?.plugin, "CRON") ? onlyRoot?.node : undefined;
+  const cronRoot = descriptors.find(({ plugin }) => supportsExecutionOrigin(plugin, "CRON"))?.node;
   const manualCompatible =
     descriptors.length > 0 &&
     descriptors.every(({ plugin }) => supportsExecutionOrigin(plugin, "MANUAL_DIRECT"));
@@ -61,7 +56,7 @@ function WorkflowRuntimeActionsState({
     resetTriggerBindings(workflow.id);
   }, [active, resetTriggerBindings, workflow.id]);
 
-  if (!httpRoot && !cronRoot && !manualCompatible) return null;
+  if (!cronRoot && !manualCompatible) return null;
 
   return (
     <section className={styles.workflowRuntime__panel}>
@@ -69,16 +64,6 @@ function WorkflowRuntimeActionsState({
         <Typography as="h2">{messages.title}</Typography>
         <Typography as="p">{messages.description}</Typography>
       </header>
-
-      {httpRoot ? (
-        <WorkflowHTTPTriggerCard
-          workflowId={workflow.id}
-          triggerNodeId={httpRoot.nodeId}
-          canManage={canManage}
-          active={active}
-          statusReason={statusReason}
-        />
-      ) : null}
 
       {cronRoot ? (
         <WorkflowCronTriggerCard

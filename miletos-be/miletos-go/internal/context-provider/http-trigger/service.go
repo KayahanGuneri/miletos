@@ -126,11 +126,8 @@ func validateTriggerRoot(
 	method string,
 	registry *plugin.NodeRegistry,
 ) error {
-	rootNode, valid := singleRootNode(definition)
+	rootNode, valid := rootNodeByID(definition, triggerNodeID)
 	if !valid {
-		return ErrInvalidTrigger
-	}
-	if rootNode.ID != triggerNodeID {
 		return ErrInvalidTrigger
 	}
 	if !registry.DeclaresExecutionSource(
@@ -143,12 +140,13 @@ func validateTriggerRoot(
 	return validateBindingConfiguration(rootNode.Configuration, method)
 }
 
-func singleRootNode(definition workflow.Workflow) (workflow.WorkflowNode, bool) {
-	rootNodes := workflow.Roots(definition)
-	if len(rootNodes) != 1 {
-		return workflow.WorkflowNode{}, false
+func rootNodeByID(definition workflow.Workflow, triggerNodeID string) (workflow.WorkflowNode, bool) {
+	for _, rootNode := range workflow.Roots(definition) {
+		if rootNode.ID == triggerNodeID {
+			return rootNode, true
+		}
 	}
-	return rootNodes[0], true
+	return workflow.WorkflowNode{}, false
 }
 
 func validateBindingConfiguration(configuration map[string]any, method string) error {
@@ -169,12 +167,15 @@ func (service *Service) Get(
 	return binding, err
 }
 
-func (service *Service) GetActiveByWorkflow(
+func (service *Service) GetActiveByWorkflowAndNode(
 	ctx context.Context,
 	companyID string,
 	workflowID string,
+	triggerNodeID string,
 ) (Binding, error) {
-	binding, err := service.triggers.FindActiveByWorkflow(ctx, companyID, workflowID)
+	binding, err := service.triggers.FindActiveByWorkflowAndNode(
+		ctx, companyID, workflowID, triggerNodeID,
+	)
 	binding.TokenHash = nil
 	return binding, err
 }

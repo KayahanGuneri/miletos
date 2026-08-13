@@ -26,6 +26,7 @@ import (
 	grpcserver "miletos-go/internal/shared/grpc"
 	runtimev1 "miletos-go/internal/shared/grpc/generated/runtimev1"
 	runtimehttp "miletos-go/internal/shared/http"
+	"miletos-go/internal/shared/secrets"
 	"miletos-go/internal/shared/security"
 )
 
@@ -35,6 +36,7 @@ type Application struct {
 	configuration    config.Config
 	logger           *slog.Logger
 	database         *database.Client
+	inputDatabase    *database.Client
 	kafka            *queue.Kafka
 	httpServer       *http.Server
 	grpcServer       *grpc.Server
@@ -66,10 +68,19 @@ func Build(
 	if err != nil {
 		return nil, err
 	}
+	var inputDatabase *database.Client
+	if configuration.InputPostgreSQLURL != "" {
+		inputDatabase, err = database.Open(ctx, configuration.InputPostgreSQLURL)
+		if err != nil {
+			_ = dbClient.Close()
+			return nil, err
+		}
+	}
 	application := &Application{
 		configuration: configuration,
 		logger:        logger,
 		database:      dbClient,
+		inputDatabase: inputDatabase,
 	}
 	defer func() {
 		if buildErr != nil {
@@ -99,6 +110,18 @@ func Build(
 
 	registry := plugin.NewNodeRegistry()
 	if err := plugin.RegisterBuiltinNodes(registry); err != nil {
+		return nil, err
+	}
+	secretCipher, err := secrets.NewCipher(configuration.SecretsAESKey)
+	if err != nil {
+		return nil, err
+	}
+	inputRuntime := plugin.InputNodeRuntime{
+		Database:       inputDatabase,
+		InputDirectory: configuration.InputDirectory,
+		Secrets:        secretCipher,
+	}
+	if err := plugin.RegisterInputSourceNodes(registry, inputRuntime); err != nil {
 		return nil, err
 	}
 	if err := plugin.RegisterOutputDestinationNodes(registry, plugin.OutputNodeRuntime{
@@ -327,6 +350,11 @@ func (application *Application) closeResources() {
 	}
 	if application.kafka != nil {
 		application.kafka.Close()
+	}
+	if application.inputDatabase != nil {
+		if err := application.inputDatabase.Close(); err != nil {
+			application.logger.Warn("close input database connection", "error", err)
+		}
 	}
 	if application.database != nil {
 		if err := application.database.Close(); err != nil {

@@ -13,6 +13,7 @@ import {
   restoreWorkflow,
   runWorkflow,
   updateWorkflow,
+  uploadWorkflowInputFile,
 } from "@/app/(panel)/_modules/workflows/api/workflow-api";
 import { workflowQueryKeys } from "@/app/(panel)/_modules/workflows/query/workflow-query-keys";
 import {
@@ -148,7 +149,7 @@ export function useCreateWorkflowHTTPTriggerMutation() {
     },
     onSuccess: (created, variables) => {
       queryClient.setQueryData(
-        workflowQueryKeys.httpTrigger(variables.workflowId),
+        workflowQueryKeys.httpTrigger(variables.workflowId, variables.triggerNodeId),
         created.trigger,
       );
     },
@@ -157,7 +158,7 @@ export function useCreateWorkflowHTTPTriggerMutation() {
 
 export function useDisableWorkflowHTTPTriggerMutation() {
   const queryClient = useQueryClient();
-  return useMutation<HTTPTrigger, ApiError, DisableTriggerVariables>({
+  return useMutation<HTTPTrigger, ApiError, DisableTriggerVariables & { triggerNodeId: string }>({
     mutationFn: async ({ workflowId, triggerId }) => {
       try {
         return await disableWorkflowHTTPTrigger(workflowId, triggerId);
@@ -166,7 +167,10 @@ export function useDisableWorkflowHTTPTriggerMutation() {
       }
     },
     onSuccess: (_, variables) => {
-      queryClient.setQueryData(workflowQueryKeys.httpTrigger(variables.workflowId), null);
+      queryClient.setQueryData(
+        workflowQueryKeys.httpTrigger(variables.workflowId, variables.triggerNodeId),
+        null,
+      );
     },
   });
 }
@@ -213,6 +217,18 @@ export function useRunWorkflowMutation() {
         return await runWorkflow(workflowId, { initialVariables }, idempotencyKey);
       } catch (error) {
         return normalizeError(error);
+      }
+    },
+  });
+}
+
+export function useUploadWorkflowInputFileMutation() {
+  return useMutation<{ fileName: string }, ApiError, File>({
+    mutationFn: async (file) => {
+      try {
+        return await uploadWorkflowInputFile(file);
+      } catch (error) {
+        throw toApiError(error);
       }
     },
   });

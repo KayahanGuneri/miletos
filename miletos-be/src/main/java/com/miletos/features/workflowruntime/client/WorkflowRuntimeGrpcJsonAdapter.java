@@ -8,8 +8,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.protobuf.Message;
 import com.google.protobuf.Struct;
 import com.google.protobuf.util.JsonFormat;
-import com.miletos.features.workflowruntime.grpc.generated.CreateHTTPTriggerResponse;
 import com.miletos.features.workflowruntime.grpc.generated.CreateCronTriggerResponse;
+import com.miletos.features.workflowruntime.grpc.generated.CreateHTTPTriggerResponse;
 import com.miletos.features.workflowruntime.grpc.generated.CronTriggerResponse;
 import com.miletos.features.workflowruntime.grpc.generated.ExecuteRequest;
 import com.miletos.features.workflowruntime.grpc.generated.ExecutionDefinition;
@@ -138,6 +138,7 @@ public class WorkflowRuntimeGrpcJsonAdapter {
           node -> {
             if (node instanceof ObjectNode object) {
               rename(object, "id", "nodeId");
+              object.remove("displayName");
             }
           });
     }

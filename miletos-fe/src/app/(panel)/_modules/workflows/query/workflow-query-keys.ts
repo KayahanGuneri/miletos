@@ -8,6 +8,7 @@ export const workflowQueryKeys = {
   detail: (workflowId: number) => [...workflowQueryKeys.details(), workflowId] as const,
   plugins: () => [...workflowQueryKeys.all, "plugins"] as const,
   triggers: (workflowId: number) => [...workflowQueryKeys.detail(workflowId), "triggers"] as const,
-  httpTrigger: (workflowId: number) => [...workflowQueryKeys.triggers(workflowId), "http"] as const,
+  httpTrigger: (workflowId: number, triggerNodeId: string) =>
+    [...workflowQueryKeys.triggers(workflowId), "http", triggerNodeId] as const,
   cronTrigger: (workflowId: number) => [...workflowQueryKeys.triggers(workflowId), "cron"] as const,
 };

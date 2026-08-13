@@ -9,34 +9,34 @@ import com.google.protobuf.Empty;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.rpc.ErrorInfo;
 import com.google.rpc.Status;
+import com.miletos.common.exception.ErrorCode;
 import com.miletos.features.workflowruntime.config.WorkflowRuntimeProperties;
-import com.miletos.features.workflowruntime.grpc.generated.CreateHTTPTriggerRequest;
+import com.miletos.features.workflowruntime.exception.WorkflowRuntimeDomainException;
 import com.miletos.features.workflowruntime.grpc.generated.CreateCronTriggerRequest;
+import com.miletos.features.workflowruntime.grpc.generated.CreateHTTPTriggerRequest;
 import com.miletos.features.workflowruntime.grpc.generated.CronTriggerResponse;
 import com.miletos.features.workflowruntime.grpc.generated.CronTriggerServiceGrpc;
 import com.miletos.features.workflowruntime.grpc.generated.DisableCronTriggerRequest;
 import com.miletos.features.workflowruntime.grpc.generated.DisableHTTPTriggerRequest;
 import com.miletos.features.workflowruntime.grpc.generated.DisableWorkflowTriggersRequest;
-import com.miletos.features.workflowruntime.grpc.generated.ExecutionServiceGrpc;
 import com.miletos.features.workflowruntime.grpc.generated.ExecuteRequest;
+import com.miletos.features.workflowruntime.grpc.generated.ExecutionServiceGrpc;
 import com.miletos.features.workflowruntime.grpc.generated.GetActiveCronTriggerByWorkflowRequest;
 import com.miletos.features.workflowruntime.grpc.generated.GetActiveHTTPTriggerByWorkflowRequest;
 import com.miletos.features.workflowruntime.grpc.generated.GetCronTriggerRequest;
 import com.miletos.features.workflowruntime.grpc.generated.GetExecutionRequest;
 import com.miletos.features.workflowruntime.grpc.generated.GetHTTPTriggerRequest;
-import com.miletos.features.workflowruntime.grpc.generated.HTTPTriggerServiceGrpc;
 import com.miletos.features.workflowruntime.grpc.generated.HTTPTriggerResponse;
+import com.miletos.features.workflowruntime.grpc.generated.HTTPTriggerServiceGrpc;
 import com.miletos.features.workflowruntime.grpc.generated.ListExecutionResourceRequest;
 import com.miletos.features.workflowruntime.grpc.generated.ListExecutionsRequest;
-import com.miletos.features.workflowruntime.grpc.generated.PluginServiceGrpc;
 import com.miletos.features.workflowruntime.grpc.generated.Plugin;
+import com.miletos.features.workflowruntime.grpc.generated.PluginServiceGrpc;
 import com.miletos.features.workflowruntime.grpc.generated.RecoverExecutionRequest;
 import com.miletos.features.workflowruntime.grpc.generated.TriggerLifecycleServiceGrpc;
 import com.miletos.features.workflowruntime.grpc.generated.ValidateWorkflowRequest;
 import com.miletos.features.workflowruntime.grpc.generated.ValidationIssue;
 import com.miletos.features.workflowruntime.grpc.generated.WorkflowDefinition;
-import com.miletos.common.exception.ErrorCode;
-import com.miletos.features.workflowruntime.exception.WorkflowRuntimeDomainException;
 import io.grpc.CallOptions;
 import io.grpc.Channel;
 import io.grpc.ClientCall;
@@ -323,20 +323,16 @@ public class WorkflowRuntimeGrpcClient {
   }
 
   public WorkflowRuntimeResponse getHTTPTrigger(
-      String triggerId,
-      String workflowId,
-      String companyId,
-      HttpHeaders browserHeaders) {
+      String triggerId, String workflowId, String companyId, HttpHeaders browserHeaders) {
     HTTPTriggerResponse trigger = loadHTTPTrigger(triggerId, companyId, browserHeaders);
     if (!workflowMatches(trigger.getWorkflowId(), workflowId)) {
       throw new WorkflowRuntimeDomainException(ErrorCode.TRIGGER_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
-    return response(
-        HttpStatus.OK, jsonAdapter.toBrowserJson(trigger), browserHeaders);
+    return response(HttpStatus.OK, jsonAdapter.toBrowserJson(trigger), browserHeaders);
   }
 
-  public WorkflowRuntimeResponse getActiveHTTPTriggerByWorkflow(
-      String workflowId, String companyId, HttpHeaders browserHeaders) {
+  public WorkflowRuntimeResponse getActiveHTTPTriggerByWorkflowAndNode(
+      String workflowId, String triggerNodeId, String companyId, HttpHeaders browserHeaders) {
     HTTPTriggerResponse trigger =
         invokeRequired(
             companyId,
@@ -346,6 +342,7 @@ public class WorkflowRuntimeGrpcClient {
                     .getActiveHTTPTriggerByWorkflow(
                         GetActiveHTTPTriggerByWorkflowRequest.newBuilder()
                             .setWorkflowId(workflowId)
+                            .setTriggerNodeId(triggerNodeId)
                             .build()));
     if (!workflowMatches(trigger.getWorkflowId(), workflowId)) {
       throw new WorkflowRuntimeDomainException(ErrorCode.TRIGGER_NOT_FOUND, HttpStatus.NOT_FOUND);
@@ -356,15 +353,11 @@ public class WorkflowRuntimeGrpcClient {
   public WorkflowRuntimeResponse getHTTPTrigger(
       String triggerId, String companyId, HttpHeaders browserHeaders) {
     HTTPTriggerResponse trigger = loadHTTPTrigger(triggerId, companyId, browserHeaders);
-    return response(
-        HttpStatus.OK, jsonAdapter.toBrowserJson(trigger), browserHeaders);
+    return response(HttpStatus.OK, jsonAdapter.toBrowserJson(trigger), browserHeaders);
   }
 
   public WorkflowRuntimeResponse disableHTTPTrigger(
-      String triggerId,
-      String workflowId,
-      String companyId,
-      HttpHeaders browserHeaders) {
+      String triggerId, String workflowId, String companyId, HttpHeaders browserHeaders) {
     HTTPTriggerResponse trigger = loadHTTPTrigger(triggerId, companyId, browserHeaders);
     if (!workflowMatches(trigger.getWorkflowId(), workflowId)) {
       throw new WorkflowRuntimeDomainException(ErrorCode.TRIGGER_NOT_FOUND, HttpStatus.NOT_FOUND);
@@ -425,16 +418,12 @@ public class WorkflowRuntimeGrpcClient {
   }
 
   public WorkflowRuntimeResponse getCronTrigger(
-      String triggerId,
-      String workflowId,
-      String companyId,
-      HttpHeaders browserHeaders) {
+      String triggerId, String workflowId, String companyId, HttpHeaders browserHeaders) {
     CronTriggerResponse trigger = loadCronTrigger(triggerId, companyId, browserHeaders);
     if (!workflowMatches(trigger.getWorkflowId(), workflowId)) {
       throw new WorkflowRuntimeDomainException(ErrorCode.TRIGGER_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
-    return response(
-        HttpStatus.OK, jsonAdapter.toBrowserJson(trigger), browserHeaders);
+    return response(HttpStatus.OK, jsonAdapter.toBrowserJson(trigger), browserHeaders);
   }
 
   public WorkflowRuntimeResponse getActiveCronTriggerByWorkflow(
@@ -456,10 +445,7 @@ public class WorkflowRuntimeGrpcClient {
   }
 
   public WorkflowRuntimeResponse disableCronTrigger(
-      String triggerId,
-      String workflowId,
-      String companyId,
-      HttpHeaders browserHeaders) {
+      String triggerId, String workflowId, String companyId, HttpHeaders browserHeaders) {
     CronTriggerResponse trigger = loadCronTrigger(triggerId, companyId, browserHeaders);
     if (!workflowMatches(trigger.getWorkflowId(), workflowId)) {
       throw new WorkflowRuntimeDomainException(ErrorCode.TRIGGER_NOT_FOUND, HttpStatus.NOT_FOUND);
@@ -485,8 +471,7 @@ public class WorkflowRuntimeGrpcClient {
                     GetCronTriggerRequest.newBuilder().setTriggerId(triggerId).build()));
   }
 
-  public List<Plugin> listPluginDescriptors(
-      String companyId, HttpHeaders browserHeaders) {
+  public List<Plugin> listPluginDescriptors(String companyId, HttpHeaders browserHeaders) {
     return invokeRequired(
             companyId,
             browserHeaders,
@@ -502,9 +487,7 @@ public class WorkflowRuntimeGrpcClient {
         stub ->
             TriggerLifecycleServiceGrpc.newBlockingStub(stub)
                 .disableWorkflowTriggers(
-                    DisableWorkflowTriggersRequest.newBuilder()
-                        .setWorkflowId(workflowId)
-                        .build()));
+                    DisableWorkflowTriggersRequest.newBuilder().setWorkflowId(workflowId).build()));
   }
 
   private Channel callChannel(String companyId, HttpHeaders browserHeaders) {
