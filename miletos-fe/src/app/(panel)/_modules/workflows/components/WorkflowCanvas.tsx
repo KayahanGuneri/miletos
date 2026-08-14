@@ -64,14 +64,14 @@ export function WorkflowCanvas({
   onDeleteNodes,
   onDeleteEdges,
 }: WorkflowCanvasProps) {
-  const pluginByKey = useMemo(
-    () => new Map(plugins.map((plugin) => [`${plugin.type}:${plugin.version}`, plugin])),
+  const pluginByType = useMemo(
+    () => new Map(plugins.map((plugin) => [plugin.type, plugin])),
     [plugins],
   );
   const mappedNodes = useMemo<CanvasNode[]>(
     () =>
       workflowNodes.map((node) => {
-        const plugin = pluginByKey.get(`${node.pluginType}:${node.pluginVersion}`);
+        const plugin = pluginByType.get(node.pluginType);
         return {
           id: node.nodeId,
           type: "workflowNode",
@@ -86,7 +86,7 @@ export function WorkflowCanvas({
           },
         };
       }),
-    [pluginByKey, readOnly, selectedNodeId, workflowNodes],
+    [pluginByType, readOnly, selectedNodeId, workflowNodes],
   );
   const mappedEdges = useMemo<Edge[]>(
     () =>
@@ -156,10 +156,7 @@ export function WorkflowCanvas({
     }
     event.preventDefault();
 
-    const plugin = plugins.find(
-      (candidate) =>
-        candidate.type === dragData.pluginType && candidate.version === dragData.pluginVersion,
-    );
+    const plugin = plugins.find((candidate) => candidate.type === dragData.pluginType);
     if (!plugin) {
       return;
     }

@@ -229,7 +229,6 @@ public class WorkflowTriggerManagementService {
     Plugin plugin =
         runtimeClient.listPluginDescriptors(companyId, browserHeaders).stream()
             .filter(candidate -> candidate.getType().equals(triggerNode.getPluginType()))
-            .filter(candidate -> candidate.getVersion().equals(triggerNode.getPluginVersion()))
             .findFirst()
             .orElse(null);
     return plugin != null && plugin.getAllowedRootOriginsList().contains(requiredOrigin);

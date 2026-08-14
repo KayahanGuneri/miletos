@@ -178,19 +178,39 @@ func (service *ExecutionService) ExecuteSync(
 	if err != nil {
 		return ExecutionOutcome{}, err
 	}
-	outputs := make(map[string]any)
-	failed := make(map[string]bool)
+	outcomes := make(map[string]nodeOutcome)
 	for _, nodeID := range order {
 		node, _ := findWorkflowNode(definition, nodeID)
-		if service.scheduler.Blocked(definition, nodeID, failed) {
-			failed[nodeID] = true
+		readiness := resolveNodeRoutes(definition, nodeID, outcomes)
+		if readiness.failed {
 			if err := service.executions.MarkNodeSkipped(
 				ctx, definition.CompanyID, execution.ID, nodeID,
 				string(model.SkipReasonDependencyFailed),
 			); err != nil {
 				return ExecutionOutcome{}, err
 			}
+			outcomes[nodeID] = nodeOutcome{
+				status: model.NodeSkipped, skipReason: model.SkipReasonDependencyFailed,
+			}
 			continue
+		}
+		if readiness.inactive {
+			if err := service.executions.MarkNodeSkipped(
+				ctx, definition.CompanyID, execution.ID, nodeID,
+				string(model.SkipReasonNoActiveRoute),
+			); err != nil {
+				return ExecutionOutcome{}, err
+			}
+			outcomes[nodeID] = nodeOutcome{
+				status: model.NodeSkipped, skipReason: model.SkipReasonNoActiveRoute,
+			}
+			continue
+		}
+		if !readiness.ready {
+			return ExecutionOutcome{}, fmt.Errorf(
+				"%w: node %s has unresolved incoming routes",
+				repository.ErrStateTransition, nodeID,
+			)
 		}
 		state, changed, err := service.executions.MarkNodeQueued(
 			ctx, definition.CompanyID, execution.ID, nodeID,
@@ -202,7 +222,7 @@ func (service *ExecutionService) ExecuteSync(
 			continue
 		}
 		payload := buildExecutionNodeInput(
-			definition, nodeID, outputs, service.scheduler.registry, startInput,
+			definition, nodeID, readiness.edgePayloads, service.scheduler.registry, startInput,
 			model.ExecutionOriginManualDirect,
 		)
 		job := model.NodeJob{
@@ -211,16 +231,18 @@ func (service *ExecutionService) ExecuteSync(
 			Attempt: state.Attempt, CorrelationID: correlationID,
 			Origin: model.ExecutionOriginManualDirect, Payload: payload,
 		}
-		output, runErr := service.processor.ProcessSync(ctx, job, node)
+		result, runErr := service.processor.ProcessSync(ctx, job, definition, node)
 		if runErr != nil {
 			var nodeFailure *PersistedNodeFailure
 			if errors.As(runErr, &nodeFailure) {
-				failed[nodeID] = true
+				outcomes[nodeID] = nodeOutcome{status: model.NodeFailed}
 				continue
 			}
 			return ExecutionOutcome{}, runErr
 		}
-		outputs[nodeID] = output
+		outcomes[nodeID] = nodeOutcome{
+			status: model.NodeSucceeded, output: result.output, routing: result.routing,
+		}
 	}
 	if err := service.scheduler.Finalize(ctx, execution, definition); err != nil {
 		return ExecutionOutcome{}, err
@@ -280,7 +302,6 @@ func (service *ExecutionService) ExecuteTriggerFromSnapshot(
 	}
 	if !service.scheduler.registry.DeclaresExecutionSource(
 		triggerNode.Type,
-		triggerNode.Version,
 		string(origin),
 	) {
 		return ExecutionOutcome{}, ErrInvalidExecutionOrigin
@@ -340,13 +361,13 @@ func (service *ExecutionService) validateExecutionStart(
 			continue
 		}
 		if !service.scheduler.registry.CanStartFrom(
-			node.Type, node.Version, string(source),
+			node.Type, string(source),
 		) {
 			return ErrInvalidExecutionOrigin
 		}
 		if source == model.ExecutionOriginManualDirect && len(startInput) > 0 {
 			descriptor, exists := service.scheduler.registry.Definition(
-				node.Type, node.Version,
+				node.Type,
 			)
 			if exists && plugin.CanReceiveEntryInput(descriptor) {
 				acceptsManualEntryInput = true

@@ -1,7 +1,6 @@
 package plugin
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -14,10 +13,40 @@ func RegisterBuiltinNodes(registry *NodeRegistry) error {
 	registrations := []struct {
 		registration NodeRegistration
 	}{
-		{builtinRegistration("core.static-input", "Static Input", "Provides configured static content to a workflow", false, true, staticInput, validateStaticInput)},
-		{builtinRegistration("core.pass-through", "Pass Through", "Forwards one incoming payload without changing it", true, true, passThrough, nil)},
-		{builtinRegistration("core.delay", "Delay", "Delays forwarding one incoming payload", true, true, delay, validateDelay)},
-		{builtinRegistration("core.terminal", "Terminal", "Receives final workflow output", true, false, terminal, nil)},
+		{builtinRegistration(builtinRegistrationSpec{
+			Type:        "core.static-input",
+			DisplayName: "Static Input",
+			Description: "Provides configured static content to a workflow",
+			Input:       false,
+			Output:      true,
+			OnRun:       staticInput,
+			Validator:   validateStaticInput,
+		})},
+		{builtinRegistration(builtinRegistrationSpec{
+			Type:        "core.pass-through",
+			DisplayName: "Pass Through",
+			Description: "Forwards one incoming payload without changing it",
+			Input:       true,
+			Output:      true,
+			OnRun:       passThrough,
+		})},
+		{builtinRegistration(builtinRegistrationSpec{
+			Type:        "core.delay",
+			DisplayName: "Delay",
+			Description: "Delays forwarding one incoming payload",
+			Input:       true,
+			Output:      true,
+			OnRun:       delay,
+			Validator:   validateDelay,
+		})},
+		{builtinRegistration(builtinRegistrationSpec{
+			Type:        "core.terminal",
+			DisplayName: "Terminal",
+			Description: "Receives final workflow output",
+			Input:       true,
+			Output:      false,
+			OnRun:       terminal,
+		})},
 		{outputRegistration()},
 		{joinRegistration()},
 		{httpTriggerRegistration()},
@@ -31,16 +60,29 @@ func RegisterBuiltinNodes(registry *NodeRegistry) error {
 	return nil
 }
 
-func builtinRegistration(
-	nodeType, displayName, description string,
-	input, output bool,
-	handler NodeHandler,
-	validator NodeConfigurationValidator,
-) NodeRegistration {
+type builtinRegistrationSpec struct {
+	Type        string
+	DisplayName string
+	Description string
+	Input       bool
+	Output      bool
+	RoutingMode OutputRoutingMode
+	OnRun       RunHandler
+	Validator   NodeConfigurationValidator
+}
+
+func builtinRegistration(spec builtinRegistrationSpec) NodeRegistration {
 	return NodeRegistration{
-		Definition:              builtinDefinition(nodeType, displayName, description, input, output),
-		Handler:                 handler,
-		Validator:               validator,
+		Definition: builtinDefinition(
+			spec.Type,
+			spec.DisplayName,
+			spec.Description,
+			spec.Input,
+			spec.Output,
+		),
+		Lifecycles:              NodeLifecycles{OnRun: spec.OnRun},
+		OutputRoutingMode:       spec.RoutingMode,
+		Validator:               spec.Validator,
 		AllowedExecutionSources: []string{"MANUAL_DIRECT"},
 	}
 }
@@ -81,29 +123,27 @@ func builtinDefinition(nodeType, displayName, description string, input, output 
 }
 
 func outputRegistration() NodeRegistration {
-	registration := builtinRegistration(
-		"core.output",
-		"Output",
-		"Represents a generic workflow output boundary and returns its input unchanged",
-		true,
-		false,
-		terminal,
-		nil,
-	)
+	registration := builtinRegistration(builtinRegistrationSpec{
+		Type:        "core.output",
+		DisplayName: "Output",
+		Description: "Represents a generic workflow output boundary and returns its input unchanged",
+		Input:       true,
+		Output:      false,
+		OnRun:       terminal,
+	})
 	registration.AllowedExecutionSources = nil
 	return registration
 }
 
 func joinRegistration() NodeRegistration {
-	registration := builtinRegistration(
-		"core.join",
-		"Join",
-		"Aggregates every predecessor payload in immutable workflow edge order",
-		true,
-		true,
-		join,
-		nil,
-	)
+	registration := builtinRegistration(builtinRegistrationSpec{
+		Type:        "core.join",
+		DisplayName: "Join",
+		Description: "Aggregates every predecessor payload in immutable workflow edge order",
+		Input:       true,
+		Output:      true,
+		OnRun:       join,
+	})
 	definition := registration.Definition
 	definition.InputMode = NodeInputMulti
 	definition.InputEdgeConstraint.Minimum = 2
@@ -114,33 +154,34 @@ func joinRegistration() NodeRegistration {
 }
 
 func httpTriggerRegistration() NodeRegistration {
-	registration := builtinRegistration(
-		"core.http-trigger",
-		"HTTP Trigger",
-		"Receives one authenticated inbound webhook request and forwards its normalized payload",
-		false,
-		true,
-		httpTrigger,
-		validateHTTPTrigger,
-	)
+	registration := builtinRegistration(builtinRegistrationSpec{
+		Type:        "core.http-trigger",
+		DisplayName: "HTTP Trigger",
+		Description: "Receives one authenticated inbound webhook request and forwards its normalized payload",
+		Input:       false,
+		Output:      true,
+		OnRun:       httpTrigger,
+		Validator:   validateHTTPTrigger,
+	})
 	definition := registration.Definition
 	definition.OutputEdgeConstraint.Minimum = 1
 	registration.Definition = definition
 	registration.AllowedExecutionSources = []string{"HTTP_WEBHOOK"}
 	registration.ContextProvider = "http-trigger"
+	registration.Lifecycles.OnScenarioStart = httpTriggerScenarioStart
 	return registration
 }
 
 func cronTriggerRegistration() NodeRegistration {
-	registration := builtinRegistration(
-		"core.cron-trigger",
-		"Cron Trigger",
-		"Fires on a five-field cron schedule and forwards scheduler metadata",
-		false,
-		true,
-		cronTrigger,
-		validateCronTrigger,
-	)
+	registration := builtinRegistration(builtinRegistrationSpec{
+		Type:        "core.cron-trigger",
+		DisplayName: "Cron Trigger",
+		Description: "Fires on a five-field cron schedule and forwards scheduler metadata",
+		Input:       false,
+		Output:      true,
+		OnRun:       cronTrigger,
+		Validator:   validateCronTrigger,
+	})
 	definition := registration.Definition
 	definition.OutputEdgeConstraint.Minimum = 1
 	registration.Definition = definition
@@ -228,7 +269,9 @@ func boolUint(value bool) uint {
 	return 0
 }
 
-func staticInput(_ context.Context, _ NodeExecutionContext, parameters map[string]any, input any) (any, error) {
+func staticInput(nodeContext *Context) (any, error) {
+	parameters := nodeContext.Configuration
+	input := nodeContext.Payload
 	if input != nil {
 		if values, ok := input.(map[string]any); !ok || len(values) > 0 {
 			return nil, &NodeError{
@@ -245,7 +288,8 @@ func staticInput(_ context.Context, _ NodeExecutionContext, parameters map[strin
 	return value, nil
 }
 
-func join(_ context.Context, _ NodeExecutionContext, _ map[string]any, input any) (any, error) {
+func join(nodeContext *Context) (any, error) {
+	input := nodeContext.Payload
 	payload, ok := input.(map[string]any)
 	if !ok {
 		return nil, &NodeError{
@@ -265,7 +309,8 @@ func join(_ context.Context, _ NodeExecutionContext, _ map[string]any, input any
 	return payload, nil
 }
 
-func httpTrigger(_ context.Context, _ NodeExecutionContext, _ map[string]any, input any) (any, error) {
+func httpTrigger(nodeContext *Context) (any, error) {
+	input := nodeContext.Payload
 	payload, ok := input.(map[string]any)
 	if !ok {
 		return nil, &NodeError{
@@ -286,7 +331,8 @@ func httpTrigger(_ context.Context, _ NodeExecutionContext, _ map[string]any, in
 	return payload, nil
 }
 
-func cronTrigger(_ context.Context, _ NodeExecutionContext, _ map[string]any, input any) (any, error) {
+func cronTrigger(nodeContext *Context) (any, error) {
+	input := nodeContext.Payload
 	payload, ok := input.(map[string]any)
 	if !ok {
 		return nil, &NodeError{
@@ -307,14 +353,18 @@ func cronTrigger(_ context.Context, _ NodeExecutionContext, _ map[string]any, in
 	return payload, nil
 }
 
-func passThrough(_ context.Context, _ NodeExecutionContext, _ map[string]any, input any) (any, error) {
+func passThrough(nodeContext *Context) (any, error) {
+	input := nodeContext.Payload
 	if input == nil {
 		return nil, fmt.Errorf("pass-through node requires input")
 	}
 	return input, nil
 }
 
-func delay(ctx context.Context, _ NodeExecutionContext, parameters map[string]any, input any) (any, error) {
+func delay(nodeContext *Context) (any, error) {
+	ctx := nodeContext.Runtime
+	parameters := nodeContext.Configuration
+	input := nodeContext.Payload
 	rawDelay, ok := parameters["delay"].(string)
 	if !ok || strings.TrimSpace(rawDelay) == "" {
 		return nil, fmt.Errorf("delay node configuration requires delay")
@@ -333,9 +383,26 @@ func delay(ctx context.Context, _ NodeExecutionContext, parameters map[string]an
 	}
 }
 
-func terminal(_ context.Context, _ NodeExecutionContext, _ map[string]any, input any) (any, error) {
+func terminal(nodeContext *Context) (any, error) {
+	input := nodeContext.Payload
 	if input == nil {
 		return nil, fmt.Errorf("terminal node requires input")
 	}
 	return input, nil
+}
+
+func httpTriggerScenarioStart(nodeContext *Context) error {
+	if err := validateHTTPTrigger(nodeContext.Configuration); err != nil {
+		return err
+	}
+	method := strings.ToUpper(strings.TrimSpace(
+		nodeContext.Configuration["method"].(string),
+	))
+	return nodeContext.Infra.HTTP.CreateTrigger(
+		nodeContext.Runtime,
+		HTTPScenarioStartRequest{
+			Scenario: *nodeContext.Scenario,
+			Method:   method,
+		},
+	)
 }

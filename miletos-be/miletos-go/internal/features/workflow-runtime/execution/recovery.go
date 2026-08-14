@@ -88,13 +88,19 @@ func (service *RecoveryService) Recover(
 	failedIDs := make([]string, 0)
 	outOfScopeIDs := make([]string, 0)
 	outOfScope := make(map[string]bool)
+	routeSkippedIDs := make([]string, 0)
 	for _, state := range states {
 		if state.Status == model.NodeSucceeded {
 			continue
 		}
-		if nodeSkipReason(state) == string(model.SkipReasonOutOfTriggerScope) {
+		skipReason := nodeSkipReason(state)
+		if skipReason == string(model.SkipReasonOutOfTriggerScope) {
 			outOfScope[state.NodeID] = true
 			outOfScopeIDs = append(outOfScopeIDs, state.NodeID)
+			continue
+		}
+		if skipReason == string(model.SkipReasonNoActiveRoute) {
+			routeSkippedIDs = append(routeSkippedIDs, state.NodeID)
 			continue
 		}
 		failedIDs = append(failedIDs, state.NodeID)
@@ -103,6 +109,12 @@ func (service *RecoveryService) Recover(
 		return RecoveryOutcome{}, ErrRecoveryUnsupported
 	}
 	rerun := workflowfeature.Downstream(snapshot.Workflow, failedIDs)
+	preservedRouteSkippedIDs := make([]string, 0)
+	for _, nodeID := range routeSkippedIDs {
+		if !rerun[nodeID] {
+			preservedRouteSkippedIDs = append(preservedRouteSkippedIDs, nodeID)
+		}
+	}
 	preservedIDs := make([]string, 0)
 	for _, state := range states {
 		if state.Status == model.NodeSucceeded && !rerun[state.NodeID] && !outOfScope[state.NodeID] {
@@ -110,8 +122,47 @@ func (service *RecoveryService) Recover(
 		}
 	}
 	preserved = len(preservedIDs)
-	reset = len(snapshot.Workflow.Nodes) - preserved - len(outOfScopeIDs)
-	expectedScheduled := recoveryReadyCount(snapshot.Workflow, preservedIDs, outOfScope)
+	reset = len(snapshot.Workflow.Nodes) - preserved - len(outOfScopeIDs) -
+		len(preservedRouteSkippedIDs)
+	excluded := make(map[string]bool, len(outOfScope)+len(preservedRouteSkippedIDs))
+	for nodeID := range outOfScope {
+		excluded[nodeID] = true
+	}
+	for _, nodeID := range preservedRouteSkippedIDs {
+		excluded[nodeID] = true
+	}
+	preservedNodes := make(map[string]bool, len(preservedIDs))
+	for _, nodeID := range preservedIDs {
+		preservedNodes[nodeID] = true
+	}
+	recoveryOutcomes := make(map[string]nodeOutcome, len(preservedIDs)+len(excluded))
+	for _, state := range states {
+		if preservedNodes[state.NodeID] {
+			decoded, decodeErr := decodeNodeExecutionOutcome(
+				state, service.scheduler.registry,
+			)
+			if decodeErr != nil {
+				return RecoveryOutcome{}, decodeErr
+			}
+			recoveryOutcomes[state.NodeID] = nodeOutcome{
+				status: decoded.Status, output: decoded.Output, routing: decoded.Routing,
+			}
+		} else if excluded[state.NodeID] {
+			recoveryOutcomes[state.NodeID] = nodeOutcome{
+				status: model.NodeSkipped, skipReason: model.SkipReason(nodeSkipReason(state)),
+			}
+		}
+	}
+	settled := make(map[string]bool, len(preservedNodes)+len(excluded))
+	for nodeID := range preservedNodes {
+		settled[nodeID] = true
+	}
+	for nodeID := range excluded {
+		settled[nodeID] = true
+	}
+	expectedScheduled := recoveryReadyCount(
+		snapshot.Workflow, recoveryOutcomes, settled,
+	)
 	if expectedScheduled == 0 {
 		return RecoveryOutcome{}, ErrRecoveryUnsupported
 	}
@@ -166,6 +217,14 @@ func (service *RecoveryService) Recover(
 			return RecoveryOutcome{}, err
 		}
 	}
+	for _, nodeID := range preservedRouteSkippedIDs {
+		if err := service.executions.MarkNodeSkipped(
+			ctx, companyID, recovery.ID, nodeID,
+			string(model.SkipReasonNoActiveRoute),
+		); err != nil {
+			return RecoveryOutcome{}, err
+		}
+	}
 	scheduledNow, err := service.scheduler.Activate(ctx, recovery, nil)
 	if err != nil {
 		return RecoveryOutcome{}, err
@@ -187,36 +246,17 @@ func (service *RecoveryService) Recover(
 
 func recoveryReadyCount(
 	workflow workflowfeature.Workflow,
-	preservedNodeIDs []string,
-	excluded map[string]bool,
+	outcomes map[string]nodeOutcome,
+	settled map[string]bool,
 ) int {
-	preserved := make(map[string]bool, len(preservedNodeIDs))
-	for _, nodeID := range preservedNodeIDs {
-		preserved[nodeID] = true
-	}
 	count := 0
 	for _, node := range workflow.Nodes {
-		if preserved[node.ID] || excluded[node.ID] {
+		if settled[node.ID] {
 			continue
 		}
-		ready := true
-		for _, predecessorID := range workflowfeature.Predecessors(workflow, node.ID) {
-			if !preserved[predecessorID] {
-				ready = false
-				break
-			}
-		}
-		if ready {
+		if resolveNodeRoutes(workflow, node.ID, outcomes).ready {
 			count++
 		}
 	}
 	return count
-}
-
-func nodeSkipReason(state model.NodeExecution) string {
-	if state.Status != model.NodeSkipped || state.Failure == nil {
-		return ""
-	}
-	reason, _ := state.Failure["skipReason"].(string)
-	return reason
 }

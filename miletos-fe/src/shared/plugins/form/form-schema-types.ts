@@ -11,8 +11,7 @@ interface FormFieldBase {
   label: string;
   required?: boolean;
   placeholder?: string;
-  visibleWhenKey?: string;
-  visibleWhenValue?: FormPrimitive;
+  when?: (data: FormConfiguration) => boolean;
 }
 
 export type FormField =
@@ -53,8 +52,8 @@ export interface FlatFormSchema {
 }
 
 export function isFormFieldVisible(field: FormField, values: FormConfiguration): boolean {
-  if (!field.visibleWhenKey) {
+  if (!field.when) {
     return true;
   }
-  return values[field.visibleWhenKey] === field.visibleWhenValue;
+  return field.when(values);
 }

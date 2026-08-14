@@ -59,14 +59,14 @@ export function FormBuilder({
 
   return (
     <section className={styles.pluginConfiguration__formSection}>
-      {schema.fields.map((field) => {
+      {schema.fields.map((field, index) => {
         if (!isFormFieldVisible(field, values)) {
           return null;
         }
         const Renderer = RENDERERS[field.renderType];
         return (
           <Renderer
-            key={`${field.key}:${String(field.visibleWhenValue ?? "always")}:${field.renderType}`}
+            key={`${field.key}:${field.renderType}:${index}`}
             field={field}
             value={values[field.key]}
             disabled={disabled}

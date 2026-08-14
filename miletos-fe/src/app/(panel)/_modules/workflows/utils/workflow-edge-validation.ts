@@ -8,9 +8,7 @@ export type EdgeValidationFailure =
   "missing-endpoints" | "self-edge" | "duplicate" | "unavailable-handle";
 
 function pluginForNode(node: WorkflowNode, plugins: WorkflowPlugin[]) {
-  return plugins.find(
-    (plugin) => plugin.type === node.pluginType && plugin.version === node.pluginVersion,
-  );
+  return plugins.find((plugin) => plugin.type === node.pluginType);
 }
 
 export function validateWorkflowEdgeConnection(params: {

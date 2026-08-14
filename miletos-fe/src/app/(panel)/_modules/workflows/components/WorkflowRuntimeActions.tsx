@@ -35,9 +35,7 @@ function WorkflowRuntimeActionsState({
   }, [workflow.edges, workflow.nodes]);
   const descriptors = roots.map((node) => ({
     node,
-    plugin: plugins.find(
-      (plugin) => plugin.type === node.pluginType && plugin.version === node.pluginVersion,
-    ),
+    plugin: plugins.find((plugin) => plugin.type === node.pluginType),
   }));
   const cronRoot = descriptors.find(({ plugin }) => supportsExecutionOrigin(plugin, "CRON"))?.node;
   const manualCompatible =

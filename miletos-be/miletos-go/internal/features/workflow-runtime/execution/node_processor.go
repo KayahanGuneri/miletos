@@ -38,6 +38,11 @@ type PersistedNodeFailure struct {
 	Cause error
 }
 
+type nodeRunResult struct {
+	output  any
+	routing model.NodeRoutingOutcome
+}
+
 func (failure *PersistedNodeFailure) Error() string {
 	return "node execution failed and the outcome was persisted"
 }
@@ -46,7 +51,7 @@ func (failure *PersistedNodeFailure) Unwrap() error {
 	return failure.Cause
 }
 
-var errNodeHandlerPanicked = errors.New("node handler panicked")
+var errNodeOnRunPanicked = errors.New("node handler panicked")
 var ErrStaleNodeJob = errors.New("stale node job")
 var ErrPermanentNodeJob = errors.New("permanent node job failure")
 
@@ -182,7 +187,7 @@ func (processor *NodeProcessor) Process(ctx context.Context, job model.NodeJob) 
 			return err
 		}
 	}
-	_, err = processor.processAttempts(ctx, job, node, false)
+	_, err = processor.processAttempts(ctx, job, snapshot.Workflow, node, false)
 	if err != nil {
 		var persistedFailure *PersistedNodeFailure
 		if !errors.As(err, &persistedFailure) {
@@ -198,9 +203,10 @@ func (processor *NodeProcessor) Process(ctx context.Context, job model.NodeJob) 
 func (processor *NodeProcessor) ProcessSync(
 	ctx context.Context,
 	job model.NodeJob,
+	definition workflow.Workflow,
 	node workflow.WorkflowNode,
-) (any, error) {
-	return processor.processAttempts(ctx, job, node, true)
+) (nodeRunResult, error) {
+	return processor.processAttempts(ctx, job, definition, node, true)
 }
 
 func (processor *NodeProcessor) PersistInterrupted(
@@ -232,44 +238,57 @@ func (processor *NodeProcessor) PersistInterrupted(
 func (processor *NodeProcessor) processAttempts(
 	ctx context.Context,
 	job model.NodeJob,
+	definition workflow.Workflow,
 	node workflow.WorkflowNode,
 	inlineRetry bool,
-) (any, error) {
+) (nodeRunResult, error) {
 	for {
 		started, err := processor.executions.MarkNodeRunning(ctx, job)
 		if err != nil {
-			return nil, err
+			return nodeRunResult{}, err
 		}
 		if !started {
 			state, stateErr := processor.executions.FindNode(
 				ctx, job.CompanyID, job.ExecutionID, job.NodeID,
 			)
 			if stateErr != nil {
-				return nil, stateErr
+				return nodeRunResult{}, stateErr
 			}
-			if state.Status == model.NodeSucceeded || state.Status == model.NodeRunning {
-				return state.Output, nil
+			if state.Status == model.NodeSucceeded {
+				decoded, decodeErr := decodeNodeExecutionOutcome(state, processor.registry)
+				if decodeErr != nil {
+					return nodeRunResult{}, decodeErr
+				}
+				return nodeRunResult{
+					output: decoded.Output, routing: decoded.Routing,
+				}, nil
+			}
+			if state.Status == model.NodeRunning {
+				return nodeRunResult{}, nil
 			}
 			if isTerminalNodeStatus(state.Status) {
-				return nil, &PersistedNodeFailure{
+				return nodeRunResult{}, &PersistedNodeFailure{
 					Cause: fmt.Errorf("node execution is terminal"),
 				}
 			}
-			return nil, fmt.Errorf(
+			return nodeRunResult{}, fmt.Errorf(
 				"%w: node %q cannot start from status %s",
 				repository.ErrStateTransition, job.NodeID, state.Status,
 			)
 		}
-		handler, exists := processor.registry.GetVersion(node.Type, node.Version)
+		lifecycles, exists := processor.registry.GetLifecycles(node.Type)
 		var output any
+		var routing model.NodeRoutingOutcome
 		var executionError error
-		if !exists {
+		if !exists || lifecycles.OnRun == nil {
 			executionError = &plugin.NodeError{
 				Category: string(model.FailureCategoryValidation),
 				Code:     string(model.FailureCodeHandlerNotFound),
 				Message:  "The configured node handler is unavailable.",
 			}
 		} else {
+			routingMode, _ := processor.registry.GetOutputRoutingMode(node.Type)
+			access := newNodeAccess(definition, node.ID, routingMode)
 			nodeContext := plugin.NodeExecutionContext{
 				CompanyID:     job.CompanyID,
 				WorkflowID:    job.WorkflowID,
@@ -278,15 +297,26 @@ func (processor *NodeProcessor) processAttempts(
 				CorrelationID: job.CorrelationID,
 				Source:        string(job.Origin),
 			}
-			output, executionError = executeNodeHandler(
-				ctx, handler, nodeContext, node.Configuration, job.Payload,
-			)
+			output, executionError = executeNodeOnRun(lifecycles.OnRun, &plugin.Context{
+				Runtime:       ctx,
+				Execution:     &nodeContext,
+				Configuration: node.Configuration,
+				Payload:       job.Payload,
+				Access:        access,
+			})
+			if executionError == nil {
+				routing = access.outcome()
+			} else {
+				access.discard()
+			}
 		}
 		if executionError == nil {
-			if err := processor.executions.SaveNodeSuccess(ctx, job, output); err != nil {
-				return nil, err
+			if err := processor.executions.SaveNodeSuccess(
+				ctx, job, output, routing,
+			); err != nil {
+				return nodeRunResult{}, err
 			}
-			return output, nil
+			return nodeRunResult{output: output, routing: routing}, nil
 		}
 		failedAt := time.Now().UTC()
 		classification := classifyNodeError(executionError, exists)
@@ -315,37 +345,34 @@ func (processor *NodeProcessor) processAttempts(
 			failedAt, nextAttempt, processor.maximumAttempts, processor.retryDelay,
 			retryDestination,
 		); err != nil {
-			return nil, err
+			return nodeRunResult{}, err
 		}
 		if !decision.Retry {
-			return nil, &PersistedNodeFailure{Cause: executionError}
+			return nodeRunResult{}, &PersistedNodeFailure{Cause: executionError}
 		}
 		if !inlineRetry {
-			return nil, nil
+			return nodeRunResult{}, nil
 		}
 		if err := waitUntil(ctx, &nextAttempt); err != nil {
-			return nil, err
+			return nodeRunResult{}, err
 		}
 		job, err = processor.executions.PrepareRetry(ctx, job)
 		if err != nil {
-			return nil, err
+			return nodeRunResult{}, err
 		}
 	}
 }
 
-func executeNodeHandler(
-	ctx context.Context,
-	handler plugin.NodeHandler,
-	nodeContext plugin.NodeExecutionContext,
-	configuration map[string]any,
-	input any,
+func executeNodeOnRun(
+	handler plugin.RunHandler,
+	nodeContext *plugin.Context,
 ) (output any, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			err = errNodeHandlerPanicked
+			err = errNodeOnRunPanicked
 		}
 	}()
-	return handler(ctx, nodeContext, configuration, input)
+	return handler(nodeContext)
 }
 
 func findWorkflowNode(definition workflow.Workflow, nodeID string) (workflow.WorkflowNode, bool) {
@@ -370,7 +397,7 @@ func classifyNodeError(err error, handlerExists bool) classifiedNodeError {
 		classification.decisionReason = model.RetryReasonCategory
 		return classification
 	}
-	if errors.Is(err, errNodeHandlerPanicked) {
+	if errors.Is(err, errNodeOnRunPanicked) {
 		classification.category = model.FailureCategoryInternal
 		classification.code = model.FailureCodeHandlerPanicked
 		classification.message = "The node handler failed unexpectedly."

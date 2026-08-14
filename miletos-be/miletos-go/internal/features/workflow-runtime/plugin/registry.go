@@ -17,18 +17,19 @@ type NodeExecutionContext struct {
 	Source        string
 }
 
-type NodeHandler func(
-	context.Context,
-	NodeExecutionContext,
-	map[string]any,
-	any,
-) (any, error)
-
 type NodeConfigurationValidator func(map[string]any) error
+
+type OutputRoutingMode string
+
+const (
+	OutputRoutingBroadcast OutputRoutingMode = "BROADCAST"
+	OutputRoutingExplicit  OutputRoutingMode = "EXPLICIT"
+)
 
 type NodeRegistration struct {
 	Definition              NodeDefinition
-	Handler                 NodeHandler
+	Lifecycles              NodeLifecycles
+	OutputRoutingMode       OutputRoutingMode
 	Validator               NodeConfigurationValidator
 	AllowedExecutionSources []string
 	ContextProvider         string
@@ -59,70 +60,69 @@ func NewNodeRegistry() *NodeRegistry {
 	}
 }
 
-func (registry *NodeRegistry) DefineNode(name string, handler NodeHandler) error {
-	return registry.register(NodeRegistration{
-		Definition: NodeDefinition{
-			Type:        strings.TrimSpace(name),
-			Version:     "v1",
-			DisplayName: strings.TrimSpace(name),
-			InputMode:   NodeInputSingle,
-			InputPorts:  []Port{{Name: "input", DisplayName: "Input"}},
-			OutputPorts: []Port{{Name: "output", DisplayName: "Output"}},
-			InputEdgeConstraint: EdgeConstraint{
-				Minimum: 0,
-			},
-			OutputEdgeConstraint: EdgeConstraint{
-				Minimum: 0,
-			},
-		},
-		Handler: handler,
-	})
-}
-
-func (registry *NodeRegistry) Register(
-	definition NodeDefinition,
-	handler NodeHandler,
-	validator NodeConfigurationValidator,
-) error {
-	return registry.register(NodeRegistration{
-		Definition: definition,
-		Handler:    handler,
-		Validator:  validator,
-	})
-}
-
 func (registry *NodeRegistry) RegisterNode(registration NodeRegistration) error {
 	return registry.register(registration)
 }
 
-func (registry *NodeRegistry) Get(name string) (NodeHandler, bool) {
-	return registry.GetVersion(name, "v1")
-}
-
-func (registry *NodeRegistry) GetVersion(name, version string) (NodeHandler, bool) {
+func (registry *NodeRegistry) GetLifecycles(name string) (NodeLifecycles, bool) {
 	registry.mutex.RLock()
 	defer registry.mutex.RUnlock()
-	registration, exists := registry.registrations[definitionKey(name, version)]
-	return registration.Handler, exists
+	registration, exists := registry.registrations[strings.TrimSpace(name)]
+	return registration.Lifecycles, exists
+}
+
+func (registry *NodeRegistry) GetOutputRoutingMode(
+	name string,
+) (OutputRoutingMode, bool) {
+	registry.mutex.RLock()
+	defer registry.mutex.RUnlock()
+	registration, exists := registry.registrations[strings.TrimSpace(name)]
+	return registration.OutputRoutingMode, exists
+}
+
+func (registry *NodeRegistry) StartScenario(
+	runtime context.Context,
+	nodeType string,
+	scenario ScenarioStartContext,
+	configuration map[string]any,
+	infrastructure Infrastructure,
+) error {
+	lifecycles, exists := registry.GetLifecycles(nodeType)
+	if !exists {
+		return fmt.Errorf(
+			"%w: node %q",
+			ErrNodeRegistrationNotFound, nodeType,
+		)
+	}
+	if lifecycles.OnScenarioStart == nil {
+		return fmt.Errorf(
+			"%w: node %q",
+			ErrScenarioStartUnavailable, nodeType,
+		)
+	}
+	return lifecycles.OnScenarioStart(&Context{
+		Runtime:       runtime,
+		Scenario:      &scenario,
+		Configuration: configuration,
+		Infra:         infrastructure,
+	})
 }
 
 func (registry *NodeRegistry) Definition(
 	nodeType string,
-	version string,
 ) (NodeDefinition, bool) {
 	registry.mutex.RLock()
 	defer registry.mutex.RUnlock()
-	registration, exists := registry.registrations[definitionKey(nodeType, version)]
+	registration, exists := registry.registrations[strings.TrimSpace(nodeType)]
 	return cloneDefinition(registration.Definition), exists
 }
 
 func (registry *NodeRegistry) CanStartFrom(
 	nodeType string,
-	version string,
 	source string,
 ) bool {
 	registry.mutex.RLock()
-	registration, exists := registry.registrations[definitionKey(nodeType, version)]
+	registration, exists := registry.registrations[strings.TrimSpace(nodeType)]
 	registry.mutex.RUnlock()
 	if !exists {
 		return false
@@ -153,34 +153,20 @@ func declaresExecutionSource(registration NodeRegistration, source string) bool 
 
 func (registry *NodeRegistry) DeclaresExecutionSource(
 	nodeType string,
-	version string,
 	source string,
 ) bool {
 	registry.mutex.RLock()
-	registration, exists := registry.registrations[definitionKey(nodeType, version)]
+	registration, exists := registry.registrations[strings.TrimSpace(nodeType)]
 	registry.mutex.RUnlock()
 	return exists && declaresExecutionSource(registration, source)
 }
 
-func (registry *NodeRegistry) HasType(nodeType string) bool {
-	registry.mutex.RLock()
-	defer registry.mutex.RUnlock()
-	prefix := strings.TrimSpace(nodeType) + "\x00"
-	for key := range registry.registrations {
-		if strings.HasPrefix(key, prefix) {
-			return true
-		}
-	}
-	return false
-}
-
 func (registry *NodeRegistry) ValidateConfiguration(
 	nodeType string,
-	version string,
 	configuration map[string]any,
 ) error {
 	registry.mutex.RLock()
-	validator := registry.registrations[definitionKey(nodeType, version)].Validator
+	validator := registry.registrations[strings.TrimSpace(nodeType)].Validator
 	registry.mutex.RUnlock()
 	if validator == nil {
 		return nil
@@ -196,12 +182,7 @@ func (registry *NodeRegistry) Registrations() []NodeRegistration {
 		result = append(result, cloneRegistration(registration))
 	}
 	sort.Slice(result, func(left, right int) bool {
-		leftDefinition := result[left].Definition
-		rightDefinition := result[right].Definition
-		if leftDefinition.Type == rightDefinition.Type {
-			return leftDefinition.Version < rightDefinition.Version
-		}
-		return leftDefinition.Type < rightDefinition.Type
+		return result[left].Definition.Type < result[right].Definition.Type
 	})
 	return result
 }
@@ -212,8 +193,15 @@ func (registry *NodeRegistry) register(registration NodeRegistration) error {
 	if name == "" {
 		return fmt.Errorf("node name must not be empty")
 	}
-	if registration.Handler == nil {
-		return fmt.Errorf("handler for node %q must not be nil", name)
+	if registration.Lifecycles.OnRun == nil {
+		return fmt.Errorf("on-run lifecycle for node %q must not be nil", name)
+	}
+	if registration.OutputRoutingMode == "" {
+		registration.OutputRoutingMode = OutputRoutingBroadcast
+	}
+	if registration.OutputRoutingMode != OutputRoutingBroadcast &&
+		registration.OutputRoutingMode != OutputRoutingExplicit {
+		return fmt.Errorf("output routing mode for node %q is invalid", name)
 	}
 	registry.mutex.Lock()
 	defer registry.mutex.Unlock()
@@ -225,12 +213,11 @@ func (registry *NodeRegistry) register(registration NodeRegistration) error {
 	if definition.Version == "" {
 		definition.Version = "v1"
 	}
-	key := definitionKey(name, definition.Version)
-	if _, exists := registry.registrations[key]; exists {
-		return fmt.Errorf("node %q version %q is already defined", name, definition.Version)
+	if _, exists := registry.registrations[name]; exists {
+		return fmt.Errorf("node %q is already defined", name)
 	}
 	registration.Definition = definition
-	registry.registrations[key] = cloneRegistration(registration)
+	registry.registrations[name] = cloneRegistration(registration)
 	return nil
 }
 
@@ -260,12 +247,4 @@ func cloneMaximum(maximum *uint) *uint {
 	}
 	cloned := *maximum
 	return &cloned
-}
-
-func definitionKey(nodeType, version string) string {
-	normalizedVersion := strings.TrimSpace(version)
-	if normalizedVersion == "" {
-		normalizedVersion = "v1"
-	}
-	return strings.TrimSpace(nodeType) + "\x00" + normalizedVersion
 }

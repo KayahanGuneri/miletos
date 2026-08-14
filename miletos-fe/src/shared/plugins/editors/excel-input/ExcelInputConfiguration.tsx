@@ -26,8 +26,7 @@ const excelInputSchema: FlatFormSchema = {
       required: true,
       defaultValue: "",
       accept: ".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      visibleWhenKey: "sourceType",
-      visibleWhenValue: "LOCAL",
+      when: (data) => data.sourceType === "LOCAL",
     },
     {
       key: "fileName",
@@ -37,8 +36,7 @@ const excelInputSchema: FlatFormSchema = {
       required: true,
       defaultValue: "",
       placeholder: messages.fileNamePlaceholder,
-      visibleWhenKey: "sourceType",
-      visibleWhenValue: "SFTP",
+      when: (data) => data.sourceType === "SFTP",
     },
     {
       key: "sheetName",
@@ -57,8 +55,7 @@ const excelInputSchema: FlatFormSchema = {
       required: true,
       defaultValue: "",
       placeholder: "localhost",
-      visibleWhenKey: "sourceType",
-      visibleWhenValue: "SFTP",
+      when: (data) => data.sourceType === "SFTP",
     },
     {
       key: "sftpPort",
@@ -69,8 +66,7 @@ const excelInputSchema: FlatFormSchema = {
       defaultValue: 22,
       min: 1,
       max: 65535,
-      visibleWhenKey: "sourceType",
-      visibleWhenValue: "SFTP",
+      when: (data) => data.sourceType === "SFTP",
     },
     {
       key: "sftpUsername",
@@ -79,8 +75,7 @@ const excelInputSchema: FlatFormSchema = {
       renderType: "INPUT",
       required: true,
       defaultValue: "",
-      visibleWhenKey: "sourceType",
-      visibleWhenValue: "SFTP",
+      when: (data) => data.sourceType === "SFTP",
     },
     {
       key: "sftpPassword",
@@ -89,8 +84,7 @@ const excelInputSchema: FlatFormSchema = {
       renderType: "PASSWORD",
       required: false,
       defaultValue: "",
-      visibleWhenKey: "sourceType",
-      visibleWhenValue: "SFTP",
+      when: (data) => data.sourceType === "SFTP",
     },
     {
       key: "sftpBaseDirectory",
@@ -100,8 +94,7 @@ const excelInputSchema: FlatFormSchema = {
       required: true,
       defaultValue: "",
       placeholder: "/upload",
-      visibleWhenKey: "sourceType",
-      visibleWhenValue: "SFTP",
+      when: (data) => data.sourceType === "SFTP",
     },
     {
       key: "sftpHostKeySha256",
@@ -111,8 +104,7 @@ const excelInputSchema: FlatFormSchema = {
       required: true,
       defaultValue: "",
       placeholder: "SHA256:...",
-      visibleWhenKey: "sourceType",
-      visibleWhenValue: "SFTP",
+      when: (data) => data.sourceType === "SFTP",
     },
   ],
 };

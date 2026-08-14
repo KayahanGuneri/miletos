@@ -179,7 +179,9 @@ func Build(
 			return nil, err
 		}
 	}
-	queryService := execution.NewExecutionQueryService(executionRepository, workflowRepository)
+	queryService := execution.NewExecutionQueryService(
+		executionRepository, workflowRepository, registry,
+	)
 	recoveryService := execution.NewRecoveryService(
 		workflowRepository, executionRepository, workflowService, scheduler,
 	)

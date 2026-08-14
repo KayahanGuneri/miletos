@@ -136,22 +136,14 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
   const selectedPlugin = useMemo(
     () =>
       selectedNode
-        ? plugins.data?.items.find(
-            (plugin) =>
-              plugin.type === selectedNode.pluginType &&
-              plugin.version === selectedNode.pluginVersion,
-          )
+        ? plugins.data?.items.find((plugin) => plugin.type === selectedNode.pluginType)
         : undefined,
     [plugins.data?.items, selectedNode],
   );
   const configurationPlugin = useMemo(
     () =>
       configurationNode
-        ? plugins.data?.items.find(
-            (plugin) =>
-              plugin.type === configurationNode.pluginType &&
-              plugin.version === configurationNode.pluginVersion,
-          )
+        ? plugins.data?.items.find((plugin) => plugin.type === configurationNode.pluginType)
         : undefined,
     [configurationNode, plugins.data?.items],
   );

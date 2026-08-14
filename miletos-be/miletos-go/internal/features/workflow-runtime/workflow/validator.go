@@ -34,9 +34,8 @@ func (validationError *WorkflowDefinitionValidationError) Error() string {
 	return validationError.Issues[0].Reason
 }
 
-type DefinitionLookup func(string, string) (plugin.NodeDefinition, bool)
-type TypeLookup func(string) bool
-type ConfigurationValidator func(string, string, map[string]any) error
+type DefinitionLookup func(string) (plugin.NodeDefinition, bool)
+type ConfigurationValidator func(string, map[string]any) error
 
 func ValidateWorkflow(workflow Workflow, nodeDefined func(string) bool) error {
 	inputPorts := make([]plugin.Port, 0, len(workflow.Edges))
@@ -45,10 +44,10 @@ func ValidateWorkflow(workflow Workflow, nodeDefined func(string) bool) error {
 		inputPorts = append(inputPorts, plugin.Port{Name: edge.TargetInputPort})
 		outputPorts = append(outputPorts, plugin.Port{Name: edge.SourceOutputPort})
 	}
-	lookup := func(nodeType, _ string) (plugin.NodeDefinition, bool) {
+	lookup := func(nodeType string) (plugin.NodeDefinition, bool) {
 		if nodeDefined == nil || nodeDefined(nodeType) {
 			return plugin.NodeDefinition{
-				Type: nodeType, Version: "v1",
+				Type:       nodeType,
 				InputPorts: inputPorts, OutputPorts: outputPorts,
 				InputEdgeConstraint:  plugin.EdgeConstraint{},
 				OutputEdgeConstraint: plugin.EdgeConstraint{},
@@ -56,13 +55,12 @@ func ValidateWorkflow(workflow Workflow, nodeDefined func(string) bool) error {
 		}
 		return plugin.NodeDefinition{}, false
 	}
-	return ValidateWorkflowDefinition(workflow, lookup, nil, nil)
+	return ValidateWorkflowDefinition(workflow, lookup, nil)
 }
 
 func ValidateWorkflowDefinition(
 	workflow Workflow,
 	definition DefinitionLookup,
-	typeDefined TypeLookup,
 	validateConfiguration ConfigurationValidator,
 ) error {
 	issues := make([]ValidationIssue, 0)
@@ -96,9 +94,6 @@ func ValidateWorkflowDefinition(
 	nodes := append([]WorkflowNode(nil), workflow.Nodes...)
 	sort.SliceStable(nodes, func(left, right int) bool {
 		if nodes[left].ID == nodes[right].ID {
-			if nodes[left].Type == nodes[right].Type {
-				return nodes[left].Version < nodes[right].Version
-			}
 			return nodes[left].Type < nodes[right].Type
 		}
 		return nodes[left].ID < nodes[right].ID
@@ -128,42 +123,27 @@ func ValidateWorkflowDefinition(
 			})
 			continue
 		}
-		version := strings.TrimSpace(node.Version)
-		if version == "" {
-			version = "v1"
-		}
-		descriptor, exists := definition(node.Type, version)
+		pluginVersion := normalizedVersion(node.Version)
+		descriptor, exists := definition(node.Type)
 		if !exists {
-			code := "PLUGIN_NOT_FOUND"
-			field := "pluginType"
 			reason := fmt.Sprintf(
 				"node %q uses undefined plugin type %q",
 				node.ID,
 				node.Type,
 			)
-			if typeDefined != nil && typeDefined(node.Type) {
-				code = "PLUGIN_VERSION_NOT_FOUND"
-				field = "pluginVersion"
-				reason = fmt.Sprintf(
-					"node %q uses undefined plugin version %q for type %q",
-					node.ID,
-					version,
-					node.Type,
-				)
-			}
 			issues = append(issues, ValidationIssue{
-				Code: code, Field: field, Reason: reason,
-				NodeID: node.ID, PluginType: node.Type, PluginVersion: version,
+				Code: "PLUGIN_NOT_FOUND", Field: "pluginType", Reason: reason,
+				NodeID: node.ID, PluginType: node.Type, PluginVersion: pluginVersion,
 			})
 			continue
 		}
 		definitions[node.ID] = descriptor
 		if validateConfiguration != nil {
-			if err := validateConfiguration(node.Type, version, node.Configuration); err != nil {
+			if err := validateConfiguration(node.Type, node.Configuration); err != nil {
 				issues = append(issues, ValidationIssue{
 					Code: configurationIssueCode(err), Field: "configuration",
 					Reason: err.Error(), NodeID: node.ID,
-					PluginType: node.Type, PluginVersion: version,
+					PluginType: node.Type, PluginVersion: pluginVersion,
 				})
 			}
 		}

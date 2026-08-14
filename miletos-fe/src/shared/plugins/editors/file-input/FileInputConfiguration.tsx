@@ -26,8 +26,7 @@ const fileInputSchema: FlatFormSchema = {
       required: true,
       defaultValue: "",
       accept: ".txt,.csv,text/plain,text/csv",
-      visibleWhenKey: "sourceType",
-      visibleWhenValue: "LOCAL",
+      when: (data) => data.sourceType === "LOCAL",
     },
     {
       key: "fileName",
@@ -37,8 +36,7 @@ const fileInputSchema: FlatFormSchema = {
       required: true,
       defaultValue: "",
       placeholder: messages.fileNamePlaceholder,
-      visibleWhenKey: "sourceType",
-      visibleWhenValue: "SFTP",
+      when: (data) => data.sourceType === "SFTP",
     },
     {
       key: "sftpHost",
@@ -48,8 +46,7 @@ const fileInputSchema: FlatFormSchema = {
       required: true,
       defaultValue: "",
       placeholder: "localhost",
-      visibleWhenKey: "sourceType",
-      visibleWhenValue: "SFTP",
+      when: (data) => data.sourceType === "SFTP",
     },
     {
       key: "sftpPort",
@@ -60,8 +57,7 @@ const fileInputSchema: FlatFormSchema = {
       defaultValue: 22,
       min: 1,
       max: 65535,
-      visibleWhenKey: "sourceType",
-      visibleWhenValue: "SFTP",
+      when: (data) => data.sourceType === "SFTP",
     },
     {
       key: "sftpUsername",
@@ -70,8 +66,7 @@ const fileInputSchema: FlatFormSchema = {
       renderType: "INPUT",
       required: true,
       defaultValue: "",
-      visibleWhenKey: "sourceType",
-      visibleWhenValue: "SFTP",
+      when: (data) => data.sourceType === "SFTP",
     },
     {
       key: "sftpPassword",
@@ -80,8 +75,7 @@ const fileInputSchema: FlatFormSchema = {
       renderType: "PASSWORD",
       required: false,
       defaultValue: "",
-      visibleWhenKey: "sourceType",
-      visibleWhenValue: "SFTP",
+      when: (data) => data.sourceType === "SFTP",
     },
     {
       key: "sftpBaseDirectory",
@@ -91,8 +85,7 @@ const fileInputSchema: FlatFormSchema = {
       required: true,
       defaultValue: "",
       placeholder: "/upload",
-      visibleWhenKey: "sourceType",
-      visibleWhenValue: "SFTP",
+      when: (data) => data.sourceType === "SFTP",
     },
     {
       key: "sftpHostKeySha256",
@@ -102,8 +95,7 @@ const fileInputSchema: FlatFormSchema = {
       required: true,
       defaultValue: "",
       placeholder: "SHA256:...",
-      visibleWhenKey: "sourceType",
-      visibleWhenValue: "SFTP",
+      when: (data) => data.sourceType === "SFTP",
     },
   ],
 };

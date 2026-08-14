@@ -342,9 +342,19 @@ func (repository *ExecutionRepository) SaveNodeSuccess(
 	ctx context.Context,
 	job model.NodeJob,
 	output any,
+	routing model.NodeRoutingOutcome,
 ) error {
 	now := time.Now().UTC()
-	encoded, err := encodeJSON(objectSummary(output))
+	outputSummary := objectSummary(output)
+	var persistedOutput any = outputSummary
+	if routing.Explicit {
+		persistedOutput = model.PersistedRoutedOutput{
+			Format:       model.PersistedRoutedOutputFormat,
+			Output:       outputSummary,
+			EdgePayloads: routing.EdgePayloads,
+		}
+	}
+	encoded, err := encodeJSON(persistedOutput)
 	if err != nil {
 		return err
 	}
@@ -720,7 +730,9 @@ func (repository *ExecutionRepository) MarkNodeSkipped(
 		reason = string(model.SkipReasonDependencyFailed)
 	}
 	switch reason {
-	case string(model.SkipReasonOutOfTriggerScope), string(model.SkipReasonDependencyFailed):
+	case string(model.SkipReasonOutOfTriggerScope),
+		string(model.SkipReasonDependencyFailed),
+		string(model.SkipReasonNoActiveRoute):
 	default:
 		return fmt.Errorf("invalid node skip reason %q", reason)
 	}
@@ -777,6 +789,8 @@ func skipReasonMessage(reason string) string {
 	switch reason {
 	case string(model.SkipReasonOutOfTriggerScope):
 		return "Node skipped because it is outside the selected trigger scope"
+	case string(model.SkipReasonNoActiveRoute):
+		return "Node skipped because no incoming route was selected"
 	default:
 		return "Node skipped because a dependency failed"
 	}

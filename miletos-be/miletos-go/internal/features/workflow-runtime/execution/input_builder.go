@@ -12,12 +12,31 @@ func BuildNodeInput(
 	outputs map[string]any,
 	registry *plugin.NodeRegistry,
 ) any {
+	edgePayloads := make(map[string]any)
+	for _, edge := range definition.Edges {
+		if edge.TargetNodeID == nodeID {
+			edgePayloads[edge.ID] = normalizeOutput(outputs[edge.SourceNodeID])
+		}
+	}
+	return buildNodeInputFromEdges(definition, nodeID, edgePayloads, registry)
+}
+
+func buildNodeInputFromEdges(
+	definition workflow.Workflow,
+	nodeID string,
+	edgePayloads map[string]any,
+	registry *plugin.NodeRegistry,
+) any {
 	node, _ := findWorkflowNode(definition, nodeID)
-	descriptor, _ := registry.Definition(node.Type, node.Version)
+	descriptor, _ := registry.Definition(node.Type)
 	if descriptor.InputMode == plugin.NodeInputMulti {
 		inputs := make([]any, 0)
 		for _, edge := range definition.Edges {
 			if edge.TargetNodeID != nodeID {
+				continue
+			}
+			value, active := edgePayloads[edge.ID]
+			if !active {
 				continue
 			}
 			inputs = append(inputs, map[string]any{
@@ -25,17 +44,19 @@ func BuildNodeInput(
 				"sourceNodeId":     edge.SourceNodeID,
 				"sourceOutputPort": edge.SourceOutputPort,
 				"targetInputPort":  edge.TargetInputPort,
-				"value":            normalizeOutput(outputs[edge.SourceNodeID]),
+				"value":            value,
 			})
 		}
 		return map[string]any{"inputs": inputs}
 	}
 	values := make(map[string]any)
 	for _, edge := range definition.Edges {
-		if edge.TargetNodeID == nodeID {
-			values[edge.TargetInputPort] = normalizeOutput(
-				outputs[edge.SourceNodeID],
-			)
+		if edge.TargetNodeID != nodeID {
+			continue
+		}
+		value, active := edgePayloads[edge.ID]
+		if active {
+			values[edge.TargetInputPort] = value
 		}
 	}
 	if len(values) == 1 {
@@ -52,12 +73,12 @@ func BuildNodeInput(
 func buildExecutionNodeInput(
 	definition workflow.Workflow,
 	nodeID string,
-	outputs map[string]any,
+	edgePayloads map[string]any,
 	registry *plugin.NodeRegistry,
 	startInput map[string]any,
 	origin model.ExecutionOrigin,
 ) any {
-	payload := BuildNodeInput(definition, nodeID, outputs, registry)
+	payload := buildNodeInputFromEdges(definition, nodeID, edgePayloads, registry)
 	if startInput == nil || len(workflow.Predecessors(definition, nodeID)) != 0 {
 		return payload
 	}
@@ -67,12 +88,12 @@ func buildExecutionNodeInput(
 	}
 	switch origin {
 	case model.ExecutionOriginManualDirect:
-		descriptor, registered := registry.Definition(node.Type, node.Version)
+		descriptor, registered := registry.Definition(node.Type)
 		if registered && plugin.CanReceiveEntryInput(descriptor) {
 			return startInput
 		}
 	case model.ExecutionOriginHTTPWebhook, model.ExecutionOriginCron:
-		if registry.DeclaresExecutionSource(node.Type, node.Version, string(origin)) {
+		if registry.DeclaresExecutionSource(node.Type, string(origin)) {
 			return startInput
 		}
 	}

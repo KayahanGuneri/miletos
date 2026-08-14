@@ -42,6 +42,39 @@ type CreateRequest struct {
 	ResolvedMode  ResolvedMode
 }
 
+type scenarioStartInfrastructure struct {
+	service *Service
+	request CreateRequest
+	created CreatedBinding
+}
+
+func newScenarioStartInfrastructure(
+	service *Service,
+	request CreateRequest,
+) *scenarioStartInfrastructure {
+	return &scenarioStartInfrastructure{service: service, request: request}
+}
+
+func (infrastructure *scenarioStartInfrastructure) CreateTrigger(
+	ctx context.Context,
+	request plugin.HTTPScenarioStartRequest,
+) error {
+	requestedMethod, err := normalizeMethod(infrastructure.request.Method)
+	if err != nil || requestedMethod != request.Method {
+		return ErrInvalidTrigger
+	}
+	created, err := infrastructure.service.Create(ctx, infrastructure.request)
+	if err != nil {
+		return err
+	}
+	infrastructure.created = created
+	return nil
+}
+
+func (infrastructure *scenarioStartInfrastructure) Result() CreatedBinding {
+	return infrastructure.created
+}
+
 func NewService(
 	publicBaseURL string,
 	triggers *Repository,
@@ -132,7 +165,6 @@ func validateTriggerRoot(
 	}
 	if !registry.DeclaresExecutionSource(
 		rootNode.Type,
-		rootNode.Version,
 		string(executionmodel.ExecutionOriginHTTPWebhook),
 	) {
 		return ErrInvalidTrigger
