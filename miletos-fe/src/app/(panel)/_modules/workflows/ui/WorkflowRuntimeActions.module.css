@@ -1,12 +1,11 @@
 .workflowRuntime__panel {
-  margin-bottom: 18px;
-  padding: 20px;
+  margin: 0;
+  padding: 4px 0 0;
   display: grid;
-  gap: 14px;
-  border: 1px solid var(--color-border);
-  border-radius: 20px;
-  background: #fff;
-  box-shadow: var(--shadow-sm);
+  gap: 10px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .workflowRuntime__panel > header h2,
@@ -25,16 +24,16 @@
 }
 
 .workflowRuntime__card {
-  padding: 16px;
+  padding: 14px;
   display: grid;
-  gap: 12px;
+  gap: 10px;
   border: 1px solid var(--color-border);
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--color-surface-soft);
 }
 
 .workflowRuntime__card h3 {
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .workflowRuntime__actions {

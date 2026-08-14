@@ -35,6 +35,14 @@ func newNodeAccess(
 	}
 }
 
+func NewNodeAccess(
+	definition workflow.Workflow,
+	nodeID string,
+	routingMode plugin.OutputRoutingMode,
+) plugin.Access {
+	return newNodeAccess(definition, nodeID, routingMode)
+}
+
 func (access *nodeAccess) GetOutputEdgeCount() int {
 	return len(access.edges)
 }
@@ -99,11 +107,11 @@ func decodeNodeExecutionOutcome(
 	if registry == nil {
 		return node, nil
 	}
-	mode, exists := registry.GetOutputRoutingMode(node.Type)
+	registration, exists := registry.Get(node.Type)
 	if !exists {
 		return node, nil
 	}
-	if mode != plugin.OutputRoutingExplicit {
+	if registration.RoutingMode != plugin.OutputRoutingExplicit {
 		return node, nil
 	}
 	node.Routing.Explicit = true

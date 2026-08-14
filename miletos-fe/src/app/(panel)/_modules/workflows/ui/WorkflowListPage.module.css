@@ -1,21 +1,44 @@
 .workflowList__panel {
-  padding: 24px;
-  border: 1px solid var(--color-border);
-  border-radius: 22px;
+  padding: 22px 22px 20px;
+  border: 1px solid rgba(75, 70, 255, 0.12);
+  border-radius: var(--radius-lg);
   background: #fff;
   box-shadow: var(--shadow-sm);
 }
 
+.workflowList__directoryHeader {
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.workflowList__eyebrow {
+  margin: 0 0 4px;
+  color: var(--color-primary);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.workflowList__directoryHeader h2 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 18px;
+  letter-spacing: -0.03em;
+}
+
 .workflowList__createLink {
-  min-height: 44px;
-  padding: 0 18px;
+  min-height: 40px;
+  padding: 0 16px;
   display: inline-flex;
   align-items: center;
-  border-radius: 13px;
+  border-radius: var(--control-radius);
   color: #fff;
-  background: var(--color-primary);
+  background: linear-gradient(180deg, #5d58ff 0%, #433ee8 100%);
+  box-shadow: var(--shadow-primary);
   font-size: 13px;
-  font-weight: 850;
+  font-weight: 650;
   text-decoration: none;
 }
 
@@ -24,10 +47,10 @@
   gap: 12px;
   align-items: end;
   justify-content: space-between;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   padding: 14px;
   border: 1px solid var(--color-border);
-  border-radius: 17px;
+  border-radius: var(--radius-md);
   background: var(--color-surface-soft);
 }
 
@@ -51,10 +74,10 @@
 .workflowList__field input,
 .workflowList__field select {
   width: 100%;
-  min-height: 44px;
+  min-height: var(--control-height);
   padding: 0 12px;
   border: 1px solid var(--color-border-strong);
-  border-radius: 12px;
+  border-radius: var(--control-radius);
   color: var(--color-text);
   background: #fff;
   outline: none;
@@ -67,15 +90,17 @@
 }
 
 .workflowList__state {
-  min-height: 130px;
-  padding: 24px;
+  min-height: 180px;
+  padding: 28px;
   display: grid;
   place-content: center;
-  gap: 7px;
-  border: 1px dashed var(--color-border-strong);
-  border-radius: 18px;
+  gap: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   color: var(--color-muted);
-  background: var(--color-surface-soft);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(75, 70, 255, 0.06), transparent 14rem),
+    var(--color-surface-soft);
   text-align: center;
 }
 
@@ -86,7 +111,7 @@
 .workflowList__tableViewport {
   overflow-x: auto;
   border: 1px solid var(--color-border);
-  border-radius: 16px;
+  border-radius: var(--radius-md);
 }
 
 .workflowList__table {
@@ -96,23 +121,32 @@
 }
 
 .workflowList__table th {
-  padding: 12px 14px;
+  padding: 11px 14px;
   color: var(--color-muted);
-  background: #f6f7fc;
+  background: #f7f8fd;
   font-size: 10px;
-  letter-spacing: 0.07em;
+  font-weight: 800;
+  letter-spacing: 0.08em;
   text-align: left;
   text-transform: uppercase;
 }
 
 .workflowList__table td {
   max-width: 240px;
-  padding: 14px;
+  padding: 12px 14px;
   border-top: 1px solid var(--color-border);
   color: var(--color-text);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.45;
   overflow-wrap: anywhere;
+}
+
+.workflowList__table tbody tr {
+  height: 48px;
+}
+
+.workflowList__table tbody tr:hover {
+  background: rgba(75, 70, 255, 0.03);
 }
 
 .workflowList__table a {

@@ -11,6 +11,8 @@ export const workflowMessages = {
     description:
       "Create workflow drafts, manage their lifecycle and inspect company-owned definitions.",
     create: "Create workflow",
+    directoryEyebrow: "Directory",
+    directoryTitle: "Company workflows",
     forbiddenTitle: "Workflow management is unavailable.",
     forbiddenDescription: "Only active company administrators can access this feature.",
     searchLabel: "Search",
@@ -68,6 +70,8 @@ export const workflowMessages = {
       `Revision ${revision} · ${statusLabel}`,
     back: "Back to workflows",
     statusChanged: (statusLabel: string) => `Workflow is now ${statusLabel}.`,
+    detailsEyebrow: "Definition",
+    detailsTitle: "Workflow details",
     nameLabel: "Name",
     descriptionLabel: "Description",
     readOnlyNotice:
@@ -109,6 +113,7 @@ export const workflowMessages = {
   nodeProperties: {
     eyebrow: "Properties",
     title: "Selected node",
+    emptyTitle: "No node selected",
     empty: "Select a node on the canvas to inspect its configuration.",
     displayName: "Node name",
     nodeId: "Node ID",
@@ -133,6 +138,9 @@ export const workflowMessages = {
       `${inputCount} inputs · ${outputCount} outputs`,
     readOnlyHint: "Available for inspection only",
     dragHint: "Drag to canvas",
+    searchLabel: "Search plugins",
+    searchPlaceholder: "Filter by name, type or category",
+    emptyFiltered: "No plugins match the current search.",
   },
   canvas: {
     title: "Workflow canvas",

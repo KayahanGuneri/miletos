@@ -306,9 +306,7 @@ func (service *ExecutionService) ExecuteTriggerFromSnapshot(
 	) {
 		return ExecutionOutcome{}, ErrInvalidExecutionOrigin
 	}
-	// A matching idempotent request is returned as-is. Re-activating it would
-	// schedule the root nodes a second time; the reconciler and the outbox own
-	// durable recovery of an execution that has not progressed.
+
 	if existing, found, err := service.executions.FindIdempotent(
 		ctx, snapshotWorkflow.CompanyID, idempotencyKey, fingerprint,
 	); err != nil || found {
@@ -366,10 +364,8 @@ func (service *ExecutionService) validateExecutionStart(
 			return ErrInvalidExecutionOrigin
 		}
 		if source == model.ExecutionOriginManualDirect && len(startInput) > 0 {
-			descriptor, exists := service.scheduler.registry.Definition(
-				node.Type,
-			)
-			if exists && plugin.CanReceiveEntryInput(descriptor) {
+			registration, exists := service.scheduler.registry.Get(node.Type)
+			if exists && plugin.CanReceiveEntryInput(registration) {
 				acceptsManualEntryInput = true
 			}
 		}

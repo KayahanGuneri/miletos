@@ -44,47 +44,49 @@ func RegisterOutputDestinationNodes(registry *NodeRegistry, runtime OutputNodeRu
 	return nil
 }
 
-func destinationOutputRegistration(spec builtinRegistrationSpec) NodeRegistration {
-	registration := builtinRegistration(spec)
-	// Destination sinks may finish workflows started from any execution origin.
-	registration.AllowedExecutionSources = nil
-	return registration
-}
-
 func restOutputRegistration(client *http.Client) NodeRegistration {
-	return destinationOutputRegistration(builtinRegistrationSpec{
-		Type:        "core.rest-output",
-		DisplayName: "REST Output",
-		Description: "Sends the incoming payload to an external HTTP endpoint as JSON",
-		Input:       true,
-		Output:      false,
-		OnRun:       restOutputHandler(client),
-		Validator:   validateRESTOutput,
-	})
+	return NodeRegistration{
+		Key:                  "core.rest-output",
+		DisplayName:          "REST Output",
+		Description:          "Sends the incoming payload to an external HTTP endpoint as JSON",
+		InputMode:            NodeInputSingle,
+		InputPorts:           standardInputPorts(),
+		InputEdgeConstraint:  fixedEdgeConstraint(1),
+		OutputEdgeConstraint: fixedEdgeConstraint(0),
+		RoutingMode:          OutputRoutingBroadcast,
+		Handler:              restOutputNodeHandler(client),
+		Validator:            validateRESTOutput,
+	}
 }
 
 func databaseOutputRegistration(dbClient *database.Client) NodeRegistration {
-	return destinationOutputRegistration(builtinRegistrationSpec{
-		Type:        "core.database-output",
-		DisplayName: "Database Output",
-		Description: "Inserts the incoming payload into a configured PostgreSQL table as JSONB",
-		Input:       true,
-		Output:      false,
-		OnRun:       databaseOutputHandler(dbClient),
-		Validator:   validateDatabaseOutput,
-	})
+	return NodeRegistration{
+		Key:                  "core.database-output",
+		DisplayName:          "Database Output",
+		Description:          "Inserts the incoming payload into a configured PostgreSQL table as JSONB",
+		InputMode:            NodeInputSingle,
+		InputPorts:           standardInputPorts(),
+		InputEdgeConstraint:  fixedEdgeConstraint(1),
+		OutputEdgeConstraint: fixedEdgeConstraint(0),
+		RoutingMode:          OutputRoutingBroadcast,
+		Handler:              databaseOutputNodeHandler(dbClient),
+		Validator:            validateDatabaseOutput,
+	}
 }
 
 func csvOutputRegistration(outputDirectory string) NodeRegistration {
-	return destinationOutputRegistration(builtinRegistrationSpec{
-		Type:        "core.csv-output",
-		DisplayName: "CSV Output",
-		Description: "Exports the incoming payload as a CSV file under the runtime output directory",
-		Input:       true,
-		Output:      false,
-		OnRun:       csvOutputHandler(outputDirectory),
-		Validator:   validateCSVOutput,
-	})
+	return NodeRegistration{
+		Key:                  "core.csv-output",
+		DisplayName:          "CSV Output",
+		Description:          "Exports the incoming payload as a CSV file under the runtime output directory",
+		InputMode:            NodeInputSingle,
+		InputPorts:           standardInputPorts(),
+		InputEdgeConstraint:  fixedEdgeConstraint(1),
+		OutputEdgeConstraint: fixedEdgeConstraint(0),
+		RoutingMode:          OutputRoutingBroadcast,
+		Handler:              csvOutputNodeHandler(outputDirectory),
+		Validator:            validateCSVOutput,
+	}
 }
 
 func validateRESTOutput(configuration map[string]any) error {
@@ -128,9 +130,9 @@ func validateRESTOutput(configuration map[string]any) error {
 	}
 }
 
-func restOutputHandler(client *http.Client) RunHandler {
-	return func(nodeContext *Context) (any, error) {
-		configuration := nodeContext.Configuration
+func restOutputNodeHandler(client *http.Client) NodeHandler {
+	return onRunHandler(func(nodeContext *Context) (any, error) {
+		configuration := nodeContext.configuration
 		input := nodeContext.Payload
 		if input == nil {
 			return nil, &NodeError{
@@ -157,7 +159,7 @@ func restOutputHandler(client *http.Client) RunHandler {
 			}
 		}
 		request, err := http.NewRequestWithContext(
-			nodeContext.Runtime, method, rawURL, bytes.NewReader(encoded),
+			nodeContext.runtime, method, rawURL, bytes.NewReader(encoded),
 		)
 		if err != nil {
 			return nil, &NodeError{
@@ -187,7 +189,7 @@ func restOutputHandler(client *http.Client) RunHandler {
 			}
 		}
 		return map[string]any{"statusCode": response.StatusCode}, nil
-	}
+	})
 }
 
 var sqlIdentifierPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
@@ -228,9 +230,9 @@ func validateDatabaseOutput(configuration map[string]any) error {
 	return nil
 }
 
-func databaseOutputHandler(dbClient *database.Client) RunHandler {
-	return func(nodeContext *Context) (any, error) {
-		configuration := nodeContext.Configuration
+func databaseOutputNodeHandler(dbClient *database.Client) NodeHandler {
+	return onRunHandler(func(nodeContext *Context) (any, error) {
+		configuration := nodeContext.configuration
 		input := nodeContext.Payload
 		if input == nil {
 			return nil, &NodeError{
@@ -264,7 +266,7 @@ func databaseOutputHandler(dbClient *database.Client) RunHandler {
 			quotePostgreSQLIdentifier(schema),
 			quotePostgreSQLIdentifier(table),
 		)
-		result, err := dbClient.Exec(nodeContext.Runtime, query, string(encoded))
+		result, err := dbClient.Exec(nodeContext.runtime, query, string(encoded))
 		if err != nil {
 			return nil, &NodeError{
 				Category: "EXECUTION",
@@ -278,7 +280,7 @@ func databaseOutputHandler(dbClient *database.Client) RunHandler {
 			"schema":       schema,
 			"table":        table,
 		}, nil
-	}
+	})
 }
 
 func quotePostgreSQLIdentifier(identifier string) string {
@@ -319,9 +321,9 @@ func validateCSVOutput(configuration map[string]any) error {
 	return nil
 }
 
-func csvOutputHandler(outputDirectory string) RunHandler {
-	return func(nodeContext *Context) (any, error) {
-		configuration := nodeContext.Configuration
+func csvOutputNodeHandler(outputDirectory string) NodeHandler {
+	return onRunHandler(func(nodeContext *Context) (any, error) {
+		configuration := nodeContext.configuration
 		input := nodeContext.Payload
 		if err := validateCSVOutput(configuration); err != nil {
 			return nil, err
@@ -381,7 +383,7 @@ func csvOutputHandler(outputDirectory string) RunHandler {
 			"fileName":    fileName,
 			"rowsWritten": len(rows),
 		}, nil
-	}
+	})
 }
 
 // normalizeCSVPayload wraps scalar payloads (string/number/bool/null) as a

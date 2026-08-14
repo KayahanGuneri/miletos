@@ -1,17 +1,5 @@
 package plugin
 
-type NodeDefinition struct {
-	Type                 string
-	Version              string
-	DisplayName          string
-	Description          string
-	InputMode            string
-	InputPorts           []Port
-	OutputPorts          []Port
-	InputEdgeConstraint  EdgeConstraint
-	OutputEdgeConstraint EdgeConstraint
-}
-
 const (
 	NodeInputSingle = "SINGLE"
 	NodeInputMulti  = "MULTI"

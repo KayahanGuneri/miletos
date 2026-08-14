@@ -34,7 +34,7 @@ func (validationError *WorkflowDefinitionValidationError) Error() string {
 	return validationError.Issues[0].Reason
 }
 
-type DefinitionLookup func(string) (plugin.NodeDefinition, bool)
+type RegistrationLookup func(string) (plugin.NodeRegistration, bool)
 type ConfigurationValidator func(string, map[string]any) error
 
 func ValidateWorkflow(workflow Workflow, nodeDefined func(string) bool) error {
@@ -44,23 +44,23 @@ func ValidateWorkflow(workflow Workflow, nodeDefined func(string) bool) error {
 		inputPorts = append(inputPorts, plugin.Port{Name: edge.TargetInputPort})
 		outputPorts = append(outputPorts, plugin.Port{Name: edge.SourceOutputPort})
 	}
-	lookup := func(nodeType string) (plugin.NodeDefinition, bool) {
+	lookup := func(nodeType string) (plugin.NodeRegistration, bool) {
 		if nodeDefined == nil || nodeDefined(nodeType) {
-			return plugin.NodeDefinition{
-				Type:       nodeType,
+			return plugin.NodeRegistration{
+				Key:        nodeType,
 				InputPorts: inputPorts, OutputPorts: outputPorts,
 				InputEdgeConstraint:  plugin.EdgeConstraint{},
 				OutputEdgeConstraint: plugin.EdgeConstraint{},
 			}, true
 		}
-		return plugin.NodeDefinition{}, false
+		return plugin.NodeRegistration{}, false
 	}
 	return ValidateWorkflowDefinition(workflow, lookup, nil)
 }
 
 func ValidateWorkflowDefinition(
 	workflow Workflow,
-	definition DefinitionLookup,
+	registration RegistrationLookup,
 	validateConfiguration ConfigurationValidator,
 ) error {
 	issues := make([]ValidationIssue, 0)
@@ -99,7 +99,7 @@ func ValidateWorkflowDefinition(
 		return nodes[left].ID < nodes[right].ID
 	})
 	nodeByID := make(map[string]WorkflowNode, len(nodes))
-	definitions := make(map[string]plugin.NodeDefinition, len(nodes))
+	registrations := make(map[string]plugin.NodeRegistration, len(nodes))
 	for _, node := range nodes {
 		if strings.TrimSpace(node.ID) == "" {
 			issues = append(issues, ValidationIssue{
@@ -124,7 +124,7 @@ func ValidateWorkflowDefinition(
 			continue
 		}
 		pluginVersion := normalizedVersion(node.Version)
-		descriptor, exists := definition(node.Type)
+		declaration, exists := registration(node.Type)
 		if !exists {
 			reason := fmt.Sprintf(
 				"node %q uses undefined plugin type %q",
@@ -137,7 +137,7 @@ func ValidateWorkflowDefinition(
 			})
 			continue
 		}
-		definitions[node.ID] = descriptor
+		registrations[node.ID] = declaration
 		if validateConfiguration != nil {
 			if err := validateConfiguration(node.Type, node.Configuration); err != nil {
 				issues = append(issues, ValidationIssue{
@@ -215,30 +215,30 @@ func ValidateWorkflowDefinition(
 			})
 		}
 		if sourceExists {
-			if descriptor, exists := definitions[source.ID]; exists &&
+			if declaration, exists := registrations[source.ID]; exists &&
 				!sourcePortBlank &&
-				!hasPort(descriptor.OutputPorts, edge.SourceOutputPort) {
+				!hasPort(declaration.OutputPorts, edge.SourceOutputPort) {
 				structurallyValid = false
 				issues = append(issues, ValidationIssue{
 					Code: "UNKNOWN_OUTPUT_PORT", Field: "sourceOutputPort",
 					Reason: "Source output port is not declared by the plugin.",
 					NodeID: source.ID, EdgeID: edge.ID, PluginType: source.Type,
 					PluginVersion: normalizedVersion(source.Version),
-					Expected:      portNames(descriptor.OutputPorts), Actual: edge.SourceOutputPort,
+					Expected:      portNames(declaration.OutputPorts), Actual: edge.SourceOutputPort,
 				})
 			}
 		}
 		if targetExists {
-			if descriptor, exists := definitions[target.ID]; exists &&
+			if declaration, exists := registrations[target.ID]; exists &&
 				!targetPortBlank &&
-				!hasPort(descriptor.InputPorts, edge.TargetInputPort) {
+				!hasPort(declaration.InputPorts, edge.TargetInputPort) {
 				structurallyValid = false
 				issues = append(issues, ValidationIssue{
 					Code: "UNKNOWN_INPUT_PORT", Field: "targetInputPort",
 					Reason: "Target input port is not declared by the plugin.",
 					NodeID: target.ID, EdgeID: edge.ID, PluginType: target.Type,
 					PluginVersion: normalizedVersion(target.Version),
-					Expected:      portNames(descriptor.InputPorts), Actual: edge.TargetInputPort,
+					Expected:      portNames(declaration.InputPorts), Actual: edge.TargetInputPort,
 				})
 			}
 		}
@@ -271,15 +271,15 @@ func ValidateWorkflowDefinition(
 	}
 
 	for _, node := range nodes {
-		descriptor, exists := definitions[node.ID]
+		declaration, exists := registrations[node.ID]
 		if !exists {
 			continue
 		}
 		issues = append(issues, constraintIssues(
-			node, "INPUT", incoming[node.ID], descriptor.InputEdgeConstraint,
+			node, "INPUT", incoming[node.ID], declaration.InputEdgeConstraint,
 		)...)
 		issues = append(issues, constraintIssues(
-			node, "OUTPUT", outgoing[node.ID], descriptor.OutputEdgeConstraint,
+			node, "OUTPUT", outgoing[node.ID], declaration.OutputEdgeConstraint,
 		)...)
 	}
 	canonicalWorkflow := workflow

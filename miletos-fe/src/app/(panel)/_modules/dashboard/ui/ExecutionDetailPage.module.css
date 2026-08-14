@@ -18,16 +18,18 @@
 }
 
 .executionDetailPage__hero {
-  margin-bottom: 18px;
-  padding: clamp(24px, 2.5vw, 36px);
+  margin-bottom: 16px;
+  padding: 22px 24px;
   display: flex;
-  gap: 24px;
+  gap: 18px;
   align-items: flex-start;
   justify-content: space-between;
-  border: 1px solid rgba(75, 70, 255, 0.14);
-  border-radius: 28px;
-  background: linear-gradient(135deg, #f8f7ff, #ffffff 55%, #eef8ff);
-  box-shadow: var(--shadow-card);
+  border: 1px solid rgba(75, 70, 255, 0.13);
+  border-radius: var(--radius-xl);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(75, 70, 255, 0.08), transparent 16rem),
+    linear-gradient(135deg, #f6f5ff, #ffffff 55%, #eef8ff);
+  box-shadow: var(--shadow-sm);
 }
 
 .executionDetailPage__heroCopy {
@@ -47,7 +49,7 @@
 .executionDetailPage__executionId {
   display: block;
   color: var(--color-text);
-  font-size: clamp(20px, 2vw, 30px);
+  font-size: clamp(18px, 1.7vw, 26px);
   letter-spacing: -0.035em;
   overflow-wrap: anywhere;
 }
@@ -117,17 +119,17 @@
 }
 
 .executionDetailPage__metrics {
-  margin-bottom: 18px;
+  margin-bottom: 16px;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 13px;
+  gap: 12px;
 }
 
 .executionDetailPage__metrics article {
   min-width: 0;
-  padding: 19px;
-  border: 1px solid rgba(75, 70, 255, 0.12);
-  border-radius: 19px;
+  padding: 16px;
+  border: 1px solid rgba(75, 70, 255, 0.11);
+  border-radius: var(--radius-md);
   background: #ffffff;
   box-shadow: var(--shadow-sm);
 }
@@ -159,11 +161,11 @@
 .executionDetailPage__card,
 .executionDetailPage__definition {
   min-width: 0;
-  padding: clamp(22px, 2vw, 30px);
-  border: 1px solid rgba(75, 70, 255, 0.13);
-  border-radius: 26px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: var(--shadow-card);
+  padding: 20px 22px;
+  border: 1px solid rgba(75, 70, 255, 0.12);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: var(--shadow-sm);
 }
 
 .executionDetailPage__cardHeader {
@@ -182,8 +184,8 @@
 .executionDetailPage__cardHeader h2 {
   margin: 0;
   color: var(--color-text);
-  font-size: clamp(20px, 1.7vw, 27px);
-  letter-spacing: -0.04em;
+  font-size: 18px;
+  letter-spacing: -0.03em;
 }
 
 .executionDetailPage__details {
@@ -191,13 +193,13 @@
 }
 
 .executionDetailPage__details > div {
-  min-height: 53px;
-  padding: 11px 0;
+  min-height: 40px;
+  padding: 8px 0;
   display: grid;
   grid-template-columns:
     minmax(120px, 0.65fr)
     minmax(0, 1.35fr);
-  gap: 14px;
+  gap: 12px;
   align-items: center;
   border-bottom: 1px solid var(--color-border);
 }

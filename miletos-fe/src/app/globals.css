@@ -1,16 +1,17 @@
 :root {
-  --color-page: #f4f6ff;
+  --color-page: #f3f5fb;
   --color-surface: #ffffff;
-  --color-surface-soft: #f8f9ff;
-  --color-surface-tinted: #f1f3ff;
-  --color-text: #17172f;
-  --color-muted: #667085;
-  --color-subtle: #98a2b3;
+  --color-surface-soft: #f7f8fd;
+  --color-surface-tinted: #eef1fb;
+  --color-surface-elevated: #ffffff;
+  --color-text: #16162c;
+  --color-muted: #5f6b7f;
+  --color-subtle: #8b95a8;
   --color-primary: #4b46ff;
   --color-primary-hover: #3932e8;
   --color-primary-strong: #251e8f;
-  --color-primary-soft: rgba(75, 70, 255, 0.09);
-  --color-primary-border: rgba(75, 70, 255, 0.18);
+  --color-primary-soft: rgba(75, 70, 255, 0.08);
+  --color-primary-border: rgba(75, 70, 255, 0.16);
   --color-accent: #14b8d4;
   --color-success: #067647;
   --color-success-soft: #ecfdf3;
@@ -18,16 +19,21 @@
   --color-warning-soft: #fffaeb;
   --color-danger: #b42318;
   --color-danger-soft: #fff1f0;
-  --color-border: #dfe3f1;
-  --color-border-strong: #cbd2e6;
-  --radius-sm: 12px;
-  --radius-md: 16px;
-  --radius-lg: 22px;
-  --radius-xl: 30px;
-  --shadow-sm: 0 10px 30px rgba(31, 35, 71, 0.08);
-  --shadow-card: 0 24px 70px rgba(31, 35, 71, 0.12);
-  --shadow-card-hover: 0 30px 90px rgba(31, 35, 71, 0.17);
-  --shadow-primary: 0 16px 36px rgba(75, 70, 255, 0.24);
+  --color-border: #e4e7f2;
+  --color-border-strong: #cfd5e6;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 22px;
+  --control-height: 42px;
+  --control-radius: 11px;
+  --shadow-sm: 0 1px 2px rgba(28, 32, 68, 0.04), 0 8px 20px rgba(28, 32, 68, 0.05);
+  --shadow-card: 0 1px 2px rgba(28, 32, 68, 0.04), 0 14px 36px rgba(28, 32, 68, 0.07);
+  --shadow-card-hover: 0 1px 2px rgba(28, 32, 68, 0.05), 0 18px 40px rgba(28, 32, 68, 0.1);
+  --shadow-primary: 0 8px 18px rgba(75, 70, 255, 0.22);
+  --page-pad-x: 32px;
+  --page-pad-y: 24px;
+  scrollbar-color: rgba(75, 70, 255, 0.26) transparent;
 }
 
 * {
@@ -37,6 +43,7 @@
 html {
   min-width: 320px;
   min-height: 100%;
+  overflow-x: hidden;
   background: var(--color-page);
   scroll-behavior: smooth;
 }
@@ -46,8 +53,8 @@ body {
   margin: 0;
   color: var(--color-text);
   background:
-    radial-gradient(circle at 2% 0%, rgba(75, 70, 255, 0.11), transparent 27rem),
-    radial-gradient(circle at 98% 100%, rgba(20, 184, 212, 0.08), transparent 28rem),
+    radial-gradient(circle at 6% -8%, rgba(75, 70, 255, 0.08), transparent 26rem),
+    radial-gradient(circle at 96% 108%, rgba(20, 184, 212, 0.06), transparent 24rem),
     var(--color-page);
   font-family:
     Inter,
@@ -82,8 +89,8 @@ button {
 }
 
 :focus-visible {
-  outline: 3px solid rgba(75, 70, 255, 0.25);
-  outline-offset: 3px;
+  outline: 2px solid rgba(75, 70, 255, 0.45);
+  outline-offset: 2px;
 }
 
 ::selection {

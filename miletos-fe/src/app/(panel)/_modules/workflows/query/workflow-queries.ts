@@ -17,6 +17,7 @@ import {
   type Workflow,
   type WorkflowListParams,
   type WorkflowPageResponse,
+  type WorkflowSummary,
 } from "@/app/(panel)/_modules/workflows/types/workflow-interfaces";
 import { type ApiError, toApiError } from "@/shared/api/api-error";
 
@@ -30,6 +31,33 @@ export function useWorkflowsQuery(params: WorkflowListParams, enabled = true) {
     queryFn: async () => {
       try {
         return await listWorkflows(params);
+      } catch (error) {
+        throw toApiError(error);
+      }
+    },
+    enabled,
+  });
+}
+
+const WORKFLOW_OPTION_PAGE_SIZE = 100;
+
+export function useAllWorkflowsQuery(enabled = true) {
+  return useQuery<WorkflowSummary[], ApiError>({
+    queryKey: workflowQueryKeys.options(),
+    queryFn: async () => {
+      try {
+        const workflows: WorkflowSummary[] = [];
+        let page = 0;
+        let isLastPage = false;
+
+        while (!isLastPage) {
+          const response = await listWorkflows({ page, size: WORKFLOW_OPTION_PAGE_SIZE });
+          workflows.push(...response.content);
+          isLastPage = response.last;
+          page += 1;
+        }
+
+        return workflows;
       } catch (error) {
         throw toApiError(error);
       }

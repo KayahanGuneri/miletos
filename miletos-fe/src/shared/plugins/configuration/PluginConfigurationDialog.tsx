@@ -7,6 +7,11 @@ import { Dialog } from "@/components/lib/dialog/Dialog";
 import { Typography } from "@/components/lib/typography/Typography";
 import type { PluginConfiguration } from "@/shared/plugins/contracts/plugin-configuration-interfaces";
 import { FormBuilder } from "@/shared/plugins/form/FormBuilder";
+import {
+  deserializeFormConfiguration,
+  serializeFormConfiguration,
+  validateFormConfiguration,
+} from "@/shared/plugins/form/form-configuration";
 import type { FlatFormSchema, FormConfiguration } from "@/shared/plugins/form/form-schema-types";
 import { pluginMessages } from "@/shared/plugins/messages/plugin-messages";
 import { getPluginConfigurationDefinition } from "@/shared/plugins/registry/plugin-configuration-registry";
@@ -30,15 +35,64 @@ interface DialogState {
   values?: unknown;
   schema?: FlatFormSchema;
   error?: string;
+  embedded?: boolean;
   mode: "legacy" | "schema" | "unsupported";
 }
 
-function loadDialogState(pluginType: string, configuration: PluginConfiguration): DialogState {
-  const definition = getPluginConfigurationDefinition(pluginType);
-  if (!definition) {
-    return { mode: "unsupported" };
+function readEmbeddedFormSchema(configuration: PluginConfiguration): FlatFormSchema | null {
+  const schema = configuration.formSchema;
+  if (!schema || typeof schema !== "object" || Array.isArray(schema)) {
+    return null;
   }
-  if (definition.formSchema) {
+  if (!Array.isArray((schema as { fields?: unknown }).fields)) {
+    return null;
+  }
+  return schema as unknown as FlatFormSchema;
+}
+
+function loadErrorMessage(error: unknown) {
+  return error instanceof Error
+    ? error.message
+    : pluginMessages.configurationDialog.loadErrorFallback;
+}
+
+function mergeEmbeddedConfiguration(
+  configuration: PluginConfiguration,
+  schema: FlatFormSchema,
+  values: FormConfiguration,
+): PluginConfiguration {
+  const next: PluginConfiguration = { ...configuration };
+  for (const field of schema.fields) {
+    delete next[field.key];
+  }
+  return {
+    ...next,
+    ...serializeFormConfiguration(schema, values),
+  };
+}
+
+function loadDialogState(pluginType: string, configuration: PluginConfiguration): DialogState {
+  const embeddedSchema = readEmbeddedFormSchema(configuration);
+  if (embeddedSchema) {
+    try {
+      return {
+        mode: "schema",
+        embedded: true,
+        schema: embeddedSchema,
+        values: deserializeFormConfiguration(embeddedSchema, configuration),
+      };
+    } catch (error) {
+      return {
+        mode: "schema",
+        embedded: true,
+        schema: embeddedSchema,
+        error: loadErrorMessage(error),
+      };
+    }
+  }
+
+  const definition = getPluginConfigurationDefinition(pluginType);
+  if (definition?.formSchema) {
     try {
       return {
         mode: "schema",
@@ -49,27 +103,24 @@ function loadDialogState(pluginType: string, configuration: PluginConfiguration)
       return {
         mode: "schema",
         schema: definition.formSchema,
-        error:
-          error instanceof Error
-            ? error.message
-            : pluginMessages.configurationDialog.loadErrorFallback,
+        error: loadErrorMessage(error),
       };
     }
   }
-  try {
-    return {
-      mode: "legacy",
-      values: definition.deserialize(configuration),
-    };
-  } catch (error) {
-    return {
-      mode: "legacy",
-      error:
-        error instanceof Error
-          ? error.message
-          : pluginMessages.configurationDialog.loadErrorFallback,
-    };
+  if (definition?.Editor) {
+    try {
+      return {
+        mode: "legacy",
+        values: definition.deserialize(configuration),
+      };
+    } catch (error) {
+      return {
+        mode: "legacy",
+        error: loadErrorMessage(error),
+      };
+    }
   }
+  return { mode: "unsupported" };
 }
 
 export function PluginConfigurationDialog({
@@ -95,6 +146,12 @@ export function PluginConfigurationDialog({
       return { valid: false, errors: {} };
     }
     if (dialogState.mode === "schema" && dialogState.schema) {
+      if (dialogState.embedded) {
+        return validateFormConfiguration(
+          dialogState.schema,
+          dialogState.values as FormConfiguration,
+        );
+      }
       if (definition) {
         return definition.validate(dialogState.values);
       }
@@ -102,7 +159,7 @@ export function PluginConfigurationDialog({
     if (dialogState.mode === "legacy" && definition) {
       return definition.validate(dialogState.values);
     }
-    return { valid: dialogState.mode === "unsupported", errors: {} };
+    return { valid: false, errors: {} };
   }, [definition, dialogState]);
 
   useEffect(() => {
@@ -116,6 +173,28 @@ export function PluginConfigurationDialog({
       return;
     }
     setDialogState(loadDialogState(pluginType, definition.createDefaultConfiguration()));
+  }
+
+  function saveConfiguration() {
+    if (dialogState.values === undefined || !validation.valid) {
+      return;
+    }
+    const serialized =
+      dialogState.mode === "schema" && dialogState.schema && dialogState.embedded
+        ? mergeEmbeddedConfiguration(
+            configuration,
+            dialogState.schema,
+            dialogState.values as FormConfiguration,
+          )
+        : definition?.serialize(dialogState.values);
+    if (!serialized) {
+      return;
+    }
+    if (JSON.stringify(serialized) === JSON.stringify(configuration)) {
+      onClose();
+      return;
+    }
+    onSave(serialized);
   }
 
   return (
@@ -135,20 +214,7 @@ export function PluginConfigurationDialog({
             <Button
               type="button"
               disabled={!validation.valid || dialogState.values === undefined}
-              onClick={() => {
-                if (dialogState.values === undefined || !validation.valid) {
-                  return;
-                }
-                if (!definition) {
-                  return;
-                }
-                const serialized = definition.serialize(dialogState.values);
-                if (JSON.stringify(serialized) === JSON.stringify(configuration)) {
-                  onClose();
-                  return;
-                }
-                onSave(serialized);
-              }}
+              onClick={saveConfiguration}
             >
               {pluginMessages.configurationDialog.save}
             </Button>
@@ -173,7 +239,7 @@ export function PluginConfigurationDialog({
         <Box className={styles.pluginConfiguration__errorPanel} role="alert">
           <Typography as="strong">{pluginMessages.configurationDialog.loadErrorTitle}</Typography>
           <Typography as="span">{dialogState.error}</Typography>
-          {!readOnly ? (
+          {!readOnly && definition ? (
             <Button
               type="button"
               variant={ButtonVariant.Secondary}

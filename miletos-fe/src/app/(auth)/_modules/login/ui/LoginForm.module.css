@@ -1,24 +1,22 @@
 .loginExperience {
   width: 100%;
   display: grid;
-  gap: 14px;
+  gap: 16px;
 }
 
 .loginExperience__securityBadge {
   width: fit-content;
   max-width: 100%;
-  min-height: 46px;
-  padding: 8px 13px 8px 9px;
+  min-height: 48px;
+  padding: 8px 14px 8px 10px;
   display: flex;
   gap: 10px;
   align-items: center;
-  border: 1px solid rgba(52, 72, 255, 0.14);
-  border-radius: 15px;
+  border: 1px solid rgba(52, 72, 255, 0.12);
+  border-radius: 14px;
   color: var(--color-text);
-  background: rgba(255, 255, 255, 0.8);
-  box-shadow:
-    0 12px 28px rgba(23, 32, 70, 0.07),
-    0 1px 0 rgba(255, 255, 255, 0.9) inset;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: var(--shadow-sm);
   backdrop-filter: blur(14px);
 }
 
@@ -42,26 +40,23 @@
 .loginExperience__securityBadge strong {
   color: var(--color-text);
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 800;
 }
 
 .loginExperience__securityBadge small {
   color: var(--color-muted);
-  font-size: 10px;
-  font-weight: 650;
+  font-size: 11px;
+  font-weight: 600;
   line-height: 1.35;
 }
 
 .loginForm {
   width: 100%;
-  padding: 30px 32px;
-  border: 1px solid rgba(52, 72, 255, 0.15);
-  border-radius: 25px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow:
-    0 24px 70px rgba(23, 32, 70, 0.13),
-    0 1px 0 rgba(255, 255, 255, 0.9) inset;
-  backdrop-filter: blur(18px);
+  padding: 28px;
+  border: 1px solid rgba(52, 72, 255, 0.12);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: var(--shadow-card);
 }
 
 .loginForm__header {
@@ -72,59 +67,52 @@
   margin: 0 0 8px;
   color: var(--color-primary);
   font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.15em;
+  font-weight: 800;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
 .loginForm__title {
   margin: 0;
   color: var(--color-text);
-  font-size: clamp(34px, 4vw, 43px);
-  line-height: 1;
-  letter-spacing: -0.052em;
+  font-size: clamp(26px, 3vw, 32px);
+  line-height: 1.12;
+  letter-spacing: -0.04em;
 }
 
 .loginForm__description {
-  max-width: 440px;
-  margin: 11px 0 0;
+  max-width: 460px;
+  margin: 10px 0 0;
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.55;
 }
 
 .loginForm__body {
   display: grid;
-  gap: 15px;
+  gap: 16px;
 }
 
 .loginForm__field {
   display: grid;
-  gap: 7px;
+  gap: 8px;
 }
 
 .loginForm__label {
   color: var(--color-text);
-  font-size: 12px;
-  font-weight: 850;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .loginForm__input {
   width: 100%;
-  min-height: 47px;
-  padding: 0 15px;
-  border: 1px solid #c8d2e3;
-  border-radius: 13px;
+  min-height: var(--control-height);
+  padding: 0 14px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--control-radius);
   color: var(--color-text);
-  background: #f7f9ff;
+  background: var(--color-surface-soft);
   outline: none;
-  box-shadow:
-    0 1px 2px rgba(23, 32, 51, 0.04),
-    0 1px 0 rgba(255, 255, 255, 0.8) inset;
-  transition:
-    background 160ms ease,
-    border-color 160ms ease,
-    box-shadow 160ms ease;
 }
 
 .loginForm__input:hover:not(:disabled) {
@@ -133,11 +121,9 @@
 }
 
 .loginForm__input:focus {
-  border-color: #3448ff;
+  border-color: var(--color-primary);
   background: #ffffff;
-  box-shadow:
-    0 0 0 4px rgba(52, 72, 255, 0.11),
-    0 1px 2px rgba(23, 32, 51, 0.05);
+  box-shadow: 0 0 0 4px rgba(75, 70, 255, 0.1);
 }
 
 .loginForm__input:disabled {
@@ -155,51 +141,37 @@
 }
 
 .loginForm__error {
-  padding: 11px 13px;
+  padding: 12px 14px;
   border: 1px solid #fecdca;
-  border-radius: 13px;
+  border-radius: 12px;
   color: #b42318;
   background: #fffbfa;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.45;
 }
 
 .loginForm__actions {
   display: grid;
-  gap: 11px;
+  gap: 12px;
   margin-top: 4px;
 }
 
 .loginForm__submit.loginForm__submit {
   width: 100%;
-  min-height: 49px;
+  min-height: 44px;
   appearance: none;
-  border: 1px solid #3448ff;
-  border-radius: 13px;
+  border: 1px solid transparent;
+  border-radius: var(--control-radius);
   color: #ffffff;
   -webkit-text-fill-color: #ffffff;
-  background: #3448ff;
-  box-shadow:
-    0 14px 28px rgba(52, 72, 255, 0.24),
-    0 1px 0 rgba(255, 255, 255, 0.18) inset;
-  font-weight: 850;
+  background: linear-gradient(180deg, #5d58ff 0%, #433ee8 100%);
+  box-shadow: var(--shadow-primary);
+  font-weight: 650;
   opacity: 1;
-  transition:
-    background 160ms ease,
-    border-color 160ms ease,
-    box-shadow 160ms ease,
-    transform 160ms ease;
 }
 
 .loginForm__submit.loginForm__submit:hover:not(:disabled) {
-  border-color: #2537d9;
-  color: #ffffff;
-  -webkit-text-fill-color: #ffffff;
-  background: #2537d9;
-  box-shadow:
-    0 18px 34px rgba(52, 72, 255, 0.3),
-    0 1px 0 rgba(255, 255, 255, 0.18) inset;
-  transform: translateY(-1px);
+  background: linear-gradient(180deg, #514cf4 0%, #362fd4 100%);
 }
 
 .loginForm__submit.loginForm__submit:focus-visible {
@@ -224,8 +196,8 @@
   color: var(--color-primary);
   background: transparent;
   cursor: pointer;
-  font-size: 12px;
-  font-weight: 850;
+  font-size: 13px;
+  font-weight: 700;
   text-decoration: none;
 }
 
@@ -244,33 +216,21 @@
 .loginExperience__features {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 9px;
+  gap: 10px;
 }
 
 .loginExperience__feature {
   min-width: 0;
-  min-height: 74px;
-  padding: 11px;
+  min-height: 78px;
+  padding: 12px;
   display: flex;
   gap: 9px;
   align-items: flex-start;
-  border: 1px solid rgba(52, 72, 255, 0.11);
-  border-radius: 15px;
-  background: rgba(255, 255, 255, 0.76);
-  box-shadow:
-    0 10px 30px rgba(23, 32, 70, 0.055),
-    0 1px 0 rgba(255, 255, 255, 0.9) inset;
+  border: 1px solid rgba(52, 72, 255, 0.1);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: var(--shadow-sm);
   backdrop-filter: blur(12px);
-  transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease,
-    transform 160ms ease;
-}
-
-.loginExperience__feature:hover {
-  border-color: rgba(52, 72, 255, 0.24);
-  box-shadow: 0 14px 34px rgba(52, 72, 255, 0.09);
-  transform: translateY(-2px);
 }
 
 .loginExperience__featureIndicator {
@@ -293,23 +253,23 @@
 
 .loginExperience__feature strong {
   color: var(--color-text);
-  font-size: 11px;
-  font-weight: 900;
+  font-size: 12px;
+  font-weight: 800;
   line-height: 1.25;
 }
 
 .loginExperience__feature small {
   color: var(--color-muted);
-  font-size: 9px;
-  font-weight: 650;
-  line-height: 1.35;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 .loginExperience__footer {
   margin: 0;
   color: var(--color-muted);
-  font-size: 10px;
-  font-weight: 650;
+  font-size: 11px;
+  font-weight: 600;
   line-height: 1.45;
   text-align: center;
 }
@@ -327,84 +287,14 @@
 @media (max-width: 560px) {
   .loginForm {
     padding: 24px;
-    border-radius: 22px;
-  }
-
-  .loginForm__header {
-    margin-bottom: 22px;
+    border-radius: 20px;
   }
 
   .loginForm__title {
-    font-size: 34px;
+    font-size: 28px;
   }
 
   .loginExperience__securityBadge {
     width: 100%;
   }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .loginExperience__feature {
-    transition: none;
-  }
-
-  .loginExperience__feature:hover {
-    transform: none;
-  }
-}
-
-/* Visual refinement without changing form behavior. */
-.loginExperience {
-  gap: 16px;
-}
-
-.loginExperience__securityBadge {
-  min-height: 54px;
-  padding: 10px 14px;
-  border-radius: 16px;
-  box-shadow: 0 14px 34px rgba(31, 35, 71, 0.1);
-}
-
-.loginForm {
-  padding: 34px;
-  border-radius: 30px;
-  box-shadow: 0 28px 80px rgba(31, 35, 71, 0.16);
-}
-
-.loginForm__title {
-  font-size: clamp(38px, 4.5vw, 52px);
-}
-
-.loginForm__description {
-  max-width: 480px;
-  font-size: 14px;
-}
-
-.loginForm__input {
-  min-height: 54px;
-  border-color: var(--color-border-strong);
-  border-radius: 15px;
-  background: var(--color-surface-soft);
-}
-
-.loginForm__input:focus {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 4px rgba(75, 70, 255, 0.12);
-}
-
-.loginForm__submit.loginForm__submit {
-  min-height: 52px;
-  background: linear-gradient(135deg, #5a55ff 0%, #3730e8 100%);
-  box-shadow: var(--shadow-primary);
-}
-
-.loginExperience__features {
-  gap: 10px;
-}
-
-.loginExperience__feature {
-  min-height: 72px;
-  padding: 12px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.88);
 }

@@ -41,16 +41,15 @@ func mapPluginList(registrations []NodeRegistration) pluginListResponse {
 }
 
 func mapPlugin(registration NodeRegistration) pluginResponse {
-	definition := registration.Definition
 	return pluginResponse{
-		Type: definition.Type, Version: definition.Version,
-		DisplayName: definition.DisplayName, Description: definition.Description,
-		InputMode:               definition.InputMode,
-		AcceptsInitialVariables: CanReceiveEntryInput(definition) && allowsExecutionSource(registration, "MANUAL_DIRECT"),
-		InputPorts:              mapPorts(definition.InputPorts),
-		OutputPorts:             mapPorts(definition.OutputPorts),
-		InputEdgeConstraint:     mapEdgeConstraint(definition.InputEdgeConstraint),
-		OutputEdgeConstraint:    mapEdgeConstraint(definition.OutputEdgeConstraint),
+		Type: registration.Key, Version: "v1",
+		DisplayName: registration.DisplayName, Description: registration.Description,
+		InputMode:               registration.InputMode,
+		AcceptsInitialVariables: CanReceiveEntryInput(registration) && allowsExecutionSource(registration, "MANUAL_DIRECT"),
+		InputPorts:              mapPorts(registration.InputPorts),
+		OutputPorts:             mapPorts(registration.OutputPorts),
+		InputEdgeConstraint:     mapEdgeConstraint(registration.InputEdgeConstraint),
+		OutputEdgeConstraint:    mapEdgeConstraint(registration.OutputEdgeConstraint),
 		AllowedRootOrigins:      append([]string(nil), registration.AllowedExecutionSources...),
 		ContextProvider:         registration.ContextProvider,
 	}

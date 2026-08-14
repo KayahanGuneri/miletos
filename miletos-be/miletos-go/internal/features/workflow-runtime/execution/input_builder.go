@@ -28,8 +28,8 @@ func buildNodeInputFromEdges(
 	registry *plugin.NodeRegistry,
 ) any {
 	node, _ := findWorkflowNode(definition, nodeID)
-	descriptor, _ := registry.Definition(node.Type)
-	if descriptor.InputMode == plugin.NodeInputMulti {
+	registration, _ := registry.Get(node.Type)
+	if registration.InputMode == plugin.NodeInputMulti {
 		inputs := make([]any, 0)
 		for _, edge := range definition.Edges {
 			if edge.TargetNodeID != nodeID {
@@ -88,8 +88,8 @@ func buildExecutionNodeInput(
 	}
 	switch origin {
 	case model.ExecutionOriginManualDirect:
-		descriptor, registered := registry.Definition(node.Type)
-		if registered && plugin.CanReceiveEntryInput(descriptor) {
+		registration, registered := registry.Get(node.Type)
+		if registered && plugin.CanReceiveEntryInput(registration) {
 			return startInput
 		}
 	case model.ExecutionOriginHTTPWebhook, model.ExecutionOriginCron:

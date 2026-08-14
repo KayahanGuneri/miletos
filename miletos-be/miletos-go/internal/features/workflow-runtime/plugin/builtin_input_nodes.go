@@ -61,39 +61,51 @@ func RegisterInputSourceNodes(registry *NodeRegistry, runtime InputNodeRuntime) 
 }
 
 func fileInputRegistration(runtime InputNodeRuntime) NodeRegistration {
-	return builtinRegistration(builtinRegistrationSpec{
-		Type:        "core.file-input",
-		DisplayName: "File Input",
-		Description: "Reads a TXT or CSV file from a local tenant input directory or configured SFTP source",
-		Input:       false,
-		Output:      true,
-		OnRun:       fileInputHandler(runtime),
-		Validator:   validateFileInput,
-	})
+	return NodeRegistration{
+		Key:                     "core.file-input",
+		DisplayName:             "File Input",
+		Description:             "Reads a TXT or CSV file from a local tenant input directory or configured SFTP source",
+		InputMode:               NodeInputSingle,
+		OutputPorts:             standardOutputPorts(),
+		InputEdgeConstraint:     fixedEdgeConstraint(0),
+		OutputEdgeConstraint:    EdgeConstraint{},
+		RoutingMode:             OutputRoutingBroadcast,
+		Handler:                 fileInputNodeHandler(runtime),
+		Validator:               validateFileInput,
+		AllowedExecutionSources: []string{"MANUAL_DIRECT"},
+	}
 }
 
 func excelInputRegistration(runtime InputNodeRuntime) NodeRegistration {
-	return builtinRegistration(builtinRegistrationSpec{
-		Type:        "core.excel-input",
-		DisplayName: "Excel Input",
-		Description: "Reads an XLSX worksheet from a local tenant input directory or configured SFTP source",
-		Input:       false,
-		Output:      true,
-		OnRun:       excelInputHandler(runtime),
-		Validator:   validateExcelInput,
-	})
+	return NodeRegistration{
+		Key:                     "core.excel-input",
+		DisplayName:             "Excel Input",
+		Description:             "Reads an XLSX worksheet from a local tenant input directory or configured SFTP source",
+		InputMode:               NodeInputSingle,
+		OutputPorts:             standardOutputPorts(),
+		InputEdgeConstraint:     fixedEdgeConstraint(0),
+		OutputEdgeConstraint:    EdgeConstraint{},
+		RoutingMode:             OutputRoutingBroadcast,
+		Handler:                 excelInputNodeHandler(runtime),
+		Validator:               validateExcelInput,
+		AllowedExecutionSources: []string{"MANUAL_DIRECT"},
+	}
 }
 
 func databaseInputRegistration(dbClient *database.Client) NodeRegistration {
-	return builtinRegistration(builtinRegistrationSpec{
-		Type:        "core.database-input",
-		DisplayName: "Database Input",
-		Description: "Runs a SELECT query against the configured read-only PostgreSQL input source",
-		Input:       false,
-		Output:      true,
-		OnRun:       databaseInputHandler(dbClient),
-		Validator:   validateDatabaseInput,
-	})
+	return NodeRegistration{
+		Key:                     "core.database-input",
+		DisplayName:             "Database Input",
+		Description:             "Runs a SELECT query against the configured read-only PostgreSQL input source",
+		InputMode:               NodeInputSingle,
+		OutputPorts:             standardOutputPorts(),
+		InputEdgeConstraint:     fixedEdgeConstraint(0),
+		OutputEdgeConstraint:    EdgeConstraint{},
+		RoutingMode:             OutputRoutingBroadcast,
+		Handler:                 databaseInputNodeHandler(dbClient),
+		Validator:               validateDatabaseInput,
+		AllowedExecutionSources: []string{"MANUAL_DIRECT"},
+	}
 }
 
 func validateFileInput(configuration map[string]any) error {
@@ -126,17 +138,17 @@ func validateFileInput(configuration map[string]any) error {
 	return validateSFTPConfiguration(configuration, "FILE_INPUT")
 }
 
-func fileInputHandler(runtime InputNodeRuntime) RunHandler {
-	return func(nodeContext *Context) (any, error) {
-		configuration := nodeContext.Configuration
+func fileInputNodeHandler(runtime InputNodeRuntime) NodeHandler {
+	return onRunHandler(func(nodeContext *Context) (any, error) {
+		configuration := nodeContext.configuration
 		if err := validateFileInput(configuration); err != nil {
 			return nil, err
 		}
 		fileName := configString(configuration, "fileName")
 		content, err := readInputContent(
-			nodeContext.Runtime,
+			nodeContext.runtime,
 			runtime,
-			nodeContext.Execution.CompanyID,
+			nodeContext.companyID,
 			configuration,
 			fileName,
 			"FILE_INPUT",
@@ -148,7 +160,7 @@ func fileInputHandler(runtime InputNodeRuntime) RunHandler {
 			return string(content), nil
 		}
 		return csvRecordsFromContent(string(content))
-	}
+	})
 }
 
 func csvRecordsFromContent(content string) ([]map[string]any, error) {
@@ -202,18 +214,18 @@ func validateExcelInput(configuration map[string]any) error {
 	return validateSFTPConfiguration(configuration, "EXCEL_INPUT")
 }
 
-func excelInputHandler(runtime InputNodeRuntime) RunHandler {
-	return func(nodeContext *Context) (any, error) {
-		configuration := nodeContext.Configuration
+func excelInputNodeHandler(runtime InputNodeRuntime) NodeHandler {
+	return onRunHandler(func(nodeContext *Context) (any, error) {
+		configuration := nodeContext.configuration
 		if err := validateExcelInput(configuration); err != nil {
 			return nil, err
 		}
 		fileName := configString(configuration, "fileName")
 		sheetName := configString(configuration, "sheetName")
 		content, err := readInputContent(
-			nodeContext.Runtime,
+			nodeContext.runtime,
 			runtime,
-			nodeContext.Execution.CompanyID,
+			nodeContext.companyID,
 			configuration,
 			fileName,
 			"EXCEL_INPUT",
@@ -256,7 +268,7 @@ func excelInputHandler(runtime InputNodeRuntime) RunHandler {
 			}
 		}
 		return tabularRecordsFromRows(rows, "EXCEL_INPUT_DATA_INVALID")
-	}
+	})
 }
 
 func validateDatabaseInput(configuration map[string]any) error {
@@ -278,9 +290,9 @@ func validateDatabaseInput(configuration map[string]any) error {
 	return nil
 }
 
-func databaseInputHandler(dbClient *database.Client) RunHandler {
-	return func(nodeContext *Context) (any, error) {
-		configuration := nodeContext.Configuration
+func databaseInputNodeHandler(dbClient *database.Client) NodeHandler {
+	return onRunHandler(func(nodeContext *Context) (any, error) {
+		configuration := nodeContext.configuration
 		if err := validateDatabaseInput(configuration); err != nil {
 			return nil, err
 		}
@@ -292,7 +304,7 @@ func databaseInputHandler(dbClient *database.Client) RunHandler {
 			}
 		}
 		query := configString(configuration, "query")
-		rows, err := dbClient.Query(nodeContext.Runtime, query)
+		rows, err := dbClient.Query(nodeContext.runtime, query)
 		if err != nil {
 			return nil, &NodeError{
 				Category: "EXECUTION",
@@ -341,7 +353,7 @@ func databaseInputHandler(dbClient *database.Client) RunHandler {
 			}
 		}
 		return results, nil
-	}
+	})
 }
 
 func isRetryableDatabaseInputError(err error) bool {

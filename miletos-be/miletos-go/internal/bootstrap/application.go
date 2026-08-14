@@ -20,6 +20,7 @@ import (
 	"miletos-go/internal/features/workflow-runtime/execution/queue"
 	"miletos-go/internal/features/workflow-runtime/execution/repository"
 	"miletos-go/internal/features/workflow-runtime/plugin"
+	"miletos-go/internal/features/workflow-runtime/pluginstate"
 	"miletos-go/internal/features/workflow-runtime/workflow"
 	"miletos-go/internal/health"
 	"miletos-go/internal/shared/database"
@@ -38,6 +39,7 @@ type Application struct {
 	database         *database.Client
 	inputDatabase    *database.Client
 	kafka            *queue.Kafka
+	pluginKafka      *queue.Kafka
 	httpServer       *http.Server
 	grpcServer       *grpc.Server
 	grpcListener     net.Listener
@@ -45,6 +47,7 @@ type Application struct {
 	outboxDispatcher *execution.OutboxDispatcher
 	reconciler       *execution.Reconciler
 	cronScheduler    *crontrigger.Scheduler
+	pluginEmitter    *execution.PluginEmitter
 }
 
 func Build(
@@ -106,7 +109,19 @@ func Build(
 			return nil, err
 		}
 		nodeQueue = application.kafka
+		application.pluginKafka, err = queue.NewKafkaWithConcurrency(
+			configuration.KafkaBrokers,
+			configuration.KafkaClientID+"-plugin-events",
+			configuration.KafkaConsumerGroup+"-plugin-events",
+			configuration.NodeConcurrency,
+			execution.PluginEventTopic,
+			configuration.KafkaDeadLetterTopic,
+		)
+		if err != nil {
+			return nil, err
+		}
 	}
+	application.pluginEmitter = execution.NewPluginEmitter(application.pluginKafka)
 
 	registry := plugin.NewNodeRegistry()
 	if err := plugin.RegisterBuiltinNodes(registry); err != nil {
@@ -133,6 +148,10 @@ func Build(
 	}); err != nil {
 		return nil, err
 	}
+	if err := application.pluginEmitter.RegisterSubscriptions(ctx, registry); err != nil {
+		return nil, err
+	}
+	stateRepository := pluginstate.NewRepository(dbClient)
 	workflowService := workflow.NewWorkflowService(workflowRepository, registry)
 	scheduler := execution.NewScheduler(
 		workflowRepository, executionRepository, nodeQueue,
@@ -142,6 +161,7 @@ func Build(
 		workflowRepository, executionRepository, registry, scheduler,
 		nodeQueue, configuration.KafkaCommandTopic,
 		configuration.RetryMaxAttempts, configuration.RetryDelay,
+		stateRepository, application.pluginEmitter,
 	)
 	if err != nil {
 		return nil, err
@@ -192,6 +212,8 @@ func Build(
 		workflowService,
 		executionService,
 		registry,
+		stateRepository,
+		application.pluginEmitter,
 	)
 
 	executionController := execution.NewExecutionController(
@@ -254,12 +276,12 @@ func (application *Application) Run(ctx context.Context) error {
 	if application.cronScheduler != nil {
 		application.cronScheduler.Start(runContext)
 	}
-	failures := make(chan error, 4)
+	failures := make(chan error, 5)
 	go application.runHTTP(failures)
 	go application.runGRPC(failures)
 	var workers sync.WaitGroup
 	if application.configuration.KafkaEnabled {
-		workers.Add(2)
+		workers.Add(3)
 		go func() {
 			defer workers.Done()
 			application.outboxDispatcher.Run(runContext)
@@ -267,6 +289,10 @@ func (application *Application) Run(ctx context.Context) error {
 		go func() {
 			defer workers.Done()
 			application.runNodeProcessor(runContext, failures)
+		}()
+		go func() {
+			defer workers.Done()
+			application.runPluginEmitter(runContext, failures)
 		}()
 		if application.configuration.ReconciliationEnabled {
 			workers.Add(1)
@@ -324,6 +350,16 @@ func (application *Application) runNodeProcessor(ctx context.Context, failures c
 	}
 }
 
+func (application *Application) runPluginEmitter(ctx context.Context, failures chan<- error) {
+	application.logger.Info(
+		"plugin event dispatcher started",
+		"topic", execution.PluginEventTopic,
+	)
+	if err := application.pluginEmitter.Run(ctx); err != nil && ctx.Err() == nil {
+		failures <- fmt.Errorf("plugin event dispatcher: %w", err)
+	}
+}
+
 func (application *Application) runReconciliation(ctx context.Context) {
 	ticker := time.NewTicker(application.reconciler.Interval())
 	defer ticker.Stop()
@@ -352,6 +388,9 @@ func (application *Application) closeResources() {
 	}
 	if application.kafka != nil {
 		application.kafka.Close()
+	}
+	if application.pluginKafka != nil {
+		application.pluginKafka.Close()
 	}
 	if application.inputDatabase != nil {
 		if err := application.inputDatabase.Close(); err != nil {

@@ -1,17 +1,13 @@
 .genericExecutionNode {
   position: relative;
-  width: 250px;
-  min-height: 126px;
-  padding: 16px;
+  width: 220px;
+  min-height: 108px;
+  padding: 12px;
   border: 1px solid rgba(75, 70, 255, 0.18);
-  border-radius: 18px;
+  border-radius: 10px;
   color: var(--color-text);
   background: linear-gradient(145deg, #ffffff, #f9f9ff);
-  box-shadow: 0 12px 32px rgba(31, 35, 71, 0.1);
-  transition:
-    border-color 150ms ease,
-    box-shadow 150ms ease,
-    transform 150ms ease;
+  box-shadow: 0 8px 20px rgba(31, 35, 71, 0.08);
 }
 
 .genericExecutionNode:hover {

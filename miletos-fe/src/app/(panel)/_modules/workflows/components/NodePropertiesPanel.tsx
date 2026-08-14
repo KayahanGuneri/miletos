@@ -42,71 +42,81 @@ export function NodePropertiesPanel({
 
   return (
     <section className={styles.workflowEditor__sidePanel}>
-      <Typography as="p" className={styles.workflowEditor__eyebrow}>
-        {workflowMessages.nodeProperties.eyebrow}
-      </Typography>
-      <Typography as="h2">{workflowMessages.nodeProperties.title}</Typography>
-      {!node ? (
-        <Typography as="p" className={styles.workflowEditor__muted}>
-          {workflowMessages.nodeProperties.empty}
+      <Box className={styles.workflowEditor__sideHeader}>
+        <Typography as="p" className={styles.workflowEditor__eyebrow}>
+          {workflowMessages.nodeProperties.eyebrow}
         </Typography>
-      ) : (
-        <Box className={styles.workflowEditor__properties}>
-          <label className={styles.workflowEditor__field}>
-            <Typography as="span">{workflowMessages.nodeProperties.displayName}</Typography>
-            <Input
-              maxLength={120}
-              readOnly={readOnly}
-              value={node.displayName ?? ""}
-              placeholder={plugin?.displayName ?? node.pluginType}
-              onChange={(event) => onDisplayNameChange(event.target.value)}
-            />
-          </label>
-          <Typography as="span">
-            <Typography as="strong">{workflowMessages.nodeProperties.nodeId}</Typography>
-            {node.nodeId}
-          </Typography>
-          <Typography as="span">
-            <Typography as="strong">{workflowMessages.nodeProperties.pluginType}</Typography>
-            {node.pluginType}
-          </Typography>
-          <Typography as="span">
-            <Typography as="strong">{workflowMessages.nodeProperties.pluginVersion}</Typography>
-            {node.pluginVersion}
-          </Typography>
-          {plugin ? (
-            <Typography as="span">
-              <Typography as="strong">{workflowMessages.nodeProperties.plugin}</Typography>
-              {plugin.displayName}
+        <Typography as="h2">{workflowMessages.nodeProperties.title}</Typography>
+      </Box>
+      <Box className={styles.workflowEditor__sideScroll}>
+        {!node ? (
+          <Box className={styles.workflowEditor__emptyState}>
+            <span className={styles.workflowEditor__emptyMark} aria-hidden="true" />
+            <Typography as="strong" className={styles.workflowEditor__emptyTitle}>
+              {workflowMessages.nodeProperties.emptyTitle}
             </Typography>
-          ) : null}
-          <Box className={styles.workflowEditor__propertyActions}>
-            <Button type="button" variant={ButtonVariant.Secondary} onClick={onConfigure}>
-              {readOnly
-                ? workflowMessages.nodeProperties.viewConfiguration
-                : workflowMessages.nodeProperties.configure}
-            </Button>
-            <Button
-              type="button"
-              variant={ButtonVariant.Secondary}
-              disabled={readOnly}
-              onClick={onDelete}
-            >
-              {workflowMessages.nodeProperties.delete}
-            </Button>
+            <Typography as="p" className={styles.workflowEditor__muted}>
+              {workflowMessages.nodeProperties.empty}
+            </Typography>
           </Box>
-          {showHttpTrigger ? (
-            <WorkflowHTTPTriggerCard
-              workflowId={workflowId}
-              triggerNodeId={node.nodeId}
-              canManage={canManageTriggers}
-              active={workflowStatus === "ACTIVE"}
-              statusReason={workflowStatus ? workflowStatusReason(workflowStatus) : undefined}
-              compact
-            />
-          ) : null}
-        </Box>
-      )}
+        ) : (
+          <Box className={styles.workflowEditor__properties}>
+            <label className={styles.workflowEditor__field}>
+              <Typography as="span">{workflowMessages.nodeProperties.displayName}</Typography>
+              <Input
+                maxLength={120}
+                readOnly={readOnly}
+                value={node.displayName ?? ""}
+                placeholder={plugin?.displayName ?? node.pluginType}
+                onChange={(event) => onDisplayNameChange(event.target.value)}
+              />
+            </label>
+            <Typography as="span">
+              <Typography as="strong">{workflowMessages.nodeProperties.nodeId}</Typography>
+              {node.nodeId}
+            </Typography>
+            <Typography as="span">
+              <Typography as="strong">{workflowMessages.nodeProperties.pluginType}</Typography>
+              {node.pluginType}
+            </Typography>
+            <Typography as="span">
+              <Typography as="strong">{workflowMessages.nodeProperties.pluginVersion}</Typography>
+              {node.pluginVersion}
+            </Typography>
+            {plugin ? (
+              <Typography as="span">
+                <Typography as="strong">{workflowMessages.nodeProperties.plugin}</Typography>
+                {plugin.displayName}
+              </Typography>
+            ) : null}
+            <Box className={styles.workflowEditor__propertyActions}>
+              <Button type="button" variant={ButtonVariant.Secondary} onClick={onConfigure}>
+                {readOnly
+                  ? workflowMessages.nodeProperties.viewConfiguration
+                  : workflowMessages.nodeProperties.configure}
+              </Button>
+              <Button
+                type="button"
+                variant={ButtonVariant.Danger}
+                disabled={readOnly}
+                onClick={onDelete}
+              >
+                {workflowMessages.nodeProperties.delete}
+              </Button>
+            </Box>
+            {showHttpTrigger ? (
+              <WorkflowHTTPTriggerCard
+                workflowId={workflowId}
+                triggerNodeId={node.nodeId}
+                canManage={canManageTriggers}
+                active={workflowStatus === "ACTIVE"}
+                statusReason={workflowStatus ? workflowStatusReason(workflowStatus) : undefined}
+                compact
+              />
+            ) : null}
+          </Box>
+        )}
+      </Box>
     </section>
   );
 }

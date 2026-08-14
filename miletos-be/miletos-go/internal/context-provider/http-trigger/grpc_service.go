@@ -32,31 +32,11 @@ func (grpcService *GRPCService) CreateHTTPTrigger(
 		return nil, status.Error(codes.InvalidArgument, "workflow definition is required")
 	}
 	createRequest := mapCreateRequest(request, requestcontext.CompanyID(ctx))
-	rootNode, valid := rootNodeByID(
-		createRequest.Workflow, createRequest.TriggerNodeID,
-	)
-	if !valid {
-		return nil, mapTriggerGRPCError(ErrInvalidTrigger)
-	}
-	infrastructure := newScenarioStartInfrastructure(
-		grpcService.service, createRequest,
-	)
-	err := grpcService.service.registry.StartScenario(
-		ctx,
-		rootNode.Type,
-		plugin.ScenarioStartContext{
-			CompanyID:        createRequest.CompanyID,
-			WorkflowID:       createRequest.Workflow.ID,
-			WorkflowRevision: createRequest.Workflow.Revision,
-			NodeID:           rootNode.ID,
-		},
-		rootNode.Configuration,
-		plugin.Infrastructure{HTTP: infrastructure},
-	)
+	created, err := grpcService.service.StartScenario(ctx, createRequest)
 	if err != nil {
 		return nil, mapTriggerGRPCError(err)
 	}
-	return mapCreatedTrigger(infrastructure.Result()), nil
+	return mapCreatedTrigger(created), nil
 }
 
 func (grpcService *GRPCService) GetHTTPTrigger(

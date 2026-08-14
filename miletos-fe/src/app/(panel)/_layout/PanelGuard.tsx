@@ -82,12 +82,6 @@ function Icon({ name, size = 20 }: IconProps) {
   return <GenericIcon size={size} src={sources[name]} />;
 }
 
-function getCompanyIdFromUsersPath(pathname: string) {
-  const result = /^\/admin\/companies\/([^/]+)\/users$/.exec(pathname);
-
-  return result?.[1] ?? null;
-}
-
 function getCurrentPageTitle(pathname: string) {
   if (pathname.startsWith("/admin/companies/") && pathname.endsWith("/users")) {
     return "Company users";
@@ -163,19 +157,13 @@ function buildNavigationItems(pathname: string, user: UserProfile): NavigationIt
     });
   }
 
-  const routeCompanyIdValue = getCompanyIdFromUsersPath(pathname);
-  const parsedRouteCompanyId = routeCompanyIdValue === null ? null : Number(routeCompanyIdValue);
-  const routeCompanyId =
-    parsedRouteCompanyId !== null &&
-    Number.isSafeInteger(parsedRouteCompanyId) &&
-    parsedRouteCompanyId > 0
-      ? parsedRouteCompanyId
-      : null;
-
-  const companyUsersCompanyId = routeCompanyId ?? user.companyId;
-
-  if (companyUsersCompanyId && canAccessCompanyUsers(user, companyUsersCompanyId)) {
-    const companyUsersHref = `/admin/companies/${companyUsersCompanyId}/users`;
+  if (
+    !user.superAdmin &&
+    user.role === "ADMIN" &&
+    user.companyId &&
+    canAccessCompanyUsers(user, user.companyId)
+  ) {
+    const companyUsersHref = `/admin/companies/${user.companyId}/users`;
 
     items.push({
       href: companyUsersHref,
@@ -287,7 +275,7 @@ function AuthenticatedPanelShell({
               onClick={closeMobileNavigation}
             >
               <span className={styles.panelShell__navigationIcon}>
-                <Icon name={item.icon} size={20} />
+                <Icon name={item.icon} size={18} />
               </span>
 
               <span className={styles.panelShell__navigationCopy}>

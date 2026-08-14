@@ -111,7 +111,7 @@ func (scheduler *Scheduler) scheduleReady(
 	if scheduler.registry != nil {
 		if err := workflowfeature.ValidateWorkflowDefinition(
 			workflow,
-			scheduler.registry.Definition,
+			scheduler.registry.Get,
 			scheduler.registry.ValidateConfiguration,
 		); err != nil {
 			var validationError *workflowfeature.WorkflowDefinitionValidationError

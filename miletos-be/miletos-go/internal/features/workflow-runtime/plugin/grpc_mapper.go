@@ -11,16 +11,15 @@ func mapGRPCPluginList(registrations []NodeRegistration) *runtimev1.ListPluginsR
 }
 
 func mapGRPCPlugin(registration NodeRegistration) *runtimev1.Plugin {
-	definition := registration.Definition
 	return &runtimev1.Plugin{
-		Type: definition.Type, Version: definition.Version,
-		DisplayName: definition.DisplayName, Description: definition.Description,
-		InputMode:               definition.InputMode,
-		AcceptsInitialVariables: CanReceiveEntryInput(definition) && allowsExecutionSource(registration, "MANUAL_DIRECT"),
-		InputPorts:              mapGRPCPorts(definition.InputPorts),
-		OutputPorts:             mapGRPCPorts(definition.OutputPorts),
-		InputEdgeConstraint:     mapGRPCEdgeConstraint(definition.InputEdgeConstraint),
-		OutputEdgeConstraint:    mapGRPCEdgeConstraint(definition.OutputEdgeConstraint),
+		Type: registration.Key, Version: "v1",
+		DisplayName: registration.DisplayName, Description: registration.Description,
+		InputMode:               registration.InputMode,
+		AcceptsInitialVariables: CanReceiveEntryInput(registration) && allowsExecutionSource(registration, "MANUAL_DIRECT"),
+		InputPorts:              mapGRPCPorts(registration.InputPorts),
+		OutputPorts:             mapGRPCPorts(registration.OutputPorts),
+		InputEdgeConstraint:     mapGRPCEdgeConstraint(registration.InputEdgeConstraint),
+		OutputEdgeConstraint:    mapGRPCEdgeConstraint(registration.OutputEdgeConstraint),
 		AllowedRootOrigins:      append([]string(nil), registration.AllowedExecutionSources...),
 		ContextProvider:         registration.ContextProvider,
 	}

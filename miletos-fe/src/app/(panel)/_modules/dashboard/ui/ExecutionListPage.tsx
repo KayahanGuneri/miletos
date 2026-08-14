@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Box } from "@/components/lib/box/Box";
 import Button from "@/components/lib/button/Button";
 import {
@@ -24,7 +24,9 @@ import {
 import { type ExecutionStatus } from "@/app/(panel)/_modules/dashboard/types/execution-types";
 import { useExecutionsQuery } from "@/app/(panel)/_modules/dashboard/query/useExecutionsQuery";
 import { useAllCompaniesQuery } from "@/app/(panel)/_modules/companies/query/useAllCompaniesQuery";
+import { useAllWorkflowsQuery } from "@/app/(panel)/_modules/workflows/query/workflow-queries";
 import { useCurrentUserQuery } from "@/shared/session/hooks/useCurrentUserQuery";
+import { canManageWorkflows } from "@/shared/session/permissions/session-permissions";
 import styles from "./ExecutionListPage.module.css";
 
 const EXECUTION_PAGE_SIZE = 20;
@@ -47,7 +49,23 @@ export function ExecutionListPage() {
   const selectedCompany = companiesQuery.data?.find((company) => company.id === selectedCompanyId);
   const hasValidTenant = !isSuperAdmin || Boolean(selectedCompany);
   const executionCompanyId = isSuperAdmin ? selectedCompany?.id : undefined;
+  const canLoadWorkflows = canManageWorkflows(currentUserQuery.data);
+  const workflowsQuery = useAllWorkflowsQuery(canLoadWorkflows);
   const [statusFilter, setStatusFilter] = useState<ExecutionStatusFilter>("ALL");
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState("");
+
+  const workflows = useMemo(() => {
+    const items = workflowsQuery.data ?? [];
+    return [...items].toSorted(
+      (first, second) =>
+        first.name.localeCompare(second.name, undefined, { sensitivity: "base" }) ||
+        first.id - second.id,
+    );
+  }, [workflowsQuery.data]);
+
+  const workflowById = useMemo(() => {
+    return new Map(workflows.map((workflow) => [String(workflow.id), workflow]));
+  }, [workflows]);
 
   const [cursorHistory, setCursorHistory] = useState<(string | undefined)[]>([undefined]);
 
@@ -58,6 +76,7 @@ export function ExecutionListPage() {
       limit: EXECUTION_PAGE_SIZE,
       after: currentCursor,
       status: statusFilter === "ALL" ? undefined : statusFilter,
+      workflowId: selectedWorkflowId || undefined,
     },
     {
       enabled: currentUserQuery.isSuccess && hasValidTenant,
@@ -74,6 +93,11 @@ export function ExecutionListPage() {
   function handleStatusChange(nextStatus: ExecutionStatusFilter) {
     setStatusFilter(nextStatus);
 
+    setCursorHistory([undefined]);
+  }
+
+  function handleWorkflowChange(value: string) {
+    setSelectedWorkflowId(value);
     setCursorHistory([undefined]);
   }
 
@@ -106,6 +130,7 @@ export function ExecutionListPage() {
       nextSearchParams.delete("companyId");
     }
 
+    setSelectedWorkflowId("");
     setCursorHistory([undefined]);
     const nextQuery = nextSearchParams.toString();
     router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname);
@@ -148,8 +173,39 @@ export function ExecutionListPage() {
           </Box>
 
           <Box className={styles.executionListPage__filters}>
+            {canLoadWorkflows ? (
+              <label
+                className={[
+                  styles.executionListPage__filter,
+                  styles.executionListPage__filterWorkflow,
+                ].join(" ")}
+              >
+                <Typography as="span">Workflow</Typography>
+
+                <select
+                  value={selectedWorkflowId}
+                  disabled={workflowsQuery.isPending || workflowsQuery.isError}
+                  aria-label="Workflow"
+                  onChange={(event) => handleWorkflowChange(event.target.value)}
+                >
+                  <option value="">All workflows</option>
+
+                  {workflows.map((workflow) => (
+                    <option key={workflow.id} value={String(workflow.id)}>
+                      {workflow.name} (#{workflow.id})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+
             {isSuperAdmin ? (
-              <label className={styles.executionListPage__filter}>
+              <label
+                className={[
+                  styles.executionListPage__filter,
+                  styles.executionListPage__filterCompact,
+                ].join(" ")}
+              >
                 <Typography as="span">Company</Typography>
 
                 <select
@@ -168,7 +224,12 @@ export function ExecutionListPage() {
               </label>
             ) : null}
 
-            <label className={styles.executionListPage__filter}>
+            <label
+              className={[
+                styles.executionListPage__filter,
+                styles.executionListPage__filterCompact,
+              ].join(" ")}
+            >
               <Typography as="span">Status</Typography>
 
               <select
@@ -275,7 +336,7 @@ export function ExecutionListPage() {
             <Typography as="strong">No executions found.</Typography>
 
             <Typography as="span">
-              No workflow executions match the selected status on this page.
+              No workflow executions match the selected filters on this page.
             </Typography>
           </Box>
         ) : null}
@@ -298,77 +359,101 @@ export function ExecutionListPage() {
                 </TableHeader>
 
                 <TableBody>
-                  {executions.map((execution) => (
-                    <TableRow key={execution.executionId}>
-                      <TableCell>
-                        <Link
-                          className={styles.executionListPage__executionLink}
-                          href={
-                            executionCompanyId
-                              ? `/dashboard/executions/${execution.executionId}?companyId=${executionCompanyId}`
-                              : `/dashboard/executions/${execution.executionId}`
-                          }
-                          title={execution.executionId}
-                        >
-                          {shortenExecutionId(execution.executionId)}
-                        </Link>
+                  {executions.map((execution) => {
+                    const workflow = workflowById.get(execution.workflowId);
 
-                        <Typography
-                          as="span"
-                          className={styles.executionListPage__correlation}
-                          title={execution.correlationId}
-                        >
-                          Corr. {shortenExecutionId(execution.correlationId)}
-                        </Typography>
-                      </TableCell>
+                    return (
+                      <TableRow key={execution.executionId}>
+                        <TableCell>
+                          <Link
+                            className={styles.executionListPage__executionLink}
+                            href={
+                              executionCompanyId
+                                ? `/dashboard/executions/${execution.executionId}?companyId=${executionCompanyId}`
+                                : `/dashboard/executions/${execution.executionId}`
+                            }
+                            title={execution.executionId}
+                          >
+                            {shortenExecutionId(execution.executionId)}
+                          </Link>
 
-                      <TableCell>
-                        <Typography
-                          as="span"
-                          className={styles.executionListPage__workflow}
-                          title={execution.workflowId}
-                        >
-                          {shortenExecutionId(execution.workflowId)}
-                        </Typography>
-                      </TableCell>
-
-                      <TableCell>
-                        <Typography as="span">#{execution.workflowRevision}</Typography>
-                      </TableCell>
-
-                      <TableCell>
-                        <Typography as="span" className={styles.executionListPage__mode}>
-                          {execution.mode}
-                        </Typography>
-                      </TableCell>
-
-                      <TableCell>
-                        <Typography
-                          as="span"
-                          className={styles.executionListPage__status}
-                          data-status={execution.status}
-                        >
-                          {formatExecutionStatus(execution.status)}
-                        </Typography>
-                      </TableCell>
-
-                      <TableCell>{formatExecutionDateTime(execution.createdAt)}</TableCell>
-
-                      <TableCell>{formatExecutionDateTime(execution.updatedAt)}</TableCell>
-
-                      <TableCell>
-                        {execution.isStalled ? (
-                          <Typography as="span" className={styles.executionListPage__stalled}>
-                            Stalled
+                          <Typography
+                            as="span"
+                            className={styles.executionListPage__correlation}
+                            title={execution.correlationId}
+                          >
+                            Corr. {shortenExecutionId(execution.correlationId)}
                           </Typography>
-                        ) : (
-                          <Typography as="span" className={styles.executionListPage__healthy}>
-                            Normal
+                        </TableCell>
+
+                        <TableCell>
+                          {workflow ? (
+                            <>
+                              <Typography
+                                as="span"
+                                className={styles.executionListPage__workflow}
+                                title={workflow.name}
+                              >
+                                {workflow.name}
+                              </Typography>
+
+                              <Typography
+                                as="span"
+                                className={styles.executionListPage__workflowId}
+                                title={execution.workflowId}
+                              >
+                                #{workflow.id}
+                              </Typography>
+                            </>
+                          ) : (
+                            <Typography
+                              as="span"
+                              className={styles.executionListPage__workflow}
+                              title={execution.workflowId}
+                            >
+                              {shortenExecutionId(execution.workflowId)}
+                            </Typography>
+                          )}
+                        </TableCell>
+
+                        <TableCell>
+                          <Typography as="span">#{execution.workflowRevision}</Typography>
+                        </TableCell>
+
+                        <TableCell>
+                          <Typography as="span" className={styles.executionListPage__mode}>
+                            {execution.mode}
                           </Typography>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        </TableCell>
+
+                        <TableCell>
+                          <Typography
+                            as="span"
+                            className={styles.executionListPage__status}
+                            data-status={execution.status}
+                          >
+                            {formatExecutionStatus(execution.status)}
+                          </Typography>
+                        </TableCell>
+
+                        <TableCell>{formatExecutionDateTime(execution.createdAt)}</TableCell>
+
+                        <TableCell>{formatExecutionDateTime(execution.updatedAt)}</TableCell>
+
+                        <TableCell>
+                          {execution.isStalled ? (
+                            <Typography as="span" className={styles.executionListPage__stalled}>
+                              Stalled
+                            </Typography>
+                          ) : (
+                            <Typography as="span" className={styles.executionListPage__healthy}>
+                              Normal
+                            </Typography>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </Box>

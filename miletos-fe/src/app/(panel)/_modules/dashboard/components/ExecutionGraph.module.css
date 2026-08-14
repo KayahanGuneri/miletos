@@ -1,20 +1,21 @@
 .executionGraph__section {
   min-width: 0;
-  margin-bottom: 18px;
+  margin-bottom: 16px;
   overflow: hidden;
-  border: 1px solid rgba(75, 70, 255, 0.13);
-  border-radius: 26px;
-  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(75, 70, 255, 0.12);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.97);
   box-shadow: var(--shadow-card);
 }
 
 .executionGraph__header {
-  padding: clamp(22px, 2vw, 30px);
+  padding: 16px 20px;
   display: flex;
-  gap: 24px;
+  gap: 16px;
   align-items: flex-end;
   justify-content: space-between;
   border-bottom: 1px solid var(--color-border);
+  background: linear-gradient(180deg, #fbfbff 0%, #ffffff 100%);
 }
 
 .executionGraph__eyebrow {
@@ -29,8 +30,8 @@
 .executionGraph__header h2 {
   margin: 0;
   color: var(--color-text);
-  font-size: clamp(20px, 1.7vw, 27px);
-  letter-spacing: -0.04em;
+  font-size: 18px;
+  letter-spacing: -0.03em;
 }
 
 .executionGraph__header > div > span {
@@ -60,8 +61,10 @@
 
 .executionGraph__canvas {
   width: 100%;
-  height: clamp(440px, 58vh, 720px);
-  background: linear-gradient(180deg, #fcfcff, #f8f9ff);
+  height: clamp(400px, 52vh, 620px);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(75, 70, 255, 0.05), transparent 18rem),
+    linear-gradient(180deg, #f6f7fc 0%, #f3f5fb 100%);
 }
 
 .executionGraph__empty {

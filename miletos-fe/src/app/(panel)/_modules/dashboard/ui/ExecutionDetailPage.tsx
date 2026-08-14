@@ -331,6 +331,15 @@ export function ExecutionDetailPage({ executionId, companyId }: ExecutionDetailP
         </article>
       </section>
 
+      {definitionQuery.isSuccess ? (
+        <ExecutionGraph
+          definition={definitionQuery.data.definition}
+          nodeExecutions={nodeExecutions}
+          selectedNodeId={selectedNodeId}
+          onNodeSelect={selectRuntimeNode}
+        />
+      ) : null}
+
       <section className={styles.executionDetailPage__grid}>
         <article className={styles.executionDetailPage__card}>
           <header className={styles.executionDetailPage__cardHeader}>
@@ -483,15 +492,6 @@ export function ExecutionDetailPage({ executionId, companyId }: ExecutionDetailP
           </Box>
         ) : null}
       </section>
-
-      {definitionQuery.isSuccess ? (
-        <ExecutionGraph
-          definition={definitionQuery.data.definition}
-          nodeExecutions={nodeExecutions}
-          selectedNodeId={selectedNodeId}
-          onNodeSelect={selectRuntimeNode}
-        />
-      ) : null}
 
       {isNodeDialogOpen && selectedNodeId ? (
         <RuntimeNodeDetailsDialog

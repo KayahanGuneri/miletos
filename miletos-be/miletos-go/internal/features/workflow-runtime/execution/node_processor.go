@@ -12,6 +12,7 @@ import (
 	"miletos-go/internal/features/workflow-runtime/execution/queue"
 	"miletos-go/internal/features/workflow-runtime/execution/repository"
 	"miletos-go/internal/features/workflow-runtime/plugin"
+	"miletos-go/internal/features/workflow-runtime/pluginstate"
 	"miletos-go/internal/features/workflow-runtime/workflow"
 )
 
@@ -24,6 +25,8 @@ type NodeProcessor struct {
 	topic           string
 	maximumAttempts int
 	retryDelay      time.Duration
+	state           *pluginstate.Repository
+	emitter         *PluginEmitter
 }
 
 type classifiedNodeError struct {
@@ -64,6 +67,8 @@ func NewNodeProcessor(
 	topic string,
 	maximumAttempts int,
 	retryDelay time.Duration,
+	state *pluginstate.Repository,
+	emitter *PluginEmitter,
 ) (*NodeProcessor, error) {
 	if maximumAttempts < 1 {
 		return nil, fmt.Errorf("retry maximum attempts must be positive")
@@ -78,6 +83,7 @@ func NewNodeProcessor(
 		workflows: workflows, executions: executions, registry: registry,
 		scheduler: scheduler, queue: nodeQueue, topic: topic,
 		maximumAttempts: maximumAttempts, retryDelay: retryDelay,
+		state: state, emitter: emitter,
 	}, nil
 }
 
@@ -276,34 +282,42 @@ func (processor *NodeProcessor) processAttempts(
 				repository.ErrStateTransition, job.NodeID, state.Status,
 			)
 		}
-		lifecycles, exists := processor.registry.GetLifecycles(node.Type)
+		registration, exists := processor.registry.Get(node.Type)
 		var output any
 		var routing model.NodeRoutingOutcome
 		var executionError error
-		if !exists || lifecycles.OnRun == nil {
+		if !exists || registration.Handler == nil {
 			executionError = &plugin.NodeError{
 				Category: string(model.FailureCategoryValidation),
 				Code:     string(model.FailureCodeHandlerNotFound),
 				Message:  "The configured node handler is unavailable.",
 			}
 		} else {
-			routingMode, _ := processor.registry.GetOutputRoutingMode(node.Type)
-			access := newNodeAccess(definition, node.ID, routingMode)
-			nodeContext := plugin.NodeExecutionContext{
-				CompanyID:     job.CompanyID,
-				WorkflowID:    job.WorkflowID,
-				ExecutionID:   job.ExecutionID,
-				NodeID:        job.NodeID,
-				CorrelationID: job.CorrelationID,
-				Source:        string(job.Origin),
-			}
-			output, executionError = executeNodeOnRun(lifecycles.OnRun, &plugin.Context{
-				Runtime:       ctx,
-				Execution:     &nodeContext,
-				Configuration: node.Configuration,
-				Payload:       job.Payload,
-				Access:        access,
+			access := newNodeAccess(definition, node.ID, registration.RoutingMode)
+			lifecycles := plugin.NewLifecycles()
+			storage := pluginstate.NewStorage(ctx, processor.state, pluginstate.Scope{
+				CompanyID:        job.CompanyID,
+				WorkflowID:       job.WorkflowID,
+				WorkflowRevision: definition.Revision,
+				NodeID:           job.NodeID,
 			})
+			infrastructure := plugin.Infrastructure{}
+			if processor.emitter != nil {
+				infrastructure.Emitter = processor.emitter.ForContext(ctx, registration.Key)
+			}
+			nodeContext := plugin.NewContext(plugin.ContextOptions{
+				Runtime:        ctx,
+				Configuration:  node.Configuration,
+				CompanyID:      job.CompanyID,
+				Lifecycles:     lifecycles,
+				Storage:        storage,
+				Access:         access,
+				Infrastructure: infrastructure,
+				Payload:        job.Payload,
+			})
+			output, executionError = executeNodeOnRun(
+				registration.Handler, lifecycles, nodeContext,
+			)
 			if executionError == nil {
 				routing = access.outcome()
 			} else {
@@ -364,7 +378,8 @@ func (processor *NodeProcessor) processAttempts(
 }
 
 func executeNodeOnRun(
-	handler plugin.RunHandler,
+	handler plugin.NodeHandler,
+	lifecycles *plugin.LifecycleCallbacks,
 	nodeContext *plugin.Context,
 ) (output any, err error) {
 	defer func() {
@@ -372,7 +387,10 @@ func executeNodeOnRun(
 			err = errNodeOnRunPanicked
 		}
 	}()
-	return handler(nodeContext)
+	if err := handler(nodeContext); err != nil {
+		return nil, err
+	}
+	return lifecycles.InvokeRun()
 }
 
 func findWorkflowNode(definition workflow.Workflow, nodeID string) (workflow.WorkflowNode, bool) {
