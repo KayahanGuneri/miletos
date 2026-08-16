@@ -5,22 +5,32 @@ import { Box } from "@/components/lib/box/Box";
 import Button, { ButtonVariant } from "@/components/lib/button/Button";
 import { Input } from "@/components/lib/input/Input";
 import { Typography } from "@/components/lib/typography/Typography";
-import type { FormField, FormPrimitive } from "@/shared/plugins/form/form-schema-types";
+import type { FormField, FormFieldValue } from "@/shared/plugins/form/form-schema-types";
 import { formBuilderMessages } from "@/shared/plugins/messages/form-builder-messages";
 import styles from "@/shared/plugins/configuration/PluginConfigurationDialog.module.css";
 
 export interface FieldRendererProps {
   field: FormField;
-  value: FormPrimitive | undefined;
+  value: FormFieldValue | undefined;
   disabled: boolean;
   error?: string;
-  onChange: (value: FormPrimitive | undefined) => void;
+  onChange: (value: FormFieldValue | undefined) => void;
   onUploadFile?: (file: File) => Promise<string>;
   uploadPending?: boolean;
   uploadError?: boolean;
 }
 
-export function InputRenderer({ field, value, disabled, error, onChange }: FieldRendererProps) {
+export function InputRenderer(props: FieldRendererProps) {
+  const { field, value, disabled, error, onChange } = props;
+  if (field.dataType === "STRING" && field.renderType === "INPUT") {
+    if (field.inputType === "password") {
+      return <PasswordRenderer {...props} />;
+    }
+    if (field.inputType === "file") {
+      return <FileUploadRenderer {...props} />;
+    }
+  }
+
   if (field.dataType === "NUMBER" && field.renderType === "INPUT") {
     return (
       <label className={styles.pluginConfiguration__field}>
@@ -66,7 +76,7 @@ export function InputRenderer({ field, value, disabled, error, onChange }: Field
   );
 }
 
-export function PasswordRenderer({ field, value, disabled, error, onChange }: FieldRendererProps) {
+function PasswordRenderer({ field, value, disabled, error, onChange }: FieldRendererProps) {
   return (
     <label className={styles.pluginConfiguration__field}>
       <Typography as="span">{field.label}</Typography>
@@ -133,26 +143,7 @@ export function DropdownRenderer({ field, value, disabled, error, onChange }: Fi
   );
 }
 
-export function CheckboxRenderer({ field, value, disabled, error, onChange }: FieldRendererProps) {
-  return (
-    <label className={styles.pluginConfiguration__field}>
-      <Typography as="span">{field.label}</Typography>
-      <input
-        type="checkbox"
-        disabled={disabled}
-        checked={value === true}
-        onChange={(event) => onChange(event.target.checked)}
-      />
-      {error ? (
-        <Typography as="span" className={styles.pluginConfiguration__error} role="alert">
-          {error}
-        </Typography>
-      ) : null}
-    </label>
-  );
-}
-
-export function FileUploadRenderer({
+function FileUploadRenderer({
   field,
   value,
   disabled,
@@ -166,7 +157,9 @@ export function FileUploadRenderer({
   const inputRef = useRef<HTMLInputElement>(null);
   const [selectedFileName, setSelectedFileName] = useState("");
   const accept =
-    field.dataType === "STRING" && field.renderType === "FILE_UPLOAD" ? field.accept : undefined;
+    field.dataType === "STRING" && field.renderType === "INPUT" && field.inputType === "file"
+      ? field.accept
+      : undefined;
   const acceptedTypes = Array.from(
     new Set(
       accept

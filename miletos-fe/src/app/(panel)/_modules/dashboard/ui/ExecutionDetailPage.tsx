@@ -249,7 +249,11 @@ export function ExecutionDetailPage({ executionId, companyId }: ExecutionDetailP
                     const companyQuery = effectiveCompanyId
                       ? `?companyId=${effectiveCompanyId}`
                       : "";
-                    router.push(`/dashboard/executions/${result.executionId}${companyQuery}`);
+                    if (result.executionCount === 1 && result.executionIds[0]) {
+                      router.push(`/dashboard/executions/${result.executionIds[0]}${companyQuery}`);
+                    } else {
+                      router.push(`/dashboard/executions${companyQuery}`);
+                    }
                   },
                 },
               );

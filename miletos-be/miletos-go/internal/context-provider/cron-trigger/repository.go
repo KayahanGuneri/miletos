@@ -76,21 +76,24 @@ func (triggerRepository *Repository) FindByID(
 	return bindingFromRecord(records[0]), nil
 }
 
-func (triggerRepository *Repository) FindActiveByWorkflow(
+func (triggerRepository *Repository) FindActiveByWorkflowAndNode(
 	ctx context.Context,
 	companyID string,
 	workflowID string,
+	triggerNodeID string,
 ) (Binding, error) {
 	var records []bindingRecord
 	result := triggerRepository.dbClient.DB(ctx).
 		Table("workflow_runtime.cron_trigger_bindings").
 		Where(
-			"company_id = ? AND workflow_id = ? AND status = ?",
-			companyID, workflowID, StatusActive,
+			"company_id = ? AND workflow_id = ? AND trigger_node_id = ? AND status = ?",
+			companyID, workflowID, triggerNodeID, StatusActive,
 		).
 		Limit(1).Find(&records)
 	if result.Error != nil {
-		return Binding{}, fmt.Errorf("find active cron trigger by workflow: %w", result.Error)
+		return Binding{}, fmt.Errorf(
+			"find active cron trigger by workflow and node: %w", result.Error,
+		)
 	}
 	if result.RowsAffected == 0 {
 		return Binding{}, repository.ErrNotFound

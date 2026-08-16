@@ -2,18 +2,15 @@
 
 import type { ComponentType } from "react";
 import {
-  CheckboxRenderer,
   DropdownRenderer,
-  FileUploadRenderer,
   InputRenderer,
-  PasswordRenderer,
   type FieldRendererProps,
 } from "@/shared/plugins/form/field-renderers";
 import {
   isFormFieldVisible,
   type FlatFormSchema,
   type FormConfiguration,
-  type FormPrimitive,
+  type FormFieldValue,
   type FormRenderType,
 } from "@/shared/plugins/form/form-schema-types";
 import styles from "@/shared/plugins/configuration/PluginConfigurationDialog.module.css";
@@ -21,9 +18,6 @@ import styles from "@/shared/plugins/configuration/PluginConfigurationDialog.mod
 const RENDERERS: Record<FormRenderType, ComponentType<FieldRendererProps>> = {
   INPUT: InputRenderer,
   DROPDOWN: DropdownRenderer,
-  CHECKBOX: CheckboxRenderer,
-  FILE_UPLOAD: FileUploadRenderer,
-  PASSWORD: PasswordRenderer,
 };
 
 export interface FormBuilderProps {
@@ -47,7 +41,7 @@ export function FormBuilder({
   uploadPending,
   uploadError,
 }: FormBuilderProps) {
-  function updateField(key: string, value: FormPrimitive | undefined) {
+  function updateField(key: string, value: FormFieldValue | undefined) {
     if (value === undefined) {
       const next = { ...values };
       delete next[key];

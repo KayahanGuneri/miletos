@@ -11,6 +11,7 @@ import (
 
 	"miletos-go/internal/features/workflow-runtime/execution/model"
 	"miletos-go/internal/features/workflow-runtime/execution/repository"
+	"miletos-go/internal/features/workflow-runtime/plugin"
 	"miletos-go/internal/features/workflow-runtime/workflow"
 	runtimev1 "miletos-go/internal/shared/grpc/generated/runtimev1"
 	"miletos-go/internal/shared/requestcontext"
@@ -22,6 +23,21 @@ type GRPCService struct {
 	recovery *RecoveryService
 	queries  *ExecutionQueryService
 }
+
+type ErrorReason string
+
+const (
+	ErrorReasonInvalidWorkflowDefinition    ErrorReason = "INVALID_WORKFLOW_DEFINITION"
+	ErrorReasonInvalidExecutionRequest      ErrorReason = "INVALID_EXECUTION_REQUEST"
+	ErrorReasonTriggerRuntimeUnavailable    ErrorReason = "TRIGGER_RUNTIME_UNAVAILABLE"
+	ErrorReasonInternalServerError          ErrorReason = "INTERNAL_SERVER_ERROR"
+	ErrorReasonIdempotencyKeyReused         ErrorReason = "IDEMPOTENCY_KEY_REUSED"
+	ErrorReasonIdempotencyRequestInProgress ErrorReason = "IDEMPOTENCY_REQUEST_IN_PROGRESS"
+	ErrorReasonRecoveryNotSupported         ErrorReason = "RECOVERY_NOT_SUPPORTED"
+	ErrorReasonInitialVariablesNotAccepted  ErrorReason = "INITIAL_VARIABLES_NOT_ACCEPTED"
+	ErrorReasonInvalidExecutionOrigin       ErrorReason = "INVALID_EXECUTION_ORIGIN"
+	ErrorReasonWorkflowValidationFailed     ErrorReason = "WORKFLOW_VALIDATION_FAILED"
+)
 
 func NewGRPCService(
 	service *ExecutionService,
@@ -62,18 +78,19 @@ func (service *GRPCService) ExecuteSync(
 	if err != nil {
 		return nil, err
 	}
-	outcome, err := service.service.ExecuteSync(
+	outcome, err := service.service.ExecuteManual(
 		ctx,
 		workflow,
 		startInput,
 		requestcontext.CorrelationID(ctx),
 		requestcontext.IdempotencyKey(ctx),
 		manualExecutionFingerprint(workflow, startInput, "SYNC"),
+		"SYNC",
 	)
 	if err != nil {
 		return nil, mapGRPCError(err)
 	}
-	return mapGRPCExecutionOutcome(outcome, requestcontext.RequestID(ctx)), nil
+	return mapGRPCManualExecutionBatch(outcome, requestcontext.RequestID(ctx)), nil
 }
 
 func (service *GRPCService) ExecuteAsync(
@@ -89,18 +106,19 @@ func (service *GRPCService) ExecuteAsync(
 	if err != nil {
 		return nil, err
 	}
-	outcome, err := service.service.ExecuteAsync(
+	outcome, err := service.service.ExecuteManual(
 		ctx,
 		workflow,
 		startInput,
 		requestcontext.CorrelationID(ctx),
 		requestcontext.IdempotencyKey(ctx),
 		manualExecutionFingerprint(workflow, startInput, "ASYNC"),
+		"ASYNC",
 	)
 	if err != nil {
 		return nil, mapGRPCError(err)
 	}
-	return mapGRPCExecutionOutcome(outcome, requestcontext.RequestID(ctx)), nil
+	return mapGRPCManualExecutionBatch(outcome, requestcontext.RequestID(ctx)), nil
 }
 
 func (service *GRPCService) ListExecutions(
@@ -272,6 +290,20 @@ func mapGRPCError(err error) error {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return status.FromContextError(err).Err()
 	}
+	var nodeError *plugin.NodeError
+	if errors.As(err, &nodeError) {
+		switch nodeError.Category {
+		case "VALIDATION":
+			return status.Error(codes.InvalidArgument, nodeError.Message)
+		case "EXECUTION":
+			if nodeError.CanRetry {
+				return status.Error(codes.Unavailable, nodeError.Message)
+			}
+			return status.Error(codes.FailedPrecondition, nodeError.Message)
+		default:
+			return status.Error(codes.Internal, nodeError.Message)
+		}
+	}
 	switch {
 	case errors.Is(err, repository.ErrNotFound):
 		return status.Error(codes.NotFound, "the requested resource was not found")
@@ -279,20 +311,26 @@ func mapGRPCError(err error) error {
 		return statusWithErrorInfo(
 			codes.AlreadyExists,
 			"idempotency key was already used for a different request",
-			"IDEMPOTENCY_KEY_REUSED",
+			ErrorReasonIdempotencyKeyReused,
+		)
+	case errors.Is(err, ErrIdempotencyRequestInProgress):
+		return statusWithErrorInfo(
+			codes.FailedPrecondition,
+			"a request with this idempotency key is still in progress",
+			ErrorReasonIdempotencyRequestInProgress,
 		)
 	case errors.Is(err, ErrRecoveryUnsupported),
 		errors.Is(err, repository.ErrRecoveryConflict):
 		return statusWithErrorInfo(
 			codes.FailedPrecondition,
 			"the execution cannot be recovered in its current state",
-			"RECOVERY_NOT_SUPPORTED",
+			ErrorReasonRecoveryNotSupported,
 		)
 	case errors.Is(err, ErrAsyncUnavailable):
 		return status.Error(codes.Unavailable, "workflow execution is unavailable")
 	case errors.Is(err, ErrStartInputNotAccepted):
 		return validationStatus([]*runtimev1.ValidationIssue{{
-			Code:   "INITIAL_VARIABLES_NOT_ACCEPTED",
+			Code:   string(ErrorReasonInitialVariablesNotAccepted),
 			Field:  "initialVariables",
 			Reason: "no workflow entry node accepts the supplied initial variables",
 		}})
@@ -300,7 +338,13 @@ func mapGRPCError(err error) error {
 		return statusWithErrorInfo(
 			codes.InvalidArgument,
 			"execution origin is incompatible with the workflow",
-			"INVALID_EXECUTION_ORIGIN",
+			ErrorReasonInvalidExecutionOrigin,
+		)
+	case errors.Is(err, ErrAmbiguousRecordSources):
+		return statusWithErrorInfo(
+			codes.InvalidArgument,
+			"multiple record sources require an explicit correlation contract",
+			ErrorReasonInvalidExecutionOrigin,
 		)
 	case errors.Is(err, workflow.ErrInvalidWorkflow):
 		return WorkflowValidationGRPCStatus(err)
@@ -336,7 +380,7 @@ func WorkflowValidationGRPCStatus(err error) error {
 func validationStatus(issues []*runtimev1.ValidationIssue) error {
 	base := status.New(codes.InvalidArgument, "workflow definition failed validation")
 	errorInfo := &errdetails.ErrorInfo{
-		Reason: "WORKFLOW_VALIDATION_FAILED",
+		Reason: string(ErrorReasonWorkflowValidationFailed),
 		Domain: "miletos.runtime",
 	}
 	badRequest := &errdetails.BadRequest{}
@@ -366,10 +410,14 @@ func validationStatus(issues []*runtimev1.ValidationIssue) error {
 	return withDetails.Err()
 }
 
-func statusWithErrorInfo(code codes.Code, message string, reason string) error {
+func StatusWithErrorInfo(code codes.Code, message string, reason ErrorReason) error {
+	return statusWithErrorInfo(code, message, reason)
+}
+
+func statusWithErrorInfo(code codes.Code, message string, reason ErrorReason) error {
 	base := status.New(code, message)
 	withDetails, err := base.WithDetails(&errdetails.ErrorInfo{
-		Reason: reason,
+		Reason: string(reason),
 		Domain: "miletos.runtime",
 	})
 	if err != nil {

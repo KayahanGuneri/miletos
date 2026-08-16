@@ -5,7 +5,10 @@ import { Box } from "@/components/lib/box/Box";
 import Button, { ButtonVariant } from "@/components/lib/button/Button";
 import { Dialog } from "@/components/lib/dialog/Dialog";
 import { Typography } from "@/components/lib/typography/Typography";
-import type { PluginConfiguration } from "@/shared/plugins/contracts/plugin-configuration-interfaces";
+import type {
+  PluginConfiguration,
+  PluginConfigurationEditorContext,
+} from "@/shared/plugins/contracts/plugin-configuration-interfaces";
 import { FormBuilder } from "@/shared/plugins/form/FormBuilder";
 import {
   deserializeFormConfiguration,
@@ -23,6 +26,7 @@ interface PluginConfigurationDialogProps {
   pluginVersion: string;
   configuration: PluginConfiguration;
   readOnly: boolean;
+  editorContext?: PluginConfigurationEditorContext;
   onValidityChange: (valid: boolean) => void;
   onClose: () => void;
   onSave: (configuration: PluginConfiguration) => void;
@@ -129,6 +133,7 @@ export function PluginConfigurationDialog({
   pluginVersion,
   configuration,
   readOnly,
+  editorContext,
   onValidityChange,
   onClose,
   onSave,
@@ -140,6 +145,7 @@ export function PluginConfigurationDialog({
   const [dialogState, setDialogState] = useState<DialogState>(() =>
     loadDialogState(pluginType, configuration),
   );
+  const [saveAttempted, setSaveAttempted] = useState(false);
 
   const validation = useMemo(() => {
     if (dialogState.error || dialogState.values === undefined) {
@@ -153,14 +159,14 @@ export function PluginConfigurationDialog({
         );
       }
       if (definition) {
-        return definition.validate(dialogState.values);
+        return definition.validate(dialogState.values, editorContext);
       }
     }
     if (dialogState.mode === "legacy" && definition) {
-      return definition.validate(dialogState.values);
+      return definition.validate(dialogState.values, editorContext);
     }
     return { valid: false, errors: {} };
-  }, [definition, dialogState]);
+  }, [definition, dialogState, editorContext]);
 
   useEffect(() => {
     onValidityChange(validation.valid && !dialogState.error);
@@ -173,9 +179,11 @@ export function PluginConfigurationDialog({
       return;
     }
     setDialogState(loadDialogState(pluginType, definition.createDefaultConfiguration()));
+    setSaveAttempted(false);
   }
 
   function saveConfiguration() {
+    setSaveAttempted(true);
     if (dialogState.values === undefined || !validation.valid) {
       return;
     }
@@ -213,7 +221,7 @@ export function PluginConfigurationDialog({
           {!readOnly && dialogState.mode !== "unsupported" && !dialogState.error ? (
             <Button
               type="button"
-              disabled={!validation.valid || dialogState.values === undefined}
+              disabled={dialogState.values === undefined}
               onClick={saveConfiguration}
             >
               {pluginMessages.configurationDialog.save}
@@ -255,22 +263,42 @@ export function PluginConfigurationDialog({
       dialogState.schema &&
       dialogState.values !== undefined &&
       !dialogState.error ? (
-        <FormBuilder
-          schema={dialogState.schema}
-          values={dialogState.values as FormConfiguration}
-          disabled={readOnly}
-          validationErrors={validation.errors}
-          onChange={(values) =>
-            setDialogState((current) => ({ ...current, values, error: undefined }))
-          }
-          uploadPending={uploadPending}
-          uploadError={uploadError}
-          onUploadFile={
-            dialogState.schema.fields.some((field) => field.renderType === "FILE_UPLOAD")
-              ? onUploadFile
-              : undefined
-          }
-        />
+        <>
+          <FormBuilder
+            schema={dialogState.schema}
+            values={dialogState.values as FormConfiguration}
+            disabled={readOnly}
+            validationErrors={saveAttempted ? validation.errors : {}}
+            onChange={(values) => {
+              setSaveAttempted(false);
+              setDialogState((current) => ({ ...current, values, error: undefined }));
+            }}
+            uploadPending={uploadPending}
+            uploadError={uploadError}
+            onUploadFile={
+              dialogState.schema.fields.some(
+                (field) =>
+                  field.dataType === "STRING" &&
+                  field.renderType === "INPUT" &&
+                  field.inputType === "file",
+              )
+                ? onUploadFile
+                : undefined
+            }
+          />
+          {!dialogState.embedded && definition && Editor ? (
+            <Editor
+              initialValues={dialogState.values}
+              disabled={readOnly}
+              validationErrors={saveAttempted ? validation.errors : {}}
+              editorContext={editorContext}
+              onChange={(values) => {
+                setSaveAttempted(false);
+                setDialogState((current) => ({ ...current, values, error: undefined }));
+              }}
+            />
+          ) : null}
+        </>
       ) : null}
 
       {dialogState.mode === "legacy" &&
@@ -281,8 +309,12 @@ export function PluginConfigurationDialog({
         <Editor
           initialValues={dialogState.values}
           disabled={readOnly}
-          validationErrors={validation.errors}
-          onChange={(values) => setDialogState({ mode: "legacy", values })}
+          validationErrors={saveAttempted ? validation.errors : {}}
+          editorContext={editorContext}
+          onChange={(values) => {
+            setSaveAttempted(false);
+            setDialogState({ mode: "legacy", values });
+          }}
           onUploadFile={onUploadFile}
           uploadPending={uploadPending}
           uploadError={uploadError}

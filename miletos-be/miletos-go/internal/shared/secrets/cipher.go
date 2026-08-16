@@ -18,8 +18,6 @@ var (
 	ErrInvalidCipher  = errors.New("ciphertext is invalid")
 )
 
-// Cipher decrypts AES-GCM payloads produced by the Java SFTP password cipher
-// (base64(iv || ciphertext||tag), 12-byte IV, 32-byte key).
 type Cipher struct {
 	key []byte
 }

@@ -39,9 +39,7 @@ type Config struct {
 	CronEnabled                     bool
 	CronPollInterval                time.Duration
 	CronBatchSize                   int
-	OutputDirectory                 string
 	InputDirectory                  string
-	InputPostgreSQLURL              string
 	SecretsAESKey                   string
 }
 
@@ -75,6 +73,9 @@ func Load() (Config, error) {
 	nodeConcurrency, err := getEnvInt("MILETOS_RUNTIME_NODE_CONCURRENCY", 2)
 	if err != nil {
 		return Config{}, err
+	}
+	if nodeConcurrency < 2 || nodeConcurrency > 5 {
+		return Config{}, fmt.Errorf("MILETOS_RUNTIME_NODE_CONCURRENCY must be between 2 and 5")
 	}
 	reconciliationEnabled, err := getEnvBool("MILETOS_RUNTIME_RECONCILIATION_ENABLED", true)
 	if err != nil {
@@ -121,15 +122,10 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
-	outputDirectory := getEnv("MILETOS_RUNTIME_OUTPUT_DIRECTORY", "output")
-	if outputDirectory == "" {
-		return Config{}, fmt.Errorf("MILETOS_RUNTIME_OUTPUT_DIRECTORY must not be blank")
-	}
 	inputDirectory := getEnv("MILETOS_RUNTIME_INPUT_DIRECTORY", "input")
 	if inputDirectory == "" {
 		return Config{}, fmt.Errorf("MILETOS_RUNTIME_INPUT_DIRECTORY must not be blank")
 	}
-	inputPostgreSQLURL := strings.TrimSpace(os.Getenv("MILETOS_RUNTIME_INPUT_POSTGRES_URL"))
 
 	configuration := Config{
 		ServiceName:          getEnv("MILETOS_RUNTIME_SERVICE_NAME", "miletos-go"),
@@ -140,9 +136,7 @@ func Load() (Config, error) {
 		GRPCPort:             grpcPort,
 		PublicTriggerBaseURL: publicTriggerBaseURL,
 		PostgreSQLURL:        postgresqlURL,
-		OutputDirectory:      outputDirectory,
 		InputDirectory:       inputDirectory,
-		InputPostgreSQLURL:   inputPostgreSQLURL,
 		SecretsAESKey:        strings.TrimSpace(os.Getenv("MILETOS_SECRETS_AES_KEY")),
 		KafkaEnabled:         kafkaEnabled,
 		KafkaBrokers:         getEnvStrings("MILETOS_RUNTIME_KAFKA_BROKERS", "127.0.0.1:9092"),

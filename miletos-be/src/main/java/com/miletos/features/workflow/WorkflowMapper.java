@@ -282,12 +282,18 @@ public interface WorkflowMapper {
         configuration != null && configuration.isObject()
             ? configuration.deepCopy()
             : JsonNodeFactory.instance.objectNode();
-    boolean encryptedPasswordPresent = copy.has("sftpPasswordEncrypted");
-    copy.remove("sftpPasswordEncrypted");
-    copy.remove("sftpPassword");
-    if (encryptedPasswordPresent) {
-      copy.put("sftpPassword", "");
-    }
+    redactSecret(copy, "sftpPassword", "sftpPasswordEncrypted");
+    redactSecret(copy, "databasePassword", "databasePasswordEncrypted");
     return copy;
+  }
+
+  private static void redactSecret(
+      ObjectNode configuration, String plaintextField, String encryptedField) {
+    boolean encryptedSecretPresent = configuration.has(encryptedField);
+    configuration.remove(encryptedField);
+    configuration.remove(plaintextField);
+    if (encryptedSecretPresent) {
+      configuration.put(plaintextField, "");
+    }
   }
 }

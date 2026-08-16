@@ -20,15 +20,13 @@ export const PLUGIN_CATEGORY_LABELS: Record<PluginCategory, string> = {
 const CATEGORY_BY_PLUGIN_TYPE: Readonly<Record<string, PluginCategory>> = {
   "core.http-trigger": "trigger",
   "core.cron-trigger": "trigger",
-  "core.static-input": "input",
   "core.file-input": "input",
   "core.excel-input": "input",
   "core.database-input": "input",
   "core.delay": "flow-control",
-  "core.join": "flow-control",
-  "core.pass-through": "flow-control",
+  "core.if": "flow-control",
+  "core.filter": "flow-control",
   "core.terminal": "output",
-  "core.output": "output",
   "core.rest-output": "output",
   "core.database-output": "output",
   "core.csv-output": "output",
@@ -51,6 +49,19 @@ export function withPluginCategory(
 ): PluginDescriptor {
   return {
     ...plugin,
+    displayName: plugin.displayName || plugin.type,
+    description: plugin.description ?? "",
+    inputPorts: plugin.inputPorts.map((port) => ({
+      ...port,
+      displayName: port.displayName || port.name,
+      description: port.description ?? "",
+    })),
+    outputPorts: plugin.outputPorts.map((port) => ({
+      ...port,
+      displayName: port.displayName || port.name,
+      description: port.description ?? "",
+    })),
+    connectionRestrictions: plugin.connectionRestrictions ?? [],
     category: resolvePluginCategory(plugin.type, plugin.category),
   };
 }

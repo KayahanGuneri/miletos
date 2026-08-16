@@ -243,6 +243,7 @@ func TestSchedulerDoesNotContinueTerminalExecutionsIntegration(
 				context.Background(),
 				rootJob,
 				"root-output",
+				model.NodeRoutingOutcome{},
 			); err != nil {
 				t.Fatalf(
 					"SaveNodeSuccess() error = %v",
@@ -590,6 +591,7 @@ func TestSchedulerSchedulesAndContinuesWorkflowIntegration(
 		context.Background(),
 		rootJob,
 		"root-output",
+		model.NodeRoutingOutcome{},
 	); err != nil {
 		t.Fatalf(
 			"root SaveNodeSuccess() error = %v",
@@ -649,6 +651,7 @@ func TestSchedulerSchedulesAndContinuesWorkflowIntegration(
 		context.Background(),
 		terminalJob,
 		"terminal-output",
+		model.NodeRoutingOutcome{},
 	); err != nil {
 		t.Fatalf(
 			"terminal SaveNodeSuccess() error = %v",
@@ -870,6 +873,7 @@ func TestSchedulerContinuesIndependentBranchAndSkipsBlockedNodesIntegration(
 		context.Background(),
 		independentJob,
 		"success",
+		model.NodeRoutingOutcome{},
 	); err != nil {
 		t.Fatalf(
 			"independent SaveNodeSuccess() error = %v",

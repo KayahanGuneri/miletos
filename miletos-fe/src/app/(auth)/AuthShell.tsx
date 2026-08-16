@@ -65,7 +65,7 @@ const onboardingVisual: AuthVisualContent = {
 };
 
 const visualByPath: Record<string, AuthVisualContent> = {
-  "/login": loginVisual,
+  "/auth/login": loginVisual,
   "/forgot-password": recoveryVisual,
   "/reset-password": resetPasswordVisual,
   "/complete-password": onboardingVisual,

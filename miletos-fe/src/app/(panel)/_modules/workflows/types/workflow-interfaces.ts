@@ -143,7 +143,9 @@ export interface RunWorkflowRequest {
 }
 
 export interface WorkflowExecutionResponse {
-  executionId: string;
+  executionId?: string;
+  executionIds: string[];
+  executionCount: number;
   workflowId: string;
   workflowRevision: number;
   snapshotId: string;

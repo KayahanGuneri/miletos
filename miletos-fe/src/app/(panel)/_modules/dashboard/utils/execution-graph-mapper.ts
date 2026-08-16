@@ -64,6 +64,8 @@ function createGraphNode(
 
   const pluginVersion = readString(value.pluginVersion, "unknown");
 
+  const displayName = readString(value.displayName, "");
+
   const configuration = isRecord(value.configuration) ? value.configuration : {};
 
   return {
@@ -74,9 +76,9 @@ function createGraphNode(
     selectable: true,
     deletable: false,
     connectable: false,
-    ariaLabel: `Workflow node ${nodeId}`,
+    ariaLabel: `Workflow node ${displayName || pluginType || nodeId}`,
     data: {
-      label: nodeId,
+      label: displayName || pluginType || nodeId,
       nodeId,
       pluginType,
       pluginVersion,

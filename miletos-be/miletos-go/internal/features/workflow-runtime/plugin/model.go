@@ -5,13 +5,34 @@ const (
 	NodeInputMulti  = "MULTI"
 )
 
+type TriggerInputMode string
+
+const (
+	TriggerInputAll       TriggerInputMode = "ALL"
+	TriggerInputAvailable TriggerInputMode = "AVAILABLE"
+)
+
 type Port struct {
-	Name        string
-	DisplayName string
-	Description string
+	Name           string
+	EdgeConstraint *EdgeConstraint
 }
 
 type EdgeConstraint struct {
 	Minimum uint
 	Maximum *uint
+}
+
+type ConnectionRestrictionSelector string
+
+const (
+	ConnectionRestrictionPrimary    ConnectionRestrictionSelector = "PRIMARY"
+	ConnectionRestrictionNotPrimary ConnectionRestrictionSelector = "NOT_PRIMARY"
+	ConnectionRestrictionPosition   ConnectionRestrictionSelector = "POSITION"
+)
+
+type ConnectionRestriction struct {
+	From     string
+	To       string
+	Selector ConnectionRestrictionSelector
+	Position uint
 }

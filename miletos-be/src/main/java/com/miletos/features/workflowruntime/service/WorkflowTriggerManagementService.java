@@ -102,17 +102,13 @@ public class WorkflowTriggerManagementService {
   public WorkflowRuntimeResponse createCronTrigger(
       User user, Long workflowId, String triggerNodeId, HttpHeaders browserHeaders) {
     ActiveWorkflow activeWorkflow = loadActiveWorkflow(user, workflowId);
-    List<WorkflowNode> rootNodes = activeWorkflow.trusted().roots();
-    if (rootNodes.size() != 1) {
-      throw domain(ErrorCode.WORKFLOW_TRIGGER_ROOT_REQUIRED, HttpStatus.UNPROCESSABLE_ENTITY);
-    }
     WorkflowNode triggerNode =
         activeWorkflow
             .trusted()
             .findNode(triggerNodeId)
             .orElseThrow(
                 () -> domain(ErrorCode.WORKFLOW_TRIGGER_NODE_NOT_FOUND, HttpStatus.BAD_REQUEST));
-    if (!rootNodes.getFirst().getNodeId().equals(triggerNode.getNodeId())) {
+    if (!isRootNode(activeWorkflow.trusted(), triggerNode.getNodeId())) {
       throw domain(ErrorCode.WORKFLOW_TRIGGER_ROOT_REQUIRED, HttpStatus.UNPROCESSABLE_ENTITY);
     }
     if (!isCompatibleTriggerPlugin(
@@ -146,10 +142,13 @@ public class WorkflowTriggerManagementService {
 
   @Transactional(readOnly = true)
   public WorkflowRuntimeResponse getActiveCronTrigger(
-      User user, Long workflowId, HttpHeaders browserHeaders) {
+      User user, Long workflowId, String triggerNodeId, HttpHeaders browserHeaders) {
     OwnedWorkflow ownedWorkflow = loadOwnedWorkflow(user, workflowId);
-    return runtimeClient.getActiveCronTriggerByWorkflow(
-        ownedWorkflow.workflow().getId().toString(), ownedWorkflow.companyId(), browserHeaders);
+    return runtimeClient.getActiveCronTriggerByWorkflowAndNode(
+        ownedWorkflow.workflow().getId().toString(),
+        triggerNodeId,
+        ownedWorkflow.companyId(),
+        browserHeaders);
   }
 
   @Transactional(readOnly = true)

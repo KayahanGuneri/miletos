@@ -14,12 +14,22 @@ export interface PluginPort {
   name: string;
   displayName: string;
   description: string;
+  edgeConstraint?: PluginEdgeConstraint | null;
 }
 
 export interface PluginEdgeConstraint {
   minimum: number;
-  maximum?: number;
+  maximum?: number | null;
   unlimited: boolean;
+}
+
+export type ConnectionRestrictionSelector = "PRIMARY" | "NOT_PRIMARY" | "POSITION";
+
+export interface PluginConnectionRestriction {
+  from: string;
+  to: string;
+  selector: ConnectionRestrictionSelector;
+  position?: number;
 }
 
 export interface PluginDescriptor {
@@ -36,11 +46,34 @@ export interface PluginDescriptor {
   outputEdgeConstraint: PluginEdgeConstraint;
   allowedRootOrigins: string[];
   contextProvider?: string;
+  connectionRestrictions: PluginConnectionRestriction[];
 }
 
 export interface PluginConfigurationValidationResult {
   valid: boolean;
   errors: Record<string, string>;
+}
+
+export interface PluginIncomingInput {
+  edgeId: string;
+  edgeOrder: number;
+  sourceNodeId: string;
+  sourceLabel: string;
+  sourcePluginType: string;
+  sourceConfiguration: PluginConfiguration;
+}
+
+export interface PluginWorkflowOption {
+  id: number;
+  name: string;
+  status: string;
+}
+
+export interface PluginConfigurationEditorContext {
+  nodeId: string;
+  incomingInputs: PluginIncomingInput[];
+  workflowId?: number;
+  workflows?: PluginWorkflowOption[];
 }
 
 export interface PluginConfigurationEditorProps<TValues> {
@@ -51,6 +84,7 @@ export interface PluginConfigurationEditorProps<TValues> {
   onUploadFile?: (file: File) => Promise<string>;
   uploadPending?: boolean;
   uploadError?: boolean;
+  editorContext?: PluginConfigurationEditorContext;
 }
 
 export interface PluginConfigurationDefinition<TValues> {
@@ -60,7 +94,10 @@ export interface PluginConfigurationDefinition<TValues> {
   formSchema?: FlatFormSchema;
   createDefaultConfiguration: () => PluginConfiguration;
   deserialize: (configuration: PluginConfiguration) => TValues;
-  validate: (values: TValues) => PluginConfigurationValidationResult;
+  validate: (
+    values: TValues,
+    editorContext?: PluginConfigurationEditorContext,
+  ) => PluginConfigurationValidationResult;
   serialize: (values: TValues) => PluginConfiguration;
   Editor?: ComponentType<PluginConfigurationEditorProps<TValues>>;
 }
@@ -72,7 +109,10 @@ export interface RegisteredPluginConfigurationDefinition {
   formSchema?: FlatFormSchema;
   createDefaultConfiguration: () => PluginConfiguration;
   deserialize: (configuration: PluginConfiguration) => unknown;
-  validate: (values: unknown) => PluginConfigurationValidationResult;
+  validate: (
+    values: unknown,
+    editorContext?: PluginConfigurationEditorContext,
+  ) => PluginConfigurationValidationResult;
   serialize: (values: unknown) => PluginConfiguration;
   Editor?: ComponentType<PluginConfigurationEditorProps<unknown>>;
 }

@@ -33,7 +33,7 @@ func (queue consumingQueue) Consume(
 
 func TestNodeProcessorRejectsMissingQueue(t *testing.T) {
 	processor, err := execution.NewNodeProcessor(
-		nil, nil, nil, nil, nil, "commands", 3, time.Millisecond,
+		nil, nil, nil, nil, nil, "commands", 3, time.Millisecond, nil, nil,
 	)
 	if err != nil {
 		t.Fatalf("NewNodeProcessor() error = %v", err)
@@ -51,7 +51,7 @@ func TestNodeProcessorRejectsMalformedJob(t *testing.T) {
 	processor, err := execution.NewNodeProcessor(
 		nil, nil, nil, nil,
 		consumingQueue{payload: []byte("{invalid"), observed: observed},
-		"commands", 3, time.Millisecond,
+		"commands", 3, time.Millisecond, nil, nil,
 	)
 	if err != nil {
 		t.Fatalf("NewNodeProcessor() error = %v", err)
@@ -82,7 +82,7 @@ func TestNewNodeProcessorRejectsInvalidRetryPolicy(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			processor, err := execution.NewNodeProcessor(
-				nil, nil, nil, nil, nil, "commands", test.attempts, test.delay,
+				nil, nil, nil, nil, nil, "commands", test.attempts, test.delay, nil, nil,
 			)
 			if err == nil || processor != nil {
 				t.Fatalf("NewNodeProcessor() = (%#v, %v), want constructor error", processor, err)

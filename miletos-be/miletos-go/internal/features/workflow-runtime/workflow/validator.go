@@ -36,6 +36,7 @@ func (validationError *WorkflowDefinitionValidationError) Error() string {
 
 type RegistrationLookup func(string) (plugin.NodeRegistration, bool)
 type ConfigurationValidator func(string, map[string]any) error
+type ConnectionRestrictionLookup func(string, string, string) bool
 
 func ValidateWorkflow(workflow Workflow, nodeDefined func(string) bool) error {
 	inputPorts := make([]plugin.Port, 0, len(workflow.Edges))
@@ -62,6 +63,7 @@ func ValidateWorkflowDefinition(
 	workflow Workflow,
 	registration RegistrationLookup,
 	validateConfiguration ConfigurationValidator,
+	connectionRestrictions ...ConnectionRestrictionLookup,
 ) error {
 	issues := make([]ValidationIssue, 0)
 	addInvalid := func(field, reason string) {
@@ -155,6 +157,7 @@ func ValidateWorkflowDefinition(
 	edgeKeys := make(map[string]string, len(edges))
 	validEdges := make([]Edge, 0, len(edges))
 	incoming := make(map[string]uint, len(nodes))
+	incomingByPort := make(map[string]map[string]uint, len(nodes))
 	outgoing := make(map[string]uint, len(nodes))
 	for _, edge := range edges {
 		if strings.TrimSpace(edge.ID) == "" {
@@ -242,6 +245,25 @@ func ValidateWorkflowDefinition(
 				})
 			}
 		}
+		if sourceExists && targetExists && !targetPortBlank &&
+			len(connectionRestrictions) > 0 && connectionRestrictions[0] != nil {
+			_, sourceRegistered := registrations[source.ID]
+			_, targetRegistered := registrations[target.ID]
+			if sourceRegistered && targetRegistered && connectionRestrictions[0](
+				source.Type,
+				target.Type,
+				edge.TargetInputPort,
+			) {
+				structurallyValid = false
+				issues = append(issues, ValidationIssue{
+					Code: "EDGE_CONNECTION_RESTRICTED", Field: "targetInputPort",
+					Reason: "The plugin connection is restricted for this target input port.",
+					NodeID: target.ID, EdgeID: edge.ID, PluginType: target.Type,
+					PluginVersion: normalizedVersion(target.Version),
+					Actual:        source.Type + " -> " + target.Type + "." + edge.TargetInputPort,
+				})
+			}
+		}
 		if !sourcePortBlank && !targetPortBlank {
 			edgeKey := strings.Join([]string{
 				edge.SourceNodeID, edge.SourceOutputPort, edge.TargetNodeID, edge.TargetInputPort,
@@ -268,6 +290,10 @@ func ValidateWorkflowDefinition(
 	for _, edge := range validEdges {
 		outgoing[edge.SourceNodeID]++
 		incoming[edge.TargetNodeID]++
+		if incomingByPort[edge.TargetNodeID] == nil {
+			incomingByPort[edge.TargetNodeID] = make(map[string]uint)
+		}
+		incomingByPort[edge.TargetNodeID][edge.TargetInputPort]++
 	}
 
 	for _, node := range nodes {
@@ -280,6 +306,12 @@ func ValidateWorkflowDefinition(
 		)...)
 		issues = append(issues, constraintIssues(
 			node, "OUTPUT", outgoing[node.ID], declaration.OutputEdgeConstraint,
+		)...)
+		issues = append(issues, fixedMultiInputPortIssues(
+			node, declaration, incomingByPort[node.ID],
+		)...)
+		issues = append(issues, portConstraintIssues(
+			node, declaration.InputPorts, incomingByPort[node.ID],
 		)...)
 	}
 	canonicalWorkflow := workflow
@@ -296,6 +328,59 @@ func ValidateWorkflowDefinition(
 	return nil
 }
 
+func portConstraintIssues(
+	node WorkflowNode,
+	ports []plugin.Port,
+	incoming map[string]uint,
+) []ValidationIssue {
+	issues := make([]ValidationIssue, 0)
+	for _, port := range ports {
+		if port.EdgeConstraint == nil {
+			continue
+		}
+		actual := incoming[port.Name]
+		for _, issue := range constraintIssues(node, "INPUT", actual, *port.EdgeConstraint) {
+			issue.Code = "INPUT_PORT_EDGE_COUNT_INVALID"
+			issue.Field = "inputEdges"
+			issue.Reason = "Input edge count for the declared port violates its plugin constraint."
+			issue.Expected = port.Name + ": " + issue.Expected
+			issue.Actual = port.Name + ": " + issue.Actual
+			issues = append(issues, issue)
+		}
+	}
+	return issues
+}
+
+func fixedMultiInputPortIssues(
+	node WorkflowNode,
+	declaration plugin.NodeRegistration,
+	incoming map[string]uint,
+) []ValidationIssue {
+	constraint := declaration.InputEdgeConstraint
+	if declaration.InputMode != plugin.NodeInputMulti ||
+		constraint.Maximum == nil ||
+		constraint.Minimum != *constraint.Maximum ||
+		constraint.Minimum != uint(len(declaration.InputPorts)) {
+		return nil
+	}
+	issues := make([]ValidationIssue, 0)
+	for _, port := range declaration.InputPorts {
+		actual := incoming[port.Name]
+		if actual == 1 {
+			continue
+		}
+		issues = append(issues, ValidationIssue{
+			Code: "INPUT_PORT_EDGE_COUNT_INVALID", Field: "inputEdges",
+			Reason: "Each declared input port must receive exactly one edge.",
+			NodeID: node.ID, PluginType: node.Type,
+			PluginVersion: normalizedVersion(node.Version),
+			Expected:      port.Name + ": 1",
+			Actual:        port.Name + ": " + strconv.FormatUint(uint64(actual), 10),
+		})
+	}
+	return issues
+}
+
 func ValidateExecutionRequest(workflow Workflow) error {
 	if len(workflow.Nodes) > 1000 {
 		return fmt.Errorf("workflow cannot contain more than 1000 nodes")
@@ -306,9 +391,6 @@ func ValidateExecutionRequest(workflow Workflow) error {
 	return nil
 }
 
-// configurationIssueCode keeps the stable code a plugin validator declared, for
-// example CRON_TRIGGER_TIMEZONE_INVALID, instead of collapsing every
-// configuration failure into one generic code.
 func configurationIssueCode(err error) string {
 	var nodeError *plugin.NodeError
 	if errors.As(err, &nodeError) && strings.TrimSpace(nodeError.Code) != "" {

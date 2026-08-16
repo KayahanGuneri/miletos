@@ -31,7 +31,7 @@ func TestRecoveryRepositoryIntegration(t *testing.T) {
 		t.Fatalf("MarkNodeRunning() = (%v, %v)", started, err)
 	}
 	if err := repository.SaveNodeSuccess(
-		context.Background(), job, map[string]any{"value": "preserved"},
+		context.Background(), job, map[string]any{"value": "preserved"}, model.NodeRoutingOutcome{},
 	); err != nil {
 		t.Fatalf("SaveNodeSuccess() error = %v", err)
 	}

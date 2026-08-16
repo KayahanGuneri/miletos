@@ -14,13 +14,14 @@ import (
 
 	"miletos-go/internal/config"
 	crontrigger "miletos-go/internal/context-provider/cron-trigger"
+	dataarrival "miletos-go/internal/context-provider/data-arrival"
 	httptrigger "miletos-go/internal/context-provider/http-trigger"
 	triggerlifecycle "miletos-go/internal/context-provider/trigger-lifecycle"
 	"miletos-go/internal/features/workflow-runtime/execution"
 	"miletos-go/internal/features/workflow-runtime/execution/queue"
 	"miletos-go/internal/features/workflow-runtime/execution/repository"
 	"miletos-go/internal/features/workflow-runtime/plugin"
-	"miletos-go/internal/features/workflow-runtime/pluginstate"
+	pluginstate "miletos-go/internal/features/workflow-runtime/plugin-state"
 	"miletos-go/internal/features/workflow-runtime/workflow"
 	"miletos-go/internal/health"
 	"miletos-go/internal/shared/database"
@@ -37,7 +38,6 @@ type Application struct {
 	configuration    config.Config
 	logger           *slog.Logger
 	database         *database.Client
-	inputDatabase    *database.Client
 	kafka            *queue.Kafka
 	pluginKafka      *queue.Kafka
 	httpServer       *http.Server
@@ -47,6 +47,7 @@ type Application struct {
 	outboxDispatcher *execution.OutboxDispatcher
 	reconciler       *execution.Reconciler
 	cronScheduler    *crontrigger.Scheduler
+	arrivalScheduler *dataarrival.Scheduler
 	pluginEmitter    *execution.PluginEmitter
 }
 
@@ -71,19 +72,10 @@ func Build(
 	if err != nil {
 		return nil, err
 	}
-	var inputDatabase *database.Client
-	if configuration.InputPostgreSQLURL != "" {
-		inputDatabase, err = database.Open(ctx, configuration.InputPostgreSQLURL)
-		if err != nil {
-			_ = dbClient.Close()
-			return nil, err
-		}
-	}
 	application := &Application{
 		configuration: configuration,
 		logger:        logger,
 		database:      dbClient,
-		inputDatabase: inputDatabase,
 	}
 	defer func() {
 		if buildErr != nil {
@@ -131,24 +123,22 @@ func Build(
 	if err != nil {
 		return nil, err
 	}
+	databaseInfra := execution.NewDatabaseInfrastructure()
 	inputRuntime := plugin.InputNodeRuntime{
-		Database:       inputDatabase,
+		Database:       databaseInfra,
 		InputDirectory: configuration.InputDirectory,
 		Secrets:        secretCipher,
 	}
 	if err := plugin.RegisterInputSourceNodes(registry, inputRuntime); err != nil {
 		return nil, err
 	}
+	runtimeHTTPClient := &http.Client{Timeout: 15 * time.Second}
 	if err := plugin.RegisterOutputDestinationNodes(registry, plugin.OutputNodeRuntime{
-		Database: dbClient,
-		HTTPClient: &http.Client{
-			Timeout: 15 * time.Second,
-		},
-		OutputDirectory: configuration.OutputDirectory,
+		HTTPClient: runtimeHTTPClient,
 	}); err != nil {
 		return nil, err
 	}
-	if err := application.pluginEmitter.RegisterSubscriptions(ctx, registry); err != nil {
+	if err := plugin.RegisterDataProcessingNodes(registry); err != nil {
 		return nil, err
 	}
 	stateRepository := pluginstate.NewRepository(dbClient)
@@ -183,8 +173,26 @@ func Build(
 	}
 	executionService := execution.NewExecutionService(
 		workflowService, executionRepository, scheduler,
-		application.nodeProcessor, configuration.KafkaEnabled,
+		application.nodeProcessor, stateRepository,
+		configuration.KafkaEnabled, configuration.NodeConcurrency,
 	)
+	arrivalService := dataarrival.NewService(
+		dataarrival.NewRepository(dbClient),
+		workflowRepository,
+		workflowService,
+		executionService,
+		registry,
+		stateRepository,
+	)
+	application.arrivalScheduler = dataarrival.NewScheduler(arrivalService)
+	application.nodeProcessor.SetWorkflowInfrastructure(
+		execution.NewWorkflowInfrastructure(executionService),
+	)
+	application.nodeProcessor.SetDatabase(databaseInfra)
+	application.nodeProcessor.SetSecrets(secretCipher)
+	if err := application.pluginEmitter.RegisterSubscriptions(ctx, registry); err != nil {
+		return nil, err
+	}
 	if configuration.CronEnabled && !configuration.KafkaEnabled {
 		return nil, fmt.Errorf("cron scheduling requires Kafka-backed asynchronous execution")
 	}
@@ -259,7 +267,8 @@ func Build(
 		application.grpcServer, crontrigger.NewGRPCService(cronService),
 	)
 	runtimev1.RegisterTriggerLifecycleServiceServer(
-		application.grpcServer, triggerlifecycle.NewGRPCService(httpTriggerService, cronService),
+		application.grpcServer,
+		triggerlifecycle.NewGRPCService(httpTriggerService, cronService, arrivalService),
 	)
 	return application, nil
 }
@@ -276,6 +285,7 @@ func (application *Application) Run(ctx context.Context) error {
 	if application.cronScheduler != nil {
 		application.cronScheduler.Start(runContext)
 	}
+	application.arrivalScheduler.Start(runContext)
 	failures := make(chan error, 5)
 	go application.runHTTP(failures)
 	go application.runGRPC(failures)
@@ -312,6 +322,7 @@ func (application *Application) Run(ctx context.Context) error {
 	if application.cronScheduler != nil {
 		application.cronScheduler.Stop()
 	}
+	application.arrivalScheduler.Stop()
 	shutdownContext, cancelShutdown := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancelShutdown()
 	if err := application.httpServer.Shutdown(shutdownContext); err != nil {
@@ -391,11 +402,6 @@ func (application *Application) closeResources() {
 	}
 	if application.pluginKafka != nil {
 		application.pluginKafka.Close()
-	}
-	if application.inputDatabase != nil {
-		if err := application.inputDatabase.Close(); err != nil {
-			application.logger.Warn("close input database connection", "error", err)
-		}
 	}
 	if application.database != nil {
 		if err := application.database.Close(); err != nil {

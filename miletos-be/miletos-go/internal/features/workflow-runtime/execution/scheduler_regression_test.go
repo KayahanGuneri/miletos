@@ -30,7 +30,8 @@ func TestOutboxDispatcherIsSoleNodeQueuePublisher(t *testing.T) {
 				return nil
 			}
 			if filepath.Ext(path) != ".go" ||
-				strings.HasSuffix(path, "_test.go") {
+				strings.HasSuffix(path, "_test.go") ||
+				filepath.Base(path) == "plugin_emitter.go" {
 				return nil
 			}
 

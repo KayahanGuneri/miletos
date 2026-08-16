@@ -39,12 +39,15 @@ func (controller *ExecutionController) ExecuteSync(writer http.ResponseWriter, r
 	if !ok {
 		return
 	}
-	outcome, err := controller.service.ExecuteSyncCommand(request.Context(), prepared)
+	outcome, err := controller.service.ExecuteManual(
+		request.Context(), prepared.Definition, prepared.StartInput,
+		prepared.CorrelationID, prepared.IdempotencyKey, prepared.Fingerprint, "SYNC",
+	)
 	if err != nil {
 		writeExecutionError(writer, request, err)
 		return
 	}
-	writeJSON(writer, http.StatusOK, mapExecutionOutcome(outcome))
+	writeJSON(writer, http.StatusOK, mapManualExecutionBatch(outcome))
 }
 
 func (controller *ExecutionController) ExecuteAsync(writer http.ResponseWriter, request *http.Request) {
@@ -52,12 +55,15 @@ func (controller *ExecutionController) ExecuteAsync(writer http.ResponseWriter, 
 	if !ok {
 		return
 	}
-	outcome, err := controller.service.ExecuteAsyncCommand(request.Context(), prepared)
+	outcome, err := controller.service.ExecuteManual(
+		request.Context(), prepared.Definition, prepared.StartInput,
+		prepared.CorrelationID, prepared.IdempotencyKey, prepared.Fingerprint, "ASYNC",
+	)
 	if err != nil {
 		writeExecutionError(writer, request, err)
 		return
 	}
-	writeJSON(writer, http.StatusAccepted, mapExecutionOutcome(outcome))
+	writeJSON(writer, http.StatusAccepted, mapManualExecutionBatch(outcome))
 }
 
 func (controller *ExecutionController) Recover(writer http.ResponseWriter, request *http.Request) {

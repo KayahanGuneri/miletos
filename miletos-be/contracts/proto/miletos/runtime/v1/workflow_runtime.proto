@@ -44,6 +44,7 @@ service CronTriggerService {
 }
 
 service TriggerLifecycleService {
+  rpc ActivateWorkflowSources(ValidateWorkflowRequest) returns (google.protobuf.Empty);
   rpc DisableWorkflowTriggers(DisableWorkflowTriggersRequest) returns (DisableWorkflowTriggersResponse);
 }
 
@@ -64,12 +65,20 @@ message Port {
   string name = 1;
   string display_name = 2;
   string description = 3;
+  EdgeConstraint edge_constraint = 4;
 }
 
 message EdgeConstraint {
   uint32 minimum = 1;
   optional uint32 maximum = 2;
   bool unlimited = 3;
+}
+
+message ConnectionRestriction {
+  string from = 1;
+  string to = 2;
+  string selector = 3;
+  uint32 position = 4;
 }
 
 message Plugin {
@@ -85,6 +94,7 @@ message Plugin {
   EdgeConstraint output_edge_constraint = 10;
   repeated string allowed_root_origins = 11;
   string context_provider = 12;
+  repeated ConnectionRestriction connection_restrictions = 13;
 }
 
 message ListPluginsResponse {
@@ -103,6 +113,7 @@ message WorkflowNode {
   string plugin_version = 3;
   google.protobuf.Struct configuration = 4;
   optional NodePosition position = 5;
+  optional string display_name = 6;
 }
 
 message WorkflowEdge {
@@ -148,6 +159,8 @@ message ExecutionResponse {
   bool replayed = 14;
   google.protobuf.Struct terminal_outputs = 15;
   google.protobuf.Struct failure_summary = 16;
+  repeated string execution_ids = 17;
+  uint32 execution_count = 18;
 }
 
 message ListExecutionsRequest {
@@ -355,6 +368,7 @@ message GetCronTriggerRequest {
 
 message GetActiveCronTriggerByWorkflowRequest {
   string workflow_id = 1;
+  string trigger_node_id = 2;
 }
 
 message DisableCronTriggerRequest {

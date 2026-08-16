@@ -41,6 +41,19 @@
   align-items: stretch;
 }
 
+.workflowEditor__toolbar[data-create="true"] .workflowEditor__formGrid {
+  grid-template-columns: 1fr;
+}
+
+.workflowEditor__toolbar[data-create="true"] .workflowEditor__nameInput {
+  min-height: var(--control-height);
+  height: auto;
+}
+
+.workflowEditor__toolbar[data-create="true"] .workflowEditor__field textarea {
+  min-height: 8rem;
+}
+
 .workflowEditor__field,
 .workflowEditor__jsonField {
   min-width: 0;
@@ -306,6 +319,7 @@
   color: var(--color-muted);
   background: #fff;
   box-shadow: 0 8px 20px rgba(31, 35, 71, 0.08);
+  position: relative;
 }
 
 .workflowEditor__node[data-selected="true"] {
@@ -338,6 +352,46 @@
   border: 2px solid #ffffff;
   background: var(--color-primary);
   box-shadow: 0 2px 8px rgba(75, 70, 255, 0.28);
+}
+
+.workflowEditor__inputPort,
+.workflowEditor__outputPort {
+  position: absolute;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--color-muted);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.workflowEditor__inputPort {
+  left: 0;
+  transform: translate(-5px, -50%);
+}
+
+.workflowEditor__outputPort {
+  right: 0;
+  transform: translate(5px, -50%);
+}
+
+.workflowEditor__inputPort > span,
+.workflowEditor__outputPort > span {
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.workflowEditor__inputPort :global(.react-flow__handle),
+.workflowEditor__outputPort :global(.react-flow__handle) {
+  position: relative;
+  inset: auto;
+  transform: none;
+  pointer-events: auto;
 }
 
 .workflowEditor__emptyState {

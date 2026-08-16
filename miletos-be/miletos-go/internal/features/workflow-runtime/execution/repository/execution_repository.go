@@ -60,6 +60,46 @@ func (repository *ExecutionRepository) Create(
 	idempotencyKey string,
 	fingerprint string,
 ) (model.Execution, error) {
+	return repository.createExecution(
+		ctx, workflow, snapshotID, mode, origin, correlationID,
+		idempotencyKey, fingerprint, "",
+	)
+}
+
+func (repository *ExecutionRepository) CreateReserved(
+	ctx context.Context,
+	workflow workflowfeature.Workflow,
+	snapshotID string,
+	mode string,
+	origin model.ExecutionOrigin,
+	correlationID string,
+	idempotencyKey string,
+	fingerprint string,
+	reservedExecutionID string,
+) (model.Execution, error) {
+	if idempotencyKey == "" || reservedExecutionID == "" {
+		return model.Execution{}, fmt.Errorf(
+			"%w: reserved execution requires an idempotency reservation",
+			ErrStateTransition,
+		)
+	}
+	return repository.createExecution(
+		ctx, workflow, snapshotID, mode, origin, correlationID,
+		idempotencyKey, fingerprint, reservedExecutionID,
+	)
+}
+
+func (repository *ExecutionRepository) createExecution(
+	ctx context.Context,
+	workflow workflowfeature.Workflow,
+	snapshotID string,
+	mode string,
+	origin model.ExecutionOrigin,
+	correlationID string,
+	idempotencyKey string,
+	fingerprint string,
+	reservedExecutionID string,
+) (model.Execution, error) {
 	transaction, err := repository.dbClient.Begin(ctx)
 	if err != nil {
 		return model.Execution{}, fmt.Errorf("begin execution creation: %w", err)
@@ -67,8 +107,12 @@ func (repository *ExecutionRepository) Create(
 	defer transaction.Rollback(ctx)
 
 	now := time.Now().UTC()
+	executionID := reservedExecutionID
+	if executionID == "" {
+		executionID = newID("exec_")
+	}
 	execution := model.Execution{
-		ID:               newID("exec_"),
+		ID:               executionID,
 		CompanyID:        workflow.CompanyID,
 		WorkflowID:       workflow.ID,
 		WorkflowRevision: workflow.Revision,
@@ -111,11 +155,18 @@ func (repository *ExecutionRepository) Create(
 		}
 	}
 	if idempotencyKey != "" {
-		err = transaction.DB(ctx).Table("workflow_runtime.http_idempotency_keys").Create(map[string]any{
-			"company_id": workflow.CompanyID, "idempotency_key": idempotencyKey,
-			"request_fingerprint": fingerprint, "workflow_execution_id": execution.ID,
-			"state": "ACCEPTED", "created_at": now, "accepted_at": now,
-		}).Error
+		if reservedExecutionID != "" {
+			err = markHTTPIdempotencyAccepted(
+				ctx, transaction, workflow.CompanyID, idempotencyKey,
+				fingerprint, execution.ID, now,
+			)
+		} else {
+			err = transaction.DB(ctx).Table("workflow_runtime.http_idempotency_keys").Create(map[string]any{
+				"company_id": workflow.CompanyID, "idempotency_key": idempotencyKey,
+				"request_fingerprint": fingerprint, "workflow_execution_id": execution.ID,
+				"state": "ACCEPTED", "created_at": now, "accepted_at": now,
+			}).Error
+		}
 		if err != nil {
 			return model.Execution{}, fmt.Errorf("save idempotency key: %w", err)
 		}

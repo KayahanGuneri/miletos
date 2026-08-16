@@ -57,9 +57,9 @@ func TestBuiltinJoinAndPassThroughInputConstraints(t *testing.T) {
 			}
 			err := workflow.ValidateWorkflowDefinition(
 				definition,
-				registry.Definition,
-				registry.HasType,
+				registry.Get,
 				registry.ValidateConfiguration,
+				registry.ConnectionRestricted,
 			)
 			var validation *workflow.WorkflowDefinitionValidationError
 			if !errors.As(err, &validation) {
@@ -100,9 +100,9 @@ func TestNilMaximumAllowsMultipleOutgoingEdges(t *testing.T) {
 	}
 	if err := workflow.ValidateWorkflowDefinition(
 		definition,
-		registry.Definition,
-		registry.HasType,
+		registry.Get,
 		registry.ValidateConfiguration,
+		registry.ConnectionRestricted,
 	); err != nil {
 		t.Fatalf("nil maximum rejected multiple outgoing edges: %v", err)
 	}
@@ -126,9 +126,9 @@ func TestHTTPTriggerIsAcceptedAsTriggerRoot(t *testing.T) {
 	}
 	if err := workflow.ValidateWorkflowDefinition(
 		definition,
-		registry.Definition,
-		registry.HasType,
+		registry.Get,
 		registry.ValidateConfiguration,
+		registry.ConnectionRestricted,
 	); err != nil {
 		t.Fatalf("HTTP trigger root validation error = %v", err)
 	}

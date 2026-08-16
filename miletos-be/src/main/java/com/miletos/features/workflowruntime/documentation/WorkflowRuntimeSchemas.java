@@ -22,7 +22,8 @@ public final class WorkflowRuntimeSchemas {
 
   public record WorkflowNode(
       String id,
-      @Schema(example = "core.pass-through") String pluginType,
+      String displayName,
+      @Schema(example = "core.map") String pluginType,
       @Schema(example = "v1") String pluginVersion,
       Map<String, Object> configuration,
       NodePosition position) {}
@@ -47,7 +48,9 @@ public final class WorkflowRuntimeSchemas {
       String startedAt,
       String finishedAt,
       Integer scheduledRoots,
-      boolean replayed) {}
+      boolean replayed,
+      List<String> executionIds,
+      int executionCount) {}
 
   public record ExecutionPage(List<ExecutionSummaryResponse> items, String next, boolean hasNext) {}
 

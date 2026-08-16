@@ -7,9 +7,11 @@ final class WorkflowRuntimeBrowserDtos {
 
   private WorkflowRuntimeBrowserDtos() {}
 
-  record Port(String name, String displayName, String description) {}
+  record Port(String name, String displayName, String description, EdgeConstraint edgeConstraint) {}
 
   record EdgeConstraint(int minimum, Integer maximum, boolean unlimited) {}
+
+  record ConnectionRestriction(String from, String to, String selector, int position) {}
 
   record Plugin(
       String type,
@@ -23,7 +25,8 @@ final class WorkflowRuntimeBrowserDtos {
       EdgeConstraint inputEdgeConstraint,
       EdgeConstraint outputEdgeConstraint,
       List<String> allowedRootOrigins,
-      String contextProvider) {}
+      String contextProvider,
+      List<ConnectionRestriction> connectionRestrictions) {}
 
   record PluginPage(List<Plugin> items, int count) {}
 
@@ -31,6 +34,7 @@ final class WorkflowRuntimeBrowserDtos {
 
   record WorkflowNode(
       String id,
+      String displayName,
       String pluginType,
       String pluginVersion,
       JsonNode configuration,
@@ -67,7 +71,9 @@ final class WorkflowRuntimeBrowserDtos {
       int scheduledRoots,
       boolean replayed,
       JsonNode terminalOutputs,
-      JsonNode failureSummary) {}
+      JsonNode failureSummary,
+      List<String> executionIds,
+      int executionCount) {}
 
   record ExecutionSummary(
       String executionId,

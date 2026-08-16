@@ -1,4 +1,6 @@
 import { createFormPluginDefinition } from "@/shared/plugins/form/create-form-plugin-definition";
+import { withSchemaConfiguration } from "@/shared/plugins/editors/schema/with-schema-configuration";
+import { validateFormConfiguration } from "@/shared/plugins/form/form-configuration";
 import type { FlatFormSchema } from "@/shared/plugins/form/form-schema-types";
 import { pluginMessages } from "@/shared/plugins/messages/plugin-messages";
 
@@ -22,7 +24,8 @@ const fileInputSchema: FlatFormSchema = {
       key: "fileName",
       label: messages.localUploadLabel,
       dataType: "STRING",
-      renderType: "FILE_UPLOAD",
+      renderType: "INPUT",
+      inputType: "file",
       required: true,
       defaultValue: "",
       accept: ".txt,.csv,text/plain,text/csv",
@@ -72,7 +75,8 @@ const fileInputSchema: FlatFormSchema = {
       key: "sftpPassword",
       label: messages.sftpPasswordLabel,
       dataType: "STRING",
-      renderType: "PASSWORD",
+      renderType: "INPUT",
+      inputType: "password",
       required: false,
       defaultValue: "",
       when: (data) => data.sourceType === "SFTP",
@@ -100,7 +104,14 @@ const fileInputSchema: FlatFormSchema = {
   ],
 };
 
-export const fileInputConfigurationDefinition = createFormPluginDefinition({
+const fileInputBaseDefinition = createFormPluginDefinition({
   pluginType: "core.file-input",
   schema: fileInputSchema,
+  dialogSize: "large",
+  validate: (values) => validateFormConfiguration(fileInputSchema, values),
+});
+
+export const fileInputConfigurationDefinition = withSchemaConfiguration({
+  definition: fileInputBaseDefinition,
+  field: { key: "schema", label: messages.schemaLabel },
 });

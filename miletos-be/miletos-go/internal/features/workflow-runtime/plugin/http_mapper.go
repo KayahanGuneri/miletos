@@ -1,9 +1,10 @@
 package plugin
 
 type pluginPortResponse struct {
-	Name        string `json:"name"`
-	DisplayName string `json:"displayName,omitempty"`
-	Description string `json:"description,omitempty"`
+	Name           string                        `json:"name"`
+	DisplayName    string                        `json:"displayName,omitempty"`
+	Description    string                        `json:"description,omitempty"`
+	EdgeConstraint *pluginEdgeConstraintResponse `json:"edgeConstraint,omitempty"`
 }
 
 type pluginEdgeConstraintResponse struct {
@@ -12,19 +13,27 @@ type pluginEdgeConstraintResponse struct {
 	Unlimited bool  `json:"unlimited"`
 }
 
+type pluginConnectionRestrictionResponse struct {
+	From     string `json:"from"`
+	To       string `json:"to"`
+	Selector string `json:"selector"`
+	Position uint   `json:"position,omitempty"`
+}
+
 type pluginResponse struct {
-	Type                    string                       `json:"type"`
-	Version                 string                       `json:"version"`
-	DisplayName             string                       `json:"displayName"`
-	Description             string                       `json:"description,omitempty"`
-	InputMode               string                       `json:"inputMode"`
-	AcceptsInitialVariables bool                         `json:"acceptsInitialVariables"`
-	InputPorts              []pluginPortResponse         `json:"inputPorts"`
-	OutputPorts             []pluginPortResponse         `json:"outputPorts"`
-	InputEdgeConstraint     pluginEdgeConstraintResponse `json:"inputEdgeConstraint"`
-	OutputEdgeConstraint    pluginEdgeConstraintResponse `json:"outputEdgeConstraint"`
-	AllowedRootOrigins      []string                     `json:"allowedRootOrigins,omitempty"`
-	ContextProvider         string                       `json:"contextProvider,omitempty"`
+	Type                    string                                `json:"type"`
+	Version                 string                                `json:"version"`
+	DisplayName             string                                `json:"displayName"`
+	Description             string                                `json:"description,omitempty"`
+	InputMode               string                                `json:"inputMode"`
+	AcceptsInitialVariables bool                                  `json:"acceptsInitialVariables"`
+	InputPorts              []pluginPortResponse                  `json:"inputPorts"`
+	OutputPorts             []pluginPortResponse                  `json:"outputPorts"`
+	InputEdgeConstraint     pluginEdgeConstraintResponse          `json:"inputEdgeConstraint"`
+	OutputEdgeConstraint    pluginEdgeConstraintResponse          `json:"outputEdgeConstraint"`
+	AllowedRootOrigins      []string                              `json:"allowedRootOrigins,omitempty"`
+	ContextProvider         string                                `json:"contextProvider,omitempty"`
+	ConnectionRestrictions  []pluginConnectionRestrictionResponse `json:"connectionRestrictions,omitempty"`
 }
 
 type pluginListResponse struct {
@@ -43,7 +52,7 @@ func mapPluginList(registrations []NodeRegistration) pluginListResponse {
 func mapPlugin(registration NodeRegistration) pluginResponse {
 	return pluginResponse{
 		Type: registration.Key, Version: "v1",
-		DisplayName: registration.DisplayName, Description: registration.Description,
+		DisplayName:             registration.Key,
 		InputMode:               registration.InputMode,
 		AcceptsInitialVariables: CanReceiveEntryInput(registration) && allowsExecutionSource(registration, "MANUAL_DIRECT"),
 		InputPorts:              mapPorts(registration.InputPorts),
@@ -52,14 +61,33 @@ func mapPlugin(registration NodeRegistration) pluginResponse {
 		OutputEdgeConstraint:    mapEdgeConstraint(registration.OutputEdgeConstraint),
 		AllowedRootOrigins:      append([]string(nil), registration.AllowedExecutionSources...),
 		ContextProvider:         registration.ContextProvider,
+		ConnectionRestrictions:  mapConnectionRestrictions(registration.ConnectionRestrictions),
 	}
 }
 
 func mapPorts(ports []Port) []pluginPortResponse {
 	result := make([]pluginPortResponse, 0, len(ports))
 	for _, port := range ports {
-		result = append(result, pluginPortResponse{
-			Name: port.Name, DisplayName: port.DisplayName, Description: port.Description,
+		mapped := pluginPortResponse{
+			Name: port.Name, DisplayName: port.Name,
+		}
+		if port.EdgeConstraint != nil {
+			constraint := mapEdgeConstraint(*port.EdgeConstraint)
+			mapped.EdgeConstraint = &constraint
+		}
+		result = append(result, mapped)
+	}
+	return result
+}
+
+func mapConnectionRestrictions(
+	restrictions []ConnectionRestriction,
+) []pluginConnectionRestrictionResponse {
+	result := make([]pluginConnectionRestrictionResponse, 0, len(restrictions))
+	for _, restriction := range restrictions {
+		result = append(result, pluginConnectionRestrictionResponse{
+			From: restriction.From, To: restriction.To,
+			Selector: string(restriction.Selector), Position: restriction.Position,
 		})
 	}
 	return result

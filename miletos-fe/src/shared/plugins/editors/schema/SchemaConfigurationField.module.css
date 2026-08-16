@@ -1,0 +1,106 @@
+.schemaField {
+  display: grid;
+  gap: 8px;
+  color: var(--color-text);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.schemaField__hint {
+  color: var(--color-muted);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.schemaField__tree {
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 12px;
+  background: var(--color-surface-soft);
+}
+
+.schemaObject {
+  display: grid;
+  gap: 10px;
+}
+
+.schemaObject__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px auto;
+  gap: 8px;
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.schemaNode {
+  display: grid;
+  gap: 8px;
+}
+
+.schemaNode__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.schemaNode__control {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.schemaNode__control input,
+.schemaNode__control select {
+  width: 100%;
+  min-height: var(--control-height);
+  padding: 0 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 12px;
+  color: var(--color-text);
+  background: #fff;
+  font: inherit;
+  font-weight: 600;
+  outline: none;
+}
+
+.schemaNode__control input:focus,
+.schemaNode__control select:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(75, 70, 255, 0.1);
+}
+
+.schemaNode__control input:disabled,
+.schemaNode__control select:disabled {
+  color: var(--color-muted);
+  background: #f2f4f7;
+}
+
+.schemaNode__children {
+  margin-left: 8px;
+  padding-left: 12px;
+  display: grid;
+  gap: 10px;
+  border-left: 2px solid var(--color-border);
+}
+
+.schemaNode__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.schemaNode__delete {
+  min-height: var(--control-height);
+}
+
+.schemaField__error {
+  color: var(--color-danger);
+  font-size: 12px;
+  font-weight: 700;
+}

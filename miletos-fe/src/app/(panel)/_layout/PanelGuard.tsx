@@ -386,14 +386,14 @@ export function PanelGuard({ children }: PanelGuardProps) {
     }
 
     if (!hasAccessToken()) {
-      router.replace("/login");
+      router.replace("/auth/login");
     }
   }, [isClientReady, router]);
 
   useEffect(() => {
     function handleUnauthorized() {
       logout();
-      router.replace("/login");
+      router.replace("/auth/login");
     }
 
     window.addEventListener(SESSION_UNAUTHORIZED_EVENT, handleUnauthorized);
@@ -410,13 +410,13 @@ export function PanelGuard({ children }: PanelGuardProps) {
 
     if (currentUserQuery.error.isUnauthorized || currentUserQuery.error.isForbidden) {
       logout();
-      router.replace("/login");
+      router.replace("/auth/login");
     }
   }, [currentUserQuery.error, currentUserQuery.isError, logout, router]);
 
   function handleLogout() {
     logout();
-    router.replace("/login");
+    router.replace("/auth/login");
   }
 
   if (!isClientReady) {

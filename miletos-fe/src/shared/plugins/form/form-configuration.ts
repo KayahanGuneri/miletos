@@ -1,18 +1,18 @@
 import type {
-  FlatFormSchema,
-  FormConfiguration,
-  FormDataType,
-  FormField,
-  FormPrimitive,
-} from "@/shared/plugins/form/form-schema-types";
-import { isFormFieldVisible } from "@/shared/plugins/form/form-schema-types";
-import type {
   PluginConfiguration,
   PluginConfigurationValidationResult,
 } from "@/shared/plugins/contracts/plugin-configuration-interfaces";
+import {
+  isFormFieldVisible,
+  type FlatFormSchema,
+  type FormConfiguration,
+  type FormDataType,
+  type FormField,
+  type FormFieldValue,
+} from "@/shared/plugins/form/form-schema-types";
 import { formBuilderMessages } from "@/shared/plugins/messages/form-builder-messages";
 
-type DefaultValueResolver = (field: FormField) => FormPrimitive | undefined;
+type DefaultValueResolver = (field: FormField) => FormFieldValue | undefined;
 
 const DEFAULT_VALUE_BY_DATA_TYPE: Record<FormDataType, DefaultValueResolver> = {
   STRING: (field) => {
@@ -30,7 +30,7 @@ const DEFAULT_VALUE_BY_DATA_TYPE: Record<FormDataType, DefaultValueResolver> = {
   },
 };
 
-function defaultForField(field: FormField): FormPrimitive | undefined {
+function defaultForField(field: FormField): FormFieldValue | undefined {
   if (field.defaultValue !== undefined) {
     return field.defaultValue;
   }
@@ -71,7 +71,7 @@ export function deserializeFormConfiguration(
   return values;
 }
 
-type PersistedValueCoercer = (field: FormField, raw: unknown) => FormPrimitive | undefined;
+type PersistedValueCoercer = (field: FormField, raw: unknown) => FormFieldValue | undefined;
 
 const COERCE_VALUE_BY_DATA_TYPE: Record<FormDataType, PersistedValueCoercer> = {
   STRING: (field, raw) => {
@@ -103,7 +103,7 @@ const COERCE_VALUE_BY_DATA_TYPE: Record<FormDataType, PersistedValueCoercer> = {
   },
 };
 
-function coerceFieldValue(field: FormField, raw: unknown): FormPrimitive | undefined {
+function coerceFieldValue(field: FormField, raw: unknown): FormFieldValue | undefined {
   return COERCE_VALUE_BY_DATA_TYPE[field.dataType](field, raw);
 }
 
@@ -125,7 +125,7 @@ export function validateFormConfiguration(
   return { valid: Object.keys(errors).length === 0, errors };
 }
 
-type FieldValueValidator = (field: FormField, value: FormPrimitive) => string | null;
+type FieldValueValidator = (field: FormField, value: FormFieldValue) => string | null;
 
 const VALIDATE_VALUE_BY_DATA_TYPE: Record<FormDataType, FieldValueValidator> = {
   STRING: (field, value) => {
@@ -174,7 +174,7 @@ const VALIDATE_VALUE_BY_DATA_TYPE: Record<FormDataType, FieldValueValidator> = {
   },
 };
 
-function validateFieldValue(field: FormField, value: FormPrimitive | undefined): string | null {
+function validateFieldValue(field: FormField, value: FormFieldValue | undefined): string | null {
   if (field.required) {
     if (value === undefined || value === null || value === "") {
       return formBuilderMessages.required(field.label);
@@ -188,14 +188,18 @@ function validateFieldValue(field: FormField, value: FormPrimitive | undefined):
   return VALIDATE_VALUE_BY_DATA_TYPE[field.dataType](field, value);
 }
 
-type ValueSerializer = (field: FormField, value: FormPrimitive) => FormPrimitive | undefined;
+type ValueSerializer = (field: FormField, value: FormFieldValue) => FormFieldValue | undefined;
 
 const SERIALIZE_VALUE_BY_DATA_TYPE: Record<FormDataType, ValueSerializer> = {
   STRING: (field, value) => {
     if (typeof value !== "string") {
       return value;
     }
-    return field.renderType === "PASSWORD" ? value : value.trim();
+    return field.dataType === "STRING" &&
+      field.renderType === "INPUT" &&
+      field.inputType === "password"
+      ? value
+      : value.trim();
   },
   NUMBER: (_field, value) => (typeof value === "number" ? value : undefined),
   BOOLEAN: (_field, value) => value,

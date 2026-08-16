@@ -73,12 +73,31 @@ func newEngineNodeProcessor(
 	t.Helper()
 	processor, err := executionfeature.NewNodeProcessor(
 		workflows, executions, registry, scheduler, nodeQueue, topic,
-		maximumAttempts, retryDelay,
+		maximumAttempts, retryDelay, nil, nil,
 	)
 	if err != nil {
 		t.Fatalf("NewNodeProcessor() error = %v", err)
 	}
 	return processor
+}
+
+func registerTestNode(
+	t *testing.T,
+	registry *plugin.NodeRegistry,
+	key string,
+	run func(input any) (any, error),
+) {
+	t.Helper()
+	err := registry.RegisterNode(plugin.NodeRegistration{
+		Key: key,
+		Handler: func(ctx *plugin.Context) error {
+			ctx.Lifecycles.OnRun(func() (any, error) { return run(ctx.Payload) })
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("RegisterNode(%s) error = %v", key, err)
+	}
 }
 
 func newEngineScheduler(
@@ -130,9 +149,9 @@ func engineIntegrationDatabase(t *testing.T) *pgxpool.Pool {
 	files, err := filepath.Glob(filepath.Join(
 		filepath.Dir(helperFile), "..", "..", "..", "..", ".local", "migrations", "*.sql",
 	))
-	if err != nil || len(files) != 10 {
+	if err != nil || len(files) != 13 {
 		pool.Close()
-		t.Fatalf("expected ten local migration files")
+		t.Fatalf("expected thirteen local migration files")
 	}
 	sort.Strings(files)
 	for _, file := range files {
@@ -248,7 +267,9 @@ func runNodeSuccess(
 	if started, err := executions.MarkNodeRunning(context.Background(), job); err != nil || !started {
 		t.Fatalf("MarkNodeRunning(%s) = (%v, %v)", nodeID, started, err)
 	}
-	if err := executions.SaveNodeSuccess(context.Background(), job, output); err != nil {
+	if err := executions.SaveNodeSuccess(
+		context.Background(), job, output, model.NodeRoutingOutcome{},
+	); err != nil {
 		t.Fatalf("SaveNodeSuccess(%s) error = %v", nodeID, err)
 	}
 	return job

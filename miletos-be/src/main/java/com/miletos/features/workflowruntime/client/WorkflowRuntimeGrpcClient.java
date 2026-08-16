@@ -426,8 +426,8 @@ public class WorkflowRuntimeGrpcClient {
     return response(HttpStatus.OK, jsonAdapter.toBrowserJson(trigger), browserHeaders);
   }
 
-  public WorkflowRuntimeResponse getActiveCronTriggerByWorkflow(
-      String workflowId, String companyId, HttpHeaders browserHeaders) {
+  public WorkflowRuntimeResponse getActiveCronTriggerByWorkflowAndNode(
+      String workflowId, String triggerNodeId, String companyId, HttpHeaders browserHeaders) {
     CronTriggerResponse trigger =
         invokeRequired(
             companyId,
@@ -437,6 +437,7 @@ public class WorkflowRuntimeGrpcClient {
                     .getActiveCronTriggerByWorkflow(
                         GetActiveCronTriggerByWorkflowRequest.newBuilder()
                             .setWorkflowId(workflowId)
+                            .setTriggerNodeId(triggerNodeId)
                             .build()));
     if (!workflowMatches(trigger.getWorkflowId(), workflowId)) {
       throw new WorkflowRuntimeDomainException(ErrorCode.TRIGGER_NOT_FOUND, HttpStatus.NOT_FOUND);
@@ -488,6 +489,17 @@ public class WorkflowRuntimeGrpcClient {
             TriggerLifecycleServiceGrpc.newBlockingStub(stub)
                 .disableWorkflowTriggers(
                     DisableWorkflowTriggersRequest.newBuilder().setWorkflowId(workflowId).build()));
+  }
+
+  public void activateWorkflowSources(
+      WorkflowDefinition definition, String companyId, HttpHeaders browserHeaders) {
+    invokeRequired(
+        companyId,
+        browserHeaders,
+        stub ->
+            TriggerLifecycleServiceGrpc.newBlockingStub(stub)
+                .activateWorkflowSources(
+                    ValidateWorkflowRequest.newBuilder().setDefinition(definition).build()));
   }
 
   private Channel callChannel(String companyId, HttpHeaders browserHeaders) {

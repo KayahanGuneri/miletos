@@ -15,12 +15,12 @@ import (
 
 func TestPluginControllerReturnsDeterministicRegisteredNodes(t *testing.T) {
 	registry := plugin.NewNodeRegistry()
-	handler := func(context.Context, plugin.NodeExecutionContext, map[string]any, any) (any, error) { return nil, nil }
-	if err := registry.DefineNode("z.node", handler); err != nil {
-		t.Fatalf("DefineNode() error = %v", err)
+	handler := func(*plugin.Context) error { return nil }
+	if err := registry.RegisterNode(plugin.NodeRegistration{Key: "z.node", Handler: handler}); err != nil {
+		t.Fatalf("RegisterNode() error = %v", err)
 	}
-	if err := registry.DefineNode("a.node", handler); err != nil {
-		t.Fatalf("DefineNode() error = %v", err)
+	if err := registry.RegisterNode(plugin.NodeRegistration{Key: "a.node", Handler: handler}); err != nil {
+		t.Fatalf("RegisterNode() error = %v", err)
 	}
 	response := httptest.NewRecorder()
 
@@ -121,7 +121,7 @@ func TestPluginTransportsDeriveBuiltinCompatibilityFields(t *testing.T) {
 		t.Fatalf("HTTP entry-input compatibility = %#v", httpItems)
 	}
 	httpTrigger := httpItems["core.http-trigger"]
-	if !httpTrigger.accepts || httpTrigger.provider != "http-trigger" ||
+	if httpTrigger.accepts || httpTrigger.provider != "http-trigger" ||
 		len(httpTrigger.origins) != 1 || httpTrigger.origins[0] != "HTTP_WEBHOOK" {
 		t.Fatalf("HTTP trigger compatibility = %#v", httpTrigger)
 	}
@@ -145,7 +145,7 @@ func TestPluginTransportsDeriveBuiltinCompatibilityFields(t *testing.T) {
 			}
 		case "core.http-trigger":
 			if item.GetContextProvider() != "http-trigger" ||
-				!item.GetAcceptsInitialVariables() ||
+				item.GetAcceptsInitialVariables() ||
 				len(item.GetAllowedRootOrigins()) != 1 ||
 				item.GetAllowedRootOrigins()[0] != "HTTP_WEBHOOK" {
 				t.Errorf("gRPC HTTP trigger compatibility = %#v", item)

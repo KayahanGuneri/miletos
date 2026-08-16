@@ -43,6 +43,42 @@ type CreateRequest struct {
 	ResolvedMode  ResolvedMode
 }
 
+type scenarioStartInfrastructure struct {
+	service *Service
+	ctx     context.Context
+	request CreateRequest
+	created Binding
+}
+
+func newScenarioStartInfrastructure(
+	service *Service,
+	ctx context.Context,
+	request CreateRequest,
+) *scenarioStartInfrastructure {
+	return &scenarioStartInfrastructure{service: service, ctx: ctx, request: request}
+}
+
+func (infrastructure *scenarioStartInfrastructure) CreateCronTrigger(
+	expression string,
+	timezone string,
+) error {
+	infrastructure.request.Expression = expression
+	infrastructure.request.Timezone = timezone
+	created, err := infrastructure.service.createBinding(
+		infrastructure.ctx,
+		infrastructure.request,
+	)
+	if err != nil {
+		return err
+	}
+	infrastructure.created = created
+	return nil
+}
+
+func (infrastructure *scenarioStartInfrastructure) Result() Binding {
+	return infrastructure.created
+}
+
 func NewService(
 	triggers *Repository,
 	workflows *workflow.WorkflowRepository,
@@ -73,16 +109,42 @@ func (service *Service) Create(
 	if err := service.workflowService.Validate(request.Workflow); err != nil {
 		return Binding{}, err
 	}
+	rootNode, err := resolveTriggerRoot(
+		request.Workflow, request.TriggerNodeID, service.registry,
+	)
+	if err != nil {
+		return Binding{}, err
+	}
+	registration, exists := service.registry.Get(rootNode.Type)
+	if !exists {
+		return Binding{}, ErrInvalidTrigger
+	}
+	lifecycles := plugin.NewLifecycles()
+	cronInfrastructure := newScenarioStartInfrastructure(service, ctx, request)
+	pluginContext := plugin.NewContext(plugin.ContextOptions{
+		Runtime:        ctx,
+		Configuration:  rootNode.Configuration,
+		CompanyID:      request.CompanyID,
+		Lifecycles:     lifecycles,
+		Infrastructure: plugin.Infrastructure{Cron: cronInfrastructure},
+	})
+	if err := registration.Handler(pluginContext); err != nil {
+		return Binding{}, ErrInvalidTrigger
+	}
+	if err := lifecycles.InvokeScenarioStart(); err != nil {
+		return Binding{}, ErrInvalidTrigger
+	}
+	return cronInfrastructure.Result(), nil
+}
+
+func (service *Service) createBinding(
+	ctx context.Context,
+	request CreateRequest,
+) (Binding, error) {
 	nextFireAt, schedule, err := cronexpr.Next(
 		request.Expression, request.Timezone, time.Now().UTC(),
 	)
 	if err != nil {
-		return Binding{}, ErrInvalidTrigger
-	}
-	if err := validateTriggerRoot(
-		request.Workflow, request.TriggerNodeID, schedule.Expression, schedule.Timezone,
-		service.registry,
-	); err != nil {
 		return Binding{}, ErrInvalidTrigger
 	}
 	triggerID, err := secureID("cron_trigger_")
@@ -116,12 +178,15 @@ func (service *Service) Get(
 	return service.triggers.FindByID(ctx, companyID, triggerID)
 }
 
-func (service *Service) GetActiveByWorkflow(
+func (service *Service) GetActiveByWorkflowAndNode(
 	ctx context.Context,
 	companyID string,
 	workflowID string,
+	triggerNodeID string,
 ) (Binding, error) {
-	return service.triggers.FindActiveByWorkflow(ctx, companyID, workflowID)
+	return service.triggers.FindActiveByWorkflowAndNode(
+		ctx, companyID, workflowID, triggerNodeID,
+	)
 }
 
 func (service *Service) Disable(
@@ -161,11 +226,9 @@ func (service *Service) Fire(
 		snapshot.Workflow.Revision != occurrence.WorkflowRevision {
 		return execution.ExecutionOutcome{}, ErrBindingInvariant
 	}
-	if err := validateTriggerRoot(
+	if _, err := resolveTriggerRoot(
 		snapshot.Workflow,
 		occurrence.TriggerNodeID,
-		occurrence.Expression,
-		occurrence.Timezone,
 		service.registry,
 	); err != nil {
 		return execution.ExecutionOutcome{}, ErrBindingInvariant
@@ -197,52 +260,26 @@ func (service *Service) Fire(
 	)
 }
 
-func validateTriggerRoot(
+func resolveTriggerRoot(
 	definition workflow.Workflow,
 	triggerNodeID string,
-	expression string,
-	timezone string,
 	registry *plugin.NodeRegistry,
-) error {
-	rootNodes := workflow.Roots(definition)
-	if len(rootNodes) != 1 {
-		return ErrInvalidTrigger
+) (workflow.WorkflowNode, error) {
+	if strings.TrimSpace(triggerNodeID) == "" {
+		return workflow.WorkflowNode{}, ErrInvalidTrigger
 	}
-	rootNode := rootNodes[0]
-	if rootNode.ID != triggerNodeID {
-		return ErrInvalidTrigger
+	for _, rootNode := range workflow.Roots(definition) {
+		if rootNode.ID != triggerNodeID {
+			continue
+		}
+		if !registry.DeclaresExecutionSource(
+			rootNode.Type, string(executionmodel.ExecutionOriginCron),
+		) {
+			return workflow.WorkflowNode{}, ErrInvalidTrigger
+		}
+		return rootNode, nil
 	}
-	if !registry.DeclaresExecutionSource(
-		rootNode.Type,
-		string(executionmodel.ExecutionOriginCron),
-	) {
-		return ErrInvalidTrigger
-	}
-	return validateBindingConfiguration(rootNode.Configuration, expression, timezone)
-}
-
-func validateBindingConfiguration(
-	configuration map[string]any,
-	expression string,
-	timezone string,
-) error {
-	configuredExpression, ok := configuration["expression"].(string)
-	if !ok {
-		return ErrInvalidTrigger
-	}
-	configuredTimezone, _ := configuration["timezone"].(string)
-	configured, err := cronexpr.Parse(configuredExpression, configuredTimezone)
-	if err != nil {
-		return ErrInvalidTrigger
-	}
-	binding, err := cronexpr.Parse(expression, timezone)
-	if err != nil {
-		return ErrInvalidTrigger
-	}
-	if configured.Expression != binding.Expression || configured.Timezone != binding.Timezone {
-		return ErrInvalidTrigger
-	}
-	return nil
+	return workflow.WorkflowNode{}, ErrInvalidTrigger
 }
 
 func secureID(prefix string) (string, error) {
@@ -251,14 +288,4 @@ func secureID(prefix string) (string, error) {
 		return "", err
 	}
 	return prefix + base64.RawURLEncoding.EncodeToString(value), nil
-}
-
-func NormalizeConfiguration(configuration map[string]any) (string, string, error) {
-	expression, _ := configuration["expression"].(string)
-	timezone, _ := configuration["timezone"].(string)
-	schedule, err := cronexpr.Parse(expression, timezone)
-	if err != nil {
-		return "", "", err
-	}
-	return strings.TrimSpace(schedule.Expression), schedule.Timezone, nil
 }

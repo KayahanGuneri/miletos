@@ -65,7 +65,8 @@ export const workflowMessages = {
     preparingState: "Preparing workflow editor...",
     createTitle: "Create workflow",
     fallbackTitle: "Workflow editor",
-    createDescription: "Build a local draft and save it when ready.",
+    createDescription:
+      "Name the workflow, describe its purpose, then assemble the draft on the canvas.",
     revisionDescription: (revision: string, statusLabel: string) =>
       `Revision ${revision} · ${statusLabel}`,
     back: "Back to workflows",
@@ -84,6 +85,8 @@ export const workflowMessages = {
     saved: "Workflow draft saved.",
     invalidConfiguration:
       "Correct the selected node configuration or delete the node to discard it.",
+    invalidNodeConfiguration: (nodeName: string) =>
+      `Configure “${nodeName}” before saving this workflow.`,
     operationPending: "Wait for the current workflow operation to finish.",
     unsavedDraft: "Save the current draft before activating it.",
     unresolvedErrors: "Resolve metadata and node configuration errors before activating it.",
@@ -175,14 +178,15 @@ export const workflowMessages = {
       MANUAL_DIRECT: "Manual",
       HTTP_WEBHOOK: "HTTP webhook",
       CRON: "Cron",
+      DATA_ARRIVAL: "Data arrival",
     } as Record<string, string>,
     errors: {
       fallback: "The runtime operation could not be completed. Try again.",
       byCode: {
         WORKFLOW_NOT_FOUND: "This workflow no longer exists.",
         WORKFLOW_INVALID_STATE: "Activate the workflow before binding a trigger or running it.",
-        WORKFLOW_TRIGGER_ROOT_REQUIRED:
-          "The persisted workflow must have exactly one root node and it must be the trigger node.",
+        INVALID_WORKFLOW_DEFINITION: "The workflow definition is invalid.",
+        WORKFLOW_TRIGGER_ROOT_REQUIRED: "The selected node must be a workflow root.",
         WORKFLOW_TRIGGER_NODE_NOT_FOUND:
           "The trigger node is not part of the persisted workflow revision.",
         WORKFLOW_TRIGGER_TYPE_INVALID: "The root plugin does not support this trigger type.",
@@ -248,6 +252,7 @@ export const workflowMessages = {
         "The compatible root plugins do not accept initial variables. This run will use an empty object.",
       executionStarted: "Execution started",
       executionId: "Execution ID",
+      executionCount: (count: number) => `${count} record executions`,
       status: "Status",
       mode: "Mode",
       origin: "Origin",

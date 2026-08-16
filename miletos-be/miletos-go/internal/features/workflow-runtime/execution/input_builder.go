@@ -15,7 +15,7 @@ func BuildNodeInput(
 	edgePayloads := make(map[string]any)
 	for _, edge := range definition.Edges {
 		if edge.TargetNodeID == nodeID {
-			edgePayloads[edge.ID] = normalizeOutput(outputs[edge.SourceNodeID])
+			edgePayloads[edge.ID] = outputs[edge.SourceNodeID]
 		}
 	}
 	return buildNodeInputFromEdges(definition, nodeID, edgePayloads, registry)
@@ -31,7 +31,7 @@ func buildNodeInputFromEdges(
 	registration, _ := registry.Get(node.Type)
 	if registration.InputMode == plugin.NodeInputMulti {
 		inputs := make([]any, 0)
-		for _, edge := range definition.Edges {
+		for edgeOrder, edge := range definition.Edges {
 			if edge.TargetNodeID != nodeID {
 				continue
 			}
@@ -41,6 +41,7 @@ func buildNodeInputFromEdges(
 			}
 			inputs = append(inputs, map[string]any{
 				"edgeId":           edge.ID,
+				"edgeOrder":        edgeOrder,
 				"sourceNodeId":     edge.SourceNodeID,
 				"sourceOutputPort": edge.SourceOutputPort,
 				"targetInputPort":  edge.TargetInputPort,
@@ -75,11 +76,15 @@ func buildExecutionNodeInput(
 	nodeID string,
 	edgePayloads map[string]any,
 	registry *plugin.NodeRegistry,
-	startInput map[string]any,
+	startInput any,
+	startNodeID string,
 	origin model.ExecutionOrigin,
 ) any {
 	payload := buildNodeInputFromEdges(definition, nodeID, edgePayloads, registry)
 	if startInput == nil || len(workflow.Predecessors(definition, nodeID)) != 0 {
+		return payload
+	}
+	if startNodeID != "" && nodeID != startNodeID {
 		return payload
 	}
 	node, exists := findWorkflowNode(definition, nodeID)
@@ -92,21 +97,10 @@ func buildExecutionNodeInput(
 		if registered && plugin.CanReceiveEntryInput(registration) {
 			return startInput
 		}
-	case model.ExecutionOriginHTTPWebhook, model.ExecutionOriginCron:
+	case model.ExecutionOriginHTTPWebhook, model.ExecutionOriginCron, model.ExecutionOriginDataArrival:
 		if registry.DeclaresExecutionSource(node.Type, string(origin)) {
 			return startInput
 		}
 	}
 	return payload
-}
-
-func normalizeOutput(output any) any {
-	summary, ok := output.(map[string]any)
-	if !ok {
-		return output
-	}
-	if value, exists := summary["value"]; exists && len(summary) == 1 {
-		return value
-	}
-	return summary
 }

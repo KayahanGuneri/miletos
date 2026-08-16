@@ -1,5 +1,7 @@
 import { createFormPluginDefinition } from "@/shared/plugins/form/create-form-plugin-definition";
+import { validateFormConfiguration } from "@/shared/plugins/form/form-configuration";
 import type { FlatFormSchema } from "@/shared/plugins/form/form-schema-types";
+import { withSchemaConfiguration } from "@/shared/plugins/editors/schema/with-schema-configuration";
 import { pluginMessages } from "@/shared/plugins/messages/plugin-messages";
 
 const httpTriggerSchema: FlatFormSchema = {
@@ -22,7 +24,14 @@ const httpTriggerSchema: FlatFormSchema = {
   ],
 };
 
-export const httpTriggerConfigurationDefinition = createFormPluginDefinition({
+const httpTriggerBaseDefinition = createFormPluginDefinition({
   pluginType: "core.http-trigger",
   schema: httpTriggerSchema,
+  dialogSize: "large",
+  validate: (values) => validateFormConfiguration(httpTriggerSchema, values),
+});
+
+export const httpTriggerConfigurationDefinition = withSchemaConfiguration({
+  definition: httpTriggerBaseDefinition,
+  field: { key: "schema", label: pluginMessages.httpTrigger.schemaLabel },
 });

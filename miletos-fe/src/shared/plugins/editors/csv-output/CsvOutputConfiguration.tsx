@@ -1,17 +1,10 @@
-import { Input } from "@/components/lib/input/Input";
-import { Typography } from "@/components/lib/typography/Typography";
-import type {
-  PluginConfigurationDefinition,
-  PluginConfigurationEditorProps,
-} from "@/shared/plugins/contracts/plugin-configuration-interfaces";
+import { validateFormConfiguration } from "@/shared/plugins/form/form-configuration";
+import { createFormPluginDefinition } from "@/shared/plugins/form/create-form-plugin-definition";
+import type { FlatFormSchema } from "@/shared/plugins/form/form-schema-types";
 import { pluginMessages } from "@/shared/plugins/messages/plugin-messages";
-import styles from "../../configuration/PluginConfigurationDialog.module.css";
 
 const messages = pluginMessages.csvOutput;
-
-interface CsvOutputValues {
-  fileName: string;
-}
+const sftpMessages = pluginMessages.fileInput;
 
 function isSafeCsvFileName(fileName: string) {
   if (!fileName || fileName !== fileName.trim()) {
@@ -23,50 +16,110 @@ function isSafeCsvFileName(fileName: string) {
   return fileName.toLowerCase().endsWith(".csv");
 }
 
-function CsvOutputConfigurationEditor({
-  initialValues,
-  disabled,
-  validationErrors,
-  onChange,
-}: PluginConfigurationEditorProps<CsvOutputValues>) {
-  return (
-    <label className={styles.pluginConfiguration__field}>
-      <Typography as="span">{messages.fileNameLabel}</Typography>
-      <Input
-        disabled={disabled}
-        value={initialValues.fileName}
-        aria-invalid={Boolean(validationErrors.fileName)}
-        onChange={(event) => onChange({ fileName: event.target.value })}
-        placeholder={messages.fileNamePlaceholder}
-      />
-      <Typography as="small">{messages.fileNameHint}</Typography>
-      {validationErrors.fileName ? (
-        <Typography as="span" className={styles.pluginConfiguration__error} role="alert">
-          {validationErrors.fileName}
-        </Typography>
-      ) : null}
-    </label>
-  );
-}
+export const csvOutputFormSchema: FlatFormSchema = {
+  fields: [
+    {
+      key: "fileName",
+      label: messages.fileNameLabel,
+      dataType: "STRING",
+      renderType: "INPUT",
+      required: true,
+      defaultValue: "result.csv",
+      placeholder: messages.fileNamePlaceholder,
+    },
+    {
+      key: "sftpHost",
+      label: sftpMessages.sftpHostLabel,
+      dataType: "STRING",
+      renderType: "INPUT",
+      required: true,
+      defaultValue: "",
+      placeholder: "localhost",
+    },
+    {
+      key: "sftpPort",
+      label: sftpMessages.sftpPortLabel,
+      dataType: "NUMBER",
+      renderType: "INPUT",
+      required: true,
+      defaultValue: 22,
+      min: 1,
+      max: 65535,
+    },
+    {
+      key: "sftpUsername",
+      label: sftpMessages.sftpUsernameLabel,
+      dataType: "STRING",
+      renderType: "INPUT",
+      required: true,
+      defaultValue: "",
+    },
+    {
+      key: "sftpPassword",
+      label: sftpMessages.sftpPasswordLabel,
+      dataType: "STRING",
+      renderType: "INPUT",
+      inputType: "password",
+      required: false,
+      defaultValue: "",
+    },
+    {
+      key: "sftpBaseDirectory",
+      label: sftpMessages.sftpBaseDirectoryLabel,
+      dataType: "STRING",
+      renderType: "INPUT",
+      required: true,
+      defaultValue: "",
+      placeholder: "/upload",
+    },
+    {
+      key: "sftpHostKeySha256",
+      label: sftpMessages.sftpHostKeyLabel,
+      dataType: "STRING",
+      renderType: "INPUT",
+      required: true,
+      defaultValue: "",
+      placeholder: "SHA256:...",
+    },
+  ],
+};
 
-export const csvOutputConfigurationDefinition: PluginConfigurationDefinition<CsvOutputValues> = {
+const csvOutputBaseDefinition = createFormPluginDefinition({
   pluginType: "core.csv-output",
-  createDefaultConfiguration: () => ({ fileName: "result.csv" }),
-  deserialize: (configuration) => {
-    const fileName = configuration.fileName;
-    if (fileName !== undefined && typeof fileName !== "string") {
-      throw new Error(messages.persistedFileNameNotAString);
-    }
-    return { fileName: fileName?.trim() || "result.csv" };
-  },
+  schema: csvOutputFormSchema,
+  dialogSize: "large",
   validate: (values) => {
-    const fileName = values.fileName.trim();
-    const errors: Record<string, string> = {};
+    const generic = validateFormConfiguration(csvOutputFormSchema, values);
+    const fileName = typeof values.fileName === "string" ? values.fileName.trim() : "";
+    const errors = { ...generic.errors };
     if (!isSafeCsvFileName(fileName)) {
       errors.fileName = messages.fileNameInvalid;
     }
+    if (
+      typeof values.sftpPort !== "number" ||
+      !Number.isInteger(values.sftpPort) ||
+      values.sftpPort < 1 ||
+      values.sftpPort > 65535
+    ) {
+      errors.sftpPort = messages.sftpPortInvalid;
+    }
     return { valid: Object.keys(errors).length === 0, errors };
   },
-  serialize: (values) => ({ fileName: values.fileName.trim() }),
-  Editor: CsvOutputConfigurationEditor,
+});
+
+export const csvOutputConfigurationDefinition = {
+  ...csvOutputBaseDefinition,
+  createDefaultConfiguration: () => ({
+    ...csvOutputBaseDefinition.createDefaultConfiguration(),
+    destinationType: "SFTP",
+  }),
+  deserialize: (configuration: Parameters<typeof csvOutputBaseDefinition.deserialize>[0]) => {
+    const values = csvOutputBaseDefinition.deserialize(configuration);
+    values.destinationType = "SFTP";
+    return values;
+  },
+  serialize: (values: Parameters<typeof csvOutputBaseDefinition.serialize>[0]) => ({
+    ...csvOutputBaseDefinition.serialize(values),
+    destinationType: "SFTP",
+  }),
 };

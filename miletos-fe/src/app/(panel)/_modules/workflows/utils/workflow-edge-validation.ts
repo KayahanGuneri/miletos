@@ -3,12 +3,41 @@ import type {
   WorkflowNode,
 } from "@/app/(panel)/_modules/workflows/types/workflow-interfaces";
 import type { WorkflowPlugin } from "@/app/(panel)/_modules/workflows/types/workflow-types";
+import type { PluginConnectionRestriction } from "@/shared/plugins/contracts/plugin-configuration-interfaces";
 
 export type EdgeValidationFailure =
-  "missing-endpoints" | "self-edge" | "duplicate" | "unavailable-handle";
+  | "missing-endpoints"
+  | "self-edge"
+  | "duplicate"
+  | "unavailable-handle"
+  | "occupied-input-port"
+  | "restricted-connection";
 
 function pluginForNode(node: WorkflowNode, plugins: WorkflowPlugin[]) {
   return plugins.find((plugin) => plugin.type === node.pluginType);
+}
+
+function restrictionMatches(
+  restriction: PluginConnectionRestriction,
+  sourcePlugin: WorkflowPlugin,
+  targetPlugin: WorkflowPlugin,
+  targetHandle: string,
+) {
+  if (restriction.from !== sourcePlugin.type || restriction.to !== targetPlugin.type) {
+    return false;
+  }
+  if (restriction.selector === "PRIMARY") {
+    return targetPlugin.inputPorts[0]?.name === targetHandle;
+  }
+  if (restriction.selector === "NOT_PRIMARY") {
+    return targetPlugin.inputPorts.slice(1).some((port) => port.name === targetHandle);
+  }
+  return (
+    restriction.selector === "POSITION" &&
+    Number.isInteger(restriction.position) &&
+    (restriction.position ?? 0) > 0 &&
+    targetPlugin.inputPorts[(restriction.position ?? 0) - 1]?.name === targetHandle
+  );
 }
 
 export function validateWorkflowEdgeConnection(params: {
@@ -65,6 +94,32 @@ export function validateWorkflowEdgeConnection(params: {
     !targetPlugin.inputPorts.some((port) => port.name === connection.targetHandle)
   ) {
     return "unavailable-handle";
+  }
+
+  const fixedMultiInput =
+    targetPlugin?.inputMode === "MULTI" &&
+    !targetPlugin.inputEdgeConstraint.unlimited &&
+    targetPlugin.inputEdgeConstraint.minimum === targetPlugin.inputEdgeConstraint.maximum &&
+    targetPlugin.inputEdgeConstraint.minimum === targetPlugin.inputPorts.length;
+  const portMaximum = targetPlugin?.inputPorts.find((port) => port.name === connection.targetHandle)
+    ?.edgeConstraint?.maximum;
+  const hasPortMaximum = typeof portMaximum === "number";
+  const occupiedPort = edges.filter(
+    (edge) =>
+      edge.targetNodeId === connection.target && edge.targetInputPort === connection.targetHandle,
+  ).length;
+  if (occupiedPort > 0 && ((hasPortMaximum && occupiedPort >= portMaximum) || fixedMultiInput)) {
+    return "occupied-input-port";
+  }
+
+  if (
+    sourcePlugin &&
+    targetPlugin &&
+    sourcePlugin.connectionRestrictions.some((restriction) =>
+      restrictionMatches(restriction, sourcePlugin, targetPlugin, connection.targetHandle!),
+    )
+  ) {
+    return "restricted-connection";
   }
 
   return null;

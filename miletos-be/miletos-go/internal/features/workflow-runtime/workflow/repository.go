@@ -66,6 +66,36 @@ func (repository *WorkflowRepository) FindByExecutionID(
 	return workflowSnapshotFromRecord(record)
 }
 
+func (repository *WorkflowRepository) FindCatalog(
+	ctx context.Context,
+	companyID string,
+	workflowID string,
+) (CatalogWorkflow, error) {
+	var record catalogWorkflowRecord
+	result := repository.dbClient.DB(ctx).
+		Table("public.workflows").
+		Select("id, company_id, name, status, revision, definition_json").
+		Where("id = ? AND company_id = ?", workflowID, companyID).
+		Limit(1).Find(&record)
+	if result.Error != nil {
+		return CatalogWorkflow{}, fmt.Errorf("find catalog workflow: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return CatalogWorkflow{}, ErrNotFound
+	}
+	definition, err := parseCatalogDefinition(
+		record.DefinitionJSON,
+		companyID,
+		fmt.Sprintf("%d", record.ID),
+		record.Name,
+		record.Revision,
+	)
+	if err != nil {
+		return CatalogWorkflow{}, err
+	}
+	return CatalogWorkflow{Workflow: definition, Status: record.Status}, nil
+}
+
 func (repository *WorkflowRepository) FindBySnapshotID(
 	ctx context.Context,
 	companyID string,

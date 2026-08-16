@@ -108,7 +108,9 @@ export function ManualWorkflowRunDialog({
           <Typography as="strong">{messages.executionStarted}</Typography>
           <dl>
             <DescriptionListItem term={messages.executionId}>
-              {runMutation.data.executionId}
+              {runMutation.data.executionCount === 1
+                ? runMutation.data.executionIds[0]
+                : messages.executionCount(runMutation.data.executionCount)}
             </DescriptionListItem>
             <DescriptionListItem term={messages.status}>
               {runtimeStatusLabel(runMutation.data.status)}

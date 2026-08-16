@@ -132,9 +132,10 @@ export async function createWorkflowCronTrigger(
   return response.data;
 }
 
-export async function getActiveWorkflowCronTrigger(workflowId: number) {
+export async function getActiveWorkflowCronTrigger(workflowId: number, triggerNodeId: string) {
   const response = await httpClient.get<CronTrigger>(
     `${WORKFLOWS_PATH}/${workflowId}/triggers/cron`,
+    { params: { triggerNodeId } },
   );
 
   return response.data;

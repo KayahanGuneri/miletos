@@ -73,7 +73,7 @@ export function ForgotPasswordForm() {
           {isSubmitting ? "Sending reset link..." : "Send reset link"}
         </Button>
 
-        <Link className={styles.forgotPasswordForm__secondaryAction} href="/login">
+        <Link className={styles.forgotPasswordForm__secondaryAction} href="/auth/login">
           Back to login
         </Link>
       </Box>

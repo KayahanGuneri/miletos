@@ -187,7 +187,7 @@ export function useCreateWorkflowCronTriggerMutation() {
     },
     onSuccess: (created, variables) => {
       queryClient.setQueryData(
-        workflowQueryKeys.cronTrigger(variables.workflowId),
+        workflowQueryKeys.cronTrigger(variables.workflowId, variables.triggerNodeId),
         created.trigger,
       );
     },
@@ -196,7 +196,7 @@ export function useCreateWorkflowCronTriggerMutation() {
 
 export function useDisableWorkflowCronTriggerMutation() {
   const queryClient = useQueryClient();
-  return useMutation<CronTrigger, ApiError, DisableTriggerVariables>({
+  return useMutation<CronTrigger, ApiError, DisableTriggerVariables & { triggerNodeId: string }>({
     mutationFn: async ({ workflowId, triggerId }) => {
       try {
         return await disableWorkflowCronTrigger(workflowId, triggerId);
@@ -205,7 +205,10 @@ export function useDisableWorkflowCronTriggerMutation() {
       }
     },
     onSuccess: (_, variables) => {
-      queryClient.setQueryData(workflowQueryKeys.cronTrigger(variables.workflowId), null);
+      queryClient.setQueryData(
+        workflowQueryKeys.cronTrigger(variables.workflowId, variables.triggerNodeId),
+        null,
+      );
     },
   });
 }

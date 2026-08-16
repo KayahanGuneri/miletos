@@ -45,7 +45,7 @@ export function CompletePasswordForm({ token }: CompletePasswordFormProps) {
       },
       {
         onSuccess: () => {
-          router.push("/login");
+          router.push("/auth/login");
         },
       },
     );
@@ -135,7 +135,7 @@ export function CompletePasswordForm({ token }: CompletePasswordFormProps) {
           {isSubmitting ? "Setting password..." : "Set password"}
         </Button>
 
-        <Link className={styles.completePasswordForm__secondaryAction} href="/login">
+        <Link className={styles.completePasswordForm__secondaryAction} href="/auth/login">
           Back to login
         </Link>
       </Box>

@@ -1,10 +1,14 @@
+import type { PluginConfigurationValue } from "@/shared/plugins/contracts/plugin-configuration-types";
+
 export type FormDataType = "STRING" | "NUMBER" | "BOOLEAN";
 
-export type FormRenderType = "INPUT" | "DROPDOWN" | "CHECKBOX" | "FILE_UPLOAD" | "PASSWORD";
+export type FormRenderType = "INPUT" | "DROPDOWN";
 
 export type FormPrimitive = string | number | boolean;
 
-export type FormConfiguration = Record<string, FormPrimitive | undefined>;
+export type FormFieldValue = PluginConfigurationValue;
+
+export type FormConfiguration = Record<string, FormFieldValue | undefined>;
 
 interface FormFieldBase {
   key: string;
@@ -17,7 +21,8 @@ interface FormFieldBase {
 export type FormField =
   | (FormFieldBase & {
       dataType: "STRING";
-      renderType: "INPUT" | "PASSWORD" | "FILE_UPLOAD";
+      renderType: "INPUT";
+      inputType?: "text" | "password" | "file";
       defaultValue?: string;
       accept?: string;
     })
@@ -42,7 +47,7 @@ export type FormField =
     })
   | (FormFieldBase & {
       dataType: "BOOLEAN";
-      renderType: "CHECKBOX" | "DROPDOWN";
+      renderType: "DROPDOWN";
       defaultValue?: boolean;
       options?: ReadonlyArray<{ label: string; value: boolean }>;
     });

@@ -10,8 +10,8 @@ import com.miletos.features.workflow.repository.WorkflowRepository;
 import com.miletos.features.workflow.repository.entity.Workflow;
 import com.miletos.features.workflow.repository.entity.WorkflowStatus;
 import com.miletos.features.workflow.service.WorkflowDefinitionPolicy;
+import com.miletos.features.workflow.service.WorkflowNodeSecretHandler;
 import com.miletos.features.workflow.service.WorkflowRuntimeValidationGateway;
-import com.miletos.features.workflow.service.WorkflowSftpSecretHandler;
 import com.miletos.features.workflow.service.WorkflowTriggerLifecycleGateway;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -31,12 +31,12 @@ public class WorkflowService {
   private final WorkflowRepository workflowRepository;
   private final WorkflowMapper workflowMapper;
   private final WorkflowDefinitionPolicy workflowDefinitionPolicy;
-  private final WorkflowSftpSecretHandler workflowSftpSecretHandler;
+  private final WorkflowNodeSecretHandler workflowNodeSecretHandler;
   private final WorkflowTriggerLifecycleGateway workflowTriggerLifecycleGateway;
   private final WorkflowRuntimeValidationGateway workflowRuntimeValidationGateway;
 
   @Transactional
-  public Workflow createWorkflow(Workflow workflow) {
+  public Workflow createWorkflow(Workflow workflow, HttpHeaders browserHeaders) {
     Company company = workflow.getCompany();
 
     if (Boolean.TRUE.equals(
@@ -46,11 +46,14 @@ public class WorkflowService {
 
     JsonNode definition =
         workflowDefinitionPolicy.validateAndNormalizeDefinition(workflow.getDefinitionJson());
-    definition = workflowSftpSecretHandler.encryptOnSave(definition, null);
+    definition = workflowNodeSecretHandler.encryptOnSave(definition, null);
 
     workflowMapper.applyNormalizedDefinition(definition, workflow);
 
-    return workflowRepository.save(workflow);
+    Workflow saved = workflowRepository.saveAndFlush(workflow);
+    workflowRuntimeValidationGateway.validateWorkflowDefinition(
+        saved, company.getId(), browserHeaders);
+    return saved;
   }
 
   @Transactional(readOnly = true)
@@ -86,7 +89,7 @@ public class WorkflowService {
   }
 
   @Transactional
-  public Workflow updateWorkflow(Long workflowId, Workflow changes) {
+  public Workflow updateWorkflow(Long workflowId, Workflow changes, HttpHeaders browserHeaders) {
 
     Company company = changes.getCompany();
 
@@ -104,11 +107,14 @@ public class WorkflowService {
 
     JsonNode definition =
         workflowDefinitionPolicy.validateAndNormalizeDefinition(changes.getDefinitionJson());
-    definition = workflowSftpSecretHandler.encryptOnSave(definition, workflow.getDefinitionJson());
+    definition = workflowNodeSecretHandler.encryptOnSave(definition, workflow.getDefinitionJson());
 
     Long revision = workflow.getRevision() + 1L;
 
     workflowMapper.applyContentUpdate(changes, definition, revision, workflow);
+
+    workflowRuntimeValidationGateway.validateWorkflowDefinition(
+        workflow, company.getId(), browserHeaders);
 
     return workflowRepository.save(workflow);
   }
@@ -127,9 +133,21 @@ public class WorkflowService {
     workflowRuntimeValidationGateway.validateWorkflowDefinition(
         workflow, company.getId(), browserHeaders);
 
-    workflowMapper.applyLifecycleUpdate(WorkflowStatus.ACTIVE, user, workflow);
+    workflowTriggerLifecycleGateway.activateWorkflowSources(
+        workflow, company.getId(), browserHeaders);
 
-    return workflowRepository.save(workflow);
+    try {
+      workflowMapper.applyLifecycleUpdate(WorkflowStatus.ACTIVE, user, workflow);
+      return workflowRepository.saveAndFlush(workflow);
+    } catch (RuntimeException persistenceFailure) {
+      try {
+        workflowTriggerLifecycleGateway.disableWorkflowTriggers(
+            workflow.getId(), company.getId(), browserHeaders);
+      } catch (RuntimeException compensationFailure) {
+        persistenceFailure.addSuppressed(compensationFailure);
+      }
+      throw persistenceFailure;
+    }
   }
 
   @Transactional

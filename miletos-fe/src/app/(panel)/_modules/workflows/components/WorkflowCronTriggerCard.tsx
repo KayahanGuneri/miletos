@@ -41,7 +41,7 @@ export function WorkflowCronTriggerCard({
   active,
   statusReason,
 }: WorkflowCronTriggerCardProps) {
-  const binding = useWorkflowCronTriggerQuery(workflowId, active);
+  const binding = useWorkflowCronTriggerQuery(workflowId, triggerNodeId, active);
   const createTrigger = useCreateWorkflowCronTriggerMutation();
   const disableTrigger = useDisableWorkflowCronTriggerMutation();
 
@@ -58,7 +58,7 @@ export function WorkflowCronTriggerCard({
 
   async function disable(triggerId: string) {
     try {
-      await disableTrigger.mutateAsync({ workflowId, triggerId });
+      await disableTrigger.mutateAsync({ workflowId, triggerId, triggerNodeId });
     } catch {}
   }
 

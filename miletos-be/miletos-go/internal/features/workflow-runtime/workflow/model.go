@@ -22,6 +22,7 @@ type Edge struct {
 
 type WorkflowNode struct {
 	ID            string         `json:"id"`
+	DisplayName   string         `json:"displayName,omitempty"`
 	Type          string         `json:"pluginType"`
 	Version       string         `json:"pluginVersion"`
 	Configuration map[string]any `json:"configuration,omitempty"`

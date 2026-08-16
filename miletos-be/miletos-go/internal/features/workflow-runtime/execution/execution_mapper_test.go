@@ -112,6 +112,10 @@ func TestWriteExecutionErrorMappings(t *testing.T) {
 			status: http.StatusConflict, code: "IDEMPOTENCY_KEY_REUSED",
 		},
 		{
+			name: "idempotency in progress", err: ErrIdempotencyRequestInProgress,
+			status: http.StatusConflict, code: "IDEMPOTENCY_REQUEST_IN_PROGRESS",
+		},
+		{
 			name: "timeout", err: context.DeadlineExceeded,
 			status: http.StatusGatewayTimeout, code: "REQUEST_TIMEOUT",
 		},

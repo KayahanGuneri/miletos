@@ -1,7 +1,8 @@
 package com.miletos.features.workflowruntime.client;
 
-import com.miletos.features.workflowruntime.grpc.generated.CreateHTTPTriggerResponse;
+import com.miletos.features.workflowruntime.grpc.generated.ConnectionRestriction;
 import com.miletos.features.workflowruntime.grpc.generated.CreateCronTriggerResponse;
+import com.miletos.features.workflowruntime.grpc.generated.CreateHTTPTriggerResponse;
 import com.miletos.features.workflowruntime.grpc.generated.CronTriggerResponse;
 import com.miletos.features.workflowruntime.grpc.generated.EdgeConstraint;
 import com.miletos.features.workflowruntime.grpc.generated.ExecutionDefinition;
@@ -35,22 +36,33 @@ import org.mapstruct.ReportingPolicy;
     unmappedTargetPolicy = ReportingPolicy.ERROR)
 public interface WorkflowRuntimeGrpcJsonMapper {
 
-  // Plugin mappings
-
   @Mapping(target = "items", source = "itemsList")
   WorkflowRuntimeBrowserDtos.PluginPage map(ListPluginsResponse source);
 
   @Mapping(target = "inputPorts", source = "inputPortsList")
   @Mapping(target = "outputPorts", source = "outputPortsList")
   @Mapping(target = "allowedRootOrigins", source = "allowedRootOriginsList")
+  @Mapping(target = "connectionRestrictions", source = "connectionRestrictionsList")
   WorkflowRuntimeBrowserDtos.Plugin map(Plugin source);
 
-  WorkflowRuntimeBrowserDtos.Port map(Port source);
+  default WorkflowRuntimeBrowserDtos.Port map(Port source) {
+    return new WorkflowRuntimeBrowserDtos.Port(
+        source.getName(),
+        source.getDisplayName(),
+        source.getDescription(),
+        source.hasEdgeConstraint() ? map(source.getEdgeConstraint()) : null);
+  }
 
-  WorkflowRuntimeBrowserDtos.EdgeConstraint map(EdgeConstraint source);
+  default WorkflowRuntimeBrowserDtos.EdgeConstraint map(EdgeConstraint source) {
+    return new WorkflowRuntimeBrowserDtos.EdgeConstraint(
+        source.getMinimum(),
+        source.hasMaximum() ? source.getMaximum() : null,
+        source.getUnlimited());
+  }
 
-  // Execution mappings
+  WorkflowRuntimeBrowserDtos.ConnectionRestriction map(ConnectionRestriction source);
 
+  @Mapping(target = "executionIds", source = "executionIdsList")
   WorkflowRuntimeBrowserDtos.ExecutionResponse map(ExecutionResponse source);
 
   WorkflowRuntimeBrowserDtos.ExecutionSummary map(ExecutionSummary source);
@@ -62,8 +74,6 @@ public interface WorkflowRuntimeGrpcJsonMapper {
   WorkflowRuntimeBrowserDtos.ExecutionDefinition map(ExecutionDefinition source);
 
   WorkflowRuntimeBrowserDtos.RecoveryResponse map(RecoveryResponse source);
-
-  // Workflow-definition mappings
 
   @Mapping(target = "id", source = "workflowId")
   @Mapping(target = "revision", source = "workflowRevision")
@@ -78,8 +88,6 @@ public interface WorkflowRuntimeGrpcJsonMapper {
   WorkflowRuntimeBrowserDtos.WorkflowEdge map(WorkflowEdge source);
 
   WorkflowRuntimeBrowserDtos.NodePosition map(NodePosition source);
-
-  // Node, event, log, and error mappings
 
   @Mapping(target = "items", source = "itemsList")
   @Mapping(target = "next", source = "cursor")
@@ -108,8 +116,6 @@ public interface WorkflowRuntimeGrpcJsonMapper {
 
   @Mapping(target = "workflowExecutionId", source = "executionId")
   WorkflowRuntimeBrowserDtos.ExecutionError map(ExecutionError source);
-
-  // HTTP-trigger mappings
 
   WorkflowRuntimeBrowserDtos.HTTPTriggerResponse map(HTTPTriggerResponse source);
 

@@ -19,6 +19,11 @@ export const httpClient = axios.create({
   timeout: 15000,
 });
 
+export const publicHttpClient = axios.create({
+  baseURL: resolveApiBaseUrl(apiBaseUrl),
+  timeout: 15000,
+});
+
 httpClient.interceptors.request.use((config) => {
   const accessToken = getAccessToken();
 

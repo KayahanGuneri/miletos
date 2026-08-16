@@ -24,6 +24,8 @@ var configEnvironment = []string{
 	"MILETOS_RUNTIME_POSTGRES_DATABASE",
 	"MILETOS_RUNTIME_POSTGRES_USER",
 	"MILETOS_RUNTIME_POSTGRES_SSL_MODE",
+	"MILETOS_RUNTIME_INPUT_POSTGRES_URL",
+	"MILETOS_RUNTIME_OUTPUT_POSTGRES_URL",
 	"MILETOS_RUNTIME_KAFKA_ENABLED",
 	"MILETOS_RUNTIME_KAFKA_BROKERS",
 	"MILETOS_RUNTIME_KAFKA_CLIENT_ID",
@@ -105,6 +107,26 @@ func TestLoadAppliesIdentityAndHTTPOverrides(t *testing.T) {
 		configuration.HTTPAddress() != "127.0.0.1:9090" ||
 		configuration.LogLevel != slog.LevelDebug {
 		t.Fatalf("unexpected overrides: %#v", configuration)
+	}
+}
+
+func TestLoadKeepsExternalDatabaseCapabilitiesSeparate(t *testing.T) {
+	configureValidEnvironment(t)
+	inputURL := "postgres://reader:secret@input.example/source?sslmode=require"
+	outputURL := "postgres://writer:secret@output.example/destination?sslmode=require"
+	t.Setenv("MILETOS_RUNTIME_INPUT_POSTGRES_URL", inputURL)
+	t.Setenv("MILETOS_RUNTIME_OUTPUT_POSTGRES_URL", outputURL)
+
+	configuration, err := Load()
+
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if configuration.InputPostgreSQLURL != inputURL {
+		t.Fatalf("InputPostgreSQLURL = %q", configuration.InputPostgreSQLURL)
+	}
+	if configuration.OutputPostgreSQLURL != outputURL {
+		t.Fatalf("OutputPostgreSQLURL = %q", configuration.OutputPostgreSQLURL)
 	}
 }
 

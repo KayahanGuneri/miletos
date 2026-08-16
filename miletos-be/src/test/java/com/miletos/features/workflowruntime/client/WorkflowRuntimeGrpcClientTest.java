@@ -6,9 +6,13 @@ import static org.mockito.Mockito.mock;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.protobuf.Any;
 import com.google.protobuf.Empty;
+import com.google.rpc.ErrorInfo;
 import com.miletos.features.workflowruntime.config.WorkflowRuntimeProperties;
 import io.grpc.ManagedChannel;
+import io.grpc.StatusRuntimeException;
+import io.grpc.protobuf.StatusProto;
 import java.time.Duration;
 import java.util.List;
 import java.util.function.Function;
@@ -63,6 +67,52 @@ class WorkflowRuntimeGrpcClientTest {
         assertError(response, HttpStatus.INTERNAL_SERVER_ERROR, "RUNTIME_RESPONSE_MAPPING_FAILED");
     assertThat(body.path("message").asText()).isEqualTo("An unexpected internal error occurred.");
     assertThat(new String(response.body())).doesNotContain("Empty", "protobuf", "Unsupported");
+  }
+
+  @Test
+  void mapsIdempotencyRequestInProgressToStructuredConflict() throws Exception {
+    WorkflowRuntimeResponse response =
+        client.invoke(
+            "company-1",
+            new HttpHeaders(),
+            HttpStatus.ACCEPTED,
+            ignored -> {
+              throw grpcError(
+                  io.grpc.Status.Code.FAILED_PRECONDITION, "IDEMPOTENCY_REQUEST_IN_PROGRESS");
+            });
+
+    assertError(response, HttpStatus.CONFLICT, "IDEMPOTENCY_REQUEST_IN_PROGRESS");
+  }
+
+  @Test
+  void keepsIdempotencyKeyReusedMappingUnchanged() throws Exception {
+    WorkflowRuntimeResponse response =
+        client.invoke(
+            "company-1",
+            new HttpHeaders(),
+            HttpStatus.ACCEPTED,
+            ignored -> {
+              throw grpcError(io.grpc.Status.Code.ALREADY_EXISTS, "IDEMPOTENCY_KEY_REUSED");
+            });
+
+    assertError(response, HttpStatus.CONFLICT, "IDEMPOTENCY_KEY_REUSED");
+  }
+
+  @Test
+  void keepsUnexpectedGrpcFailuresAsInternalErrors() throws Exception {
+    WorkflowRuntimeResponse response =
+        client.invoke(
+            "company-1",
+            new HttpHeaders(),
+            HttpStatus.ACCEPTED,
+            ignored -> {
+              throw io.grpc.Status.INTERNAL.withDescription("database detail").asRuntimeException();
+            });
+
+    JsonNode body =
+        assertError(response, HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_SERVER_ERROR");
+    assertThat(body.path("message").asText()).isEqualTo("An unexpected internal error occurred.");
+    assertThat(new String(response.body())).doesNotContain("database detail");
   }
 
   @Test
@@ -131,6 +181,18 @@ class WorkflowRuntimeGrpcClientTest {
   private WorkflowRuntimeGrpcJsonAdapter clientAdapter() {
     return new WorkflowRuntimeGrpcJsonAdapter(
         objectMapper, new WorkflowRuntimeGrpcJsonMapperImpl());
+  }
+
+  private static StatusRuntimeException grpcError(io.grpc.Status.Code code, String reason) {
+    ErrorInfo errorInfo =
+        ErrorInfo.newBuilder().setReason(reason).setDomain("miletos.runtime").build();
+    com.google.rpc.Status grpcStatus =
+        com.google.rpc.Status.newBuilder()
+            .setCode(code.value())
+            .setMessage("structured runtime failure")
+            .addDetails(Any.pack(errorInfo))
+            .build();
+    return StatusProto.toStatusRuntimeException(grpcStatus);
   }
 
   private JsonNode assertError(

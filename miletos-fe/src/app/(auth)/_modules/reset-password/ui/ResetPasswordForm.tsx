@@ -45,7 +45,7 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
       },
       {
         onSuccess: () => {
-          router.push("/login");
+          router.push("/auth/login");
         },
       },
     );
@@ -130,7 +130,7 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
           {isSubmitting ? "Resetting password..." : "Reset password"}
         </Button>
 
-        <Link className={styles.resetPasswordForm__secondaryAction} href="/login">
+        <Link className={styles.resetPasswordForm__secondaryAction} href="/auth/login">
           Back to login
         </Link>
       </Box>

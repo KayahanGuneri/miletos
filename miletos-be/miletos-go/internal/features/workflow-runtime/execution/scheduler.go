@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"miletos-go/internal/features/workflow-runtime/execution/model"
 	"miletos-go/internal/features/workflow-runtime/execution/queue"
@@ -38,6 +39,28 @@ func (scheduler *Scheduler) Activate(
 	execution model.Execution,
 	startInput map[string]any,
 ) (int, error) {
+	return scheduler.activate(ctx, execution, startInput, "")
+}
+
+func (scheduler *Scheduler) ActivateFromRoot(
+	ctx context.Context,
+	execution model.Execution,
+	startInput map[string]any,
+	rootNodeID string,
+) (int, error) {
+	rootNodeID = strings.TrimSpace(rootNodeID)
+	if rootNodeID == "" {
+		return 0, fmt.Errorf("workflow root node ID is required")
+	}
+	return scheduler.activate(ctx, execution, startInput, rootNodeID)
+}
+
+func (scheduler *Scheduler) activate(
+	ctx context.Context,
+	execution model.Execution,
+	startInput map[string]any,
+	startNodeID string,
+) (int, error) {
 	persisted, err := scheduler.executions.FindByID(ctx, execution.CompanyID, execution.ID)
 	if err != nil {
 		return 0, fmt.Errorf("load execution for scheduling: %w", err)
@@ -57,7 +80,12 @@ func (scheduler *Scheduler) Activate(
 	); err != nil {
 		return 0, err
 	}
-	return scheduler.scheduleReady(ctx, persisted, snapshot.Workflow, startInput)
+	if startNodeID != "" {
+		if _, isRoot := findRootNode(snapshot.Workflow, startNodeID); !isRoot {
+			return 0, fmt.Errorf("node %q is not a workflow root", startNodeID)
+		}
+	}
+	return scheduler.scheduleReady(ctx, persisted, snapshot.Workflow, startInput, startNodeID)
 }
 
 func (scheduler *Scheduler) CompleteNode(ctx context.Context, job model.NodeJob) error {
@@ -72,7 +100,7 @@ func (scheduler *Scheduler) CompleteNode(ctx context.Context, job model.NodeJob)
 	if err != nil {
 		return fmt.Errorf("load workflow after node completion: %w", err)
 	}
-	scheduled, err := scheduler.scheduleReady(ctx, execution, snapshot.Workflow, nil)
+	scheduled, err := scheduler.scheduleReady(ctx, execution, snapshot.Workflow, nil, "")
 	if err != nil || scheduled > 0 {
 		return err
 	}
@@ -107,12 +135,14 @@ func (scheduler *Scheduler) scheduleReady(
 	execution model.Execution,
 	workflow workflowfeature.Workflow,
 	startInput map[string]any,
+	startNodeID string,
 ) (int, error) {
 	if scheduler.registry != nil {
 		if err := workflowfeature.ValidateWorkflowDefinition(
 			workflow,
 			scheduler.registry.Get,
 			scheduler.registry.ValidateConfiguration,
+			scheduler.registry.ConnectionRestricted,
 		); err != nil {
 			var validationError *workflowfeature.WorkflowDefinitionValidationError
 			if errors.As(err, &validationError) {
@@ -163,6 +193,7 @@ func (scheduler *Scheduler) scheduleReady(
 			}
 			payload := buildExecutionNodeInput(
 				workflow, node.ID, readiness.edgePayloads, scheduler.registry, startInput,
+				startNodeID,
 				execution.Origin,
 			)
 			queued, changed, err := scheduler.executions.QueueNodeCommand(
@@ -190,7 +221,46 @@ func (scheduler *Scheduler) scheduleReady(
 }
 
 func unwrapSummary(summary map[string]any) any {
-	return normalizeOutput(summary)
+	return model.DecodePersistedValue(summary)
+}
+
+func (scheduler *Scheduler) skipInactivePendingNodes(
+	ctx context.Context,
+	execution model.Execution,
+	workflow workflowfeature.Workflow,
+	states map[string]model.NodeExecution,
+) (bool, error) {
+	changed := false
+	for {
+		skipped := false
+		outcomes := nodeOutcomes(states)
+		for _, node := range workflow.Nodes {
+			state := states[node.ID]
+			if state.Status != model.NodePending ||
+				!resolveNodeRoutes(workflow, node.ID, outcomes).inactive {
+				continue
+			}
+			if err := scheduler.executions.MarkNodeSkipped(
+				ctx, execution.CompanyID, execution.ID, node.ID,
+				string(model.SkipReasonNoActiveRoute),
+			); err != nil {
+				return changed, err
+			}
+			state.Status = model.NodeSkipped
+			state.Failure = map[string]any{
+				"skipReason": string(model.SkipReasonNoActiveRoute),
+			}
+			states[node.ID] = state
+			outcomes[node.ID] = nodeOutcome{
+				status: model.NodeSkipped, skipReason: model.SkipReasonNoActiveRoute,
+			}
+			changed = true
+			skipped = true
+		}
+		if !skipped {
+			return changed, nil
+		}
+	}
 }
 
 func (scheduler *Scheduler) Finalize(
@@ -214,16 +284,28 @@ func (scheduler *Scheduler) Finalize(
 			return decodeErr
 		}
 		byNodeID[decoded.NodeID] = decoded
+	}
+	settled, err := scheduler.skipInactivePendingNodes(
+		ctx, execution, workflow, byNodeID,
+	)
+	if err != nil {
+		return err
+	}
+	if settled {
+		return scheduler.Finalize(ctx, execution, workflow)
+	}
+	for _, state := range states {
+		decoded := byNodeID[state.NodeID]
 		switch decoded.Status {
 		case model.NodeFailed, model.NodeTimedOut, model.NodeCancelled:
 			failed = true
-			failedNodeIDs = append(failedNodeIDs, state.NodeID)
+			failedNodeIDs = append(failedNodeIDs, decoded.NodeID)
 		case model.NodeQueued, model.NodeRunning:
 			active = true
 		case model.NodePending, model.NodeReady:
 			pending = true
 		case model.NodeRetryPending:
-			if state.NextAttemptAt == nil {
+			if decoded.NextAttemptAt == nil {
 				invalidRetry = true
 			} else {
 				active = true

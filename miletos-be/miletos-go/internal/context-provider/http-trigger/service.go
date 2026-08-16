@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
@@ -15,7 +14,7 @@ import (
 	executionmodel "miletos-go/internal/features/workflow-runtime/execution/model"
 	"miletos-go/internal/features/workflow-runtime/execution/repository"
 	"miletos-go/internal/features/workflow-runtime/plugin"
-	"miletos-go/internal/features/workflow-runtime/pluginstate"
+	pluginstate "miletos-go/internal/features/workflow-runtime/plugin-state"
 	"miletos-go/internal/features/workflow-runtime/workflow"
 )
 
@@ -62,18 +61,19 @@ func newScenarioStartInfrastructure(
 
 func (infrastructure *scenarioStartInfrastructure) CreateHTTPURL(
 	method plugin.HTTPMethod,
-) (string, error) {
-	requestedMethod, err := normalizeMethod(infrastructure.request.Method)
-	validatedMethod, methodErr := normalizeMethod(string(method))
-	if err != nil || methodErr != nil || requestedMethod != validatedMethod {
-		return "", ErrInvalidTrigger
-	}
-	created, err := infrastructure.service.Create(infrastructure.ctx, infrastructure.request)
+) (plugin.HTTPBinding, error) {
+	infrastructure.request.Method = string(method)
+	created, err := infrastructure.service.createBinding(
+		infrastructure.ctx,
+		infrastructure.request,
+	)
 	if err != nil {
-		return "", err
+		return plugin.HTTPBinding{}, err
 	}
 	infrastructure.created = created
-	return created.PublicURL, nil
+	return plugin.HTTPBinding{
+		URL: created.PublicURL, Identity: created.Binding.ID,
+	}, nil
 }
 
 func (infrastructure *scenarioStartInfrastructure) OnRequest(plugin.HTTPRequestHandler) error {
@@ -85,21 +85,36 @@ func (infrastructure *scenarioStartInfrastructure) Result() CreatedBinding {
 }
 
 type requestInfrastructure struct {
-	currentURL string
-	payload    any
+	currentIdentity string
+	method          string
+	payload         any
+	handler         plugin.HTTPRequestHandler
 }
 
-func (infrastructure requestInfrastructure) CreateHTTPURL(plugin.HTTPMethod) (string, error) {
-	return "", ErrInvalidTrigger
+func (infrastructure *requestInfrastructure) CreateHTTPURL(
+	method plugin.HTTPMethod,
+) (plugin.HTTPBinding, error) {
+	if string(method) != infrastructure.method || infrastructure.currentIdentity == "" {
+		return plugin.HTTPBinding{}, ErrInvalidTrigger
+	}
+	return plugin.HTTPBinding{Identity: infrastructure.currentIdentity}, nil
 }
 
-func (infrastructure requestInfrastructure) OnRequest(
+func (infrastructure *requestInfrastructure) OnRequest(
 	handler plugin.HTTPRequestHandler,
 ) error {
 	if handler == nil {
 		return ErrInvalidTrigger
 	}
-	return handler(infrastructure.currentURL, infrastructure.payload)
+	infrastructure.handler = handler
+	return nil
+}
+
+func (infrastructure *requestInfrastructure) Dispatch() (any, error) {
+	if infrastructure.handler == nil {
+		return nil, ErrInvalidTrigger
+	}
+	return infrastructure.handler(infrastructure.currentIdentity, infrastructure.payload)
 }
 
 func NewService(
@@ -128,6 +143,18 @@ func (service *Service) StartScenario(
 	ctx context.Context,
 	request CreateRequest,
 ) (CreatedBinding, error) {
+	request.Workflow.CompanyID = request.CompanyID
+	if request.ResolvedMode != ModeAsync {
+		return CreatedBinding{}, ErrInvalidTrigger
+	}
+	if err := service.workflowService.Validate(request.Workflow); err != nil {
+		return CreatedBinding{}, err
+	}
+	if err := validateTriggerRoot(
+		request.Workflow, request.TriggerNodeID, service.registry,
+	); err != nil {
+		return CreatedBinding{}, ErrInvalidTrigger
+	}
 	rootNode, valid := rootNodeByID(request.Workflow, request.TriggerNodeID)
 	if !valid {
 		return CreatedBinding{}, ErrInvalidTrigger
@@ -169,28 +196,12 @@ func (service *Service) StartScenario(
 	return httpInfrastructure.Result(), nil
 }
 
-func (service *Service) Create(
+func (service *Service) createBinding(
 	ctx context.Context,
 	request CreateRequest,
 ) (CreatedBinding, error) {
 	if service.publicBaseURL == "" {
 		return CreatedBinding{}, ErrPublicURLUnavailable
-	}
-	request.Workflow.CompanyID = request.CompanyID
-	if request.ResolvedMode != ModeAsync {
-		return CreatedBinding{}, ErrInvalidTrigger
-	}
-	method, err := normalizeMethod(request.Method)
-	if err != nil {
-		return CreatedBinding{}, err
-	}
-	if err := service.workflowService.Validate(request.Workflow); err != nil {
-		return CreatedBinding{}, err
-	}
-	if err := validateTriggerRoot(
-		request.Workflow, request.TriggerNodeID, method, service.registry,
-	); err != nil {
-		return CreatedBinding{}, ErrInvalidTrigger
 	}
 	rawToken, tokenHash, err := secureToken()
 	if err != nil {
@@ -212,7 +223,7 @@ func (service *Service) Create(
 		WorkflowRevision: request.Workflow.Revision,
 		SnapshotID:       snapshotID,
 		TriggerNodeID:    request.TriggerNodeID,
-		Method:           method,
+		Method:           request.Method,
 		TokenHash:        tokenHash,
 		Status:           StatusActive,
 		ResolvedMode:     request.ResolvedMode,
@@ -232,7 +243,6 @@ func (service *Service) Create(
 func validateTriggerRoot(
 	definition workflow.Workflow,
 	triggerNodeID string,
-	method string,
 	registry *plugin.NodeRegistry,
 ) error {
 	rootNode, valid := rootNodeByID(definition, triggerNodeID)
@@ -245,7 +255,7 @@ func validateTriggerRoot(
 	) {
 		return ErrInvalidTrigger
 	}
-	return validateBindingConfiguration(rootNode.Configuration, method)
+	return nil
 }
 
 func rootNodeByID(definition workflow.Workflow, triggerNodeID string) (workflow.WorkflowNode, bool) {
@@ -255,14 +265,6 @@ func rootNodeByID(definition workflow.Workflow, triggerNodeID string) (workflow.
 		}
 	}
 	return workflow.WorkflowNode{}, false
-}
-
-func validateBindingConfiguration(configuration map[string]any, method string) error {
-	configuredMethod, ok := configuration["method"].(string)
-	if !ok || strings.ToUpper(strings.TrimSpace(configuredMethod)) != method {
-		return ErrInvalidTrigger
-	}
-	return nil
 }
 
 func (service *Service) Get(
@@ -341,14 +343,14 @@ func (service *Service) Invoke(
 	if err := validateTriggerRoot(
 		snapshot.Workflow,
 		binding.TriggerNodeID,
-		binding.Method,
 		service.registry,
 	); err != nil {
 		return execution.ExecutionOutcome{}, "", ErrBindingInvariant
 	}
-	if err := service.dispatchRequest(
+	dispatch, err := service.dispatchRequest(
 		ctx, snapshot.Workflow, binding, payload,
-	); err != nil {
+	)
+	if err != nil {
 		return execution.ExecutionOutcome{}, "", err
 	}
 	key := externalIdempotencyKey
@@ -360,8 +362,9 @@ func (service *Service) Invoke(
 			)
 		}
 	}
-	outcome, err := service.executions.ExecuteAsyncFromSnapshot(
-		ctx, snapshot, binding.TriggerNodeID, payload, correlationID,
+	outcome, err := service.executions.ExecuteDispatchedFromSnapshot(
+		ctx, snapshot, binding.TriggerNodeID, dispatch,
+		executionmodel.ExecutionOriginHTTPWebhook, correlationID,
 		key, invocationFingerprint(binding, payload),
 	)
 	return outcome, "", err
@@ -372,25 +375,30 @@ func (service *Service) dispatchRequest(
 	definition workflow.Workflow,
 	binding Binding,
 	payload map[string]any,
-) error {
+) (execution.SourceDispatch, error) {
 	node, exists := rootNodeByID(definition, binding.TriggerNodeID)
 	if !exists {
-		return ErrBindingInvariant
+		return execution.SourceDispatch{}, ErrBindingInvariant
 	}
 	registration, exists := service.registry.Get(node.Type)
 	if !exists {
-		return ErrBindingInvariant
+		return execution.SourceDispatch{}, ErrBindingInvariant
 	}
 	lifecycles := plugin.NewLifecycles()
+	httpInfrastructure := &requestInfrastructure{
+		currentIdentity: binding.ID,
+		method:          binding.Method,
+		payload:         payload,
+	}
 	infrastructure := plugin.Infrastructure{
-		HTTP: requestInfrastructure{
-			currentURL: "/hooks/{redacted}",
-			payload:    payload,
-		},
+		HTTP: httpInfrastructure,
 	}
 	if service.emitter != nil {
 		infrastructure.Emitter = service.emitter.ForContext(ctx, registration.Key)
 	}
+	access := execution.NewNodeAccessCapture(
+		definition, binding.TriggerNodeID, registration.RoutingMode,
+	)
 	pluginContext := plugin.NewContext(plugin.ContextOptions{
 		Runtime:       ctx,
 		Configuration: node.Configuration,
@@ -402,13 +410,21 @@ func (service *Service) dispatchRequest(
 			WorkflowRevision: binding.WorkflowRevision,
 			NodeID:           binding.TriggerNodeID,
 		}),
-		Access: execution.NewNodeAccess(
-			definition, binding.TriggerNodeID, registration.RoutingMode,
-		),
+		Access:         access,
 		Infrastructure: infrastructure,
 		Payload:        payload,
 	})
-	return registration.Handler(pluginContext)
+	if err := registration.Handler(pluginContext); err != nil {
+		return execution.SourceDispatch{}, err
+	}
+	if err := lifecycles.InvokeScenarioStart(); err != nil {
+		return execution.SourceDispatch{}, err
+	}
+	output, err := httpInfrastructure.Dispatch()
+	if err != nil {
+		return execution.SourceDispatch{}, err
+	}
+	return execution.SourceDispatch{Output: output, Routing: access.Outcome()}, nil
 }
 
 func stableFingerprintPayload(payload map[string]any) map[string]any {
@@ -446,16 +462,6 @@ func invocationFingerprint(binding Binding, payload map[string]any) string {
 	stable["snapshotId"] = binding.SnapshotID
 	stable["method"] = binding.Method
 	return execution.Fingerprint(stable)
-}
-
-func normalizeMethod(method string) (string, error) {
-	normalized := strings.ToUpper(strings.TrimSpace(method))
-	switch normalized {
-	case http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
-		return normalized, nil
-	default:
-		return "", ErrInvalidTrigger
-	}
 }
 
 func secureToken() (string, []byte, error) {

@@ -24,6 +24,7 @@ import {
   useUploadWorkflowInputFileMutation,
 } from "@/app/(panel)/_modules/workflows/query/workflow-mutations";
 import {
+  useAllWorkflowsQuery,
   useWorkflowPluginsQuery,
   useWorkflowQuery,
 } from "@/app/(panel)/_modules/workflows/query/workflow-queries";
@@ -44,6 +45,7 @@ import {
 import { useCurrentUserQuery } from "@/shared/session/hooks/useCurrentUserQuery";
 import { canManageWorkflows } from "@/shared/session/permissions/session-permissions";
 import { PluginConfigurationDialog } from "@/shared/plugins/configuration/PluginConfigurationDialog";
+import { createPluginConfigurationEditorContext } from "@/shared/plugins/configuration/plugin-configuration-editor-context";
 import {
   createDefaultPluginConfiguration,
   isPluginConfigurationValid,
@@ -54,13 +56,32 @@ interface WorkflowEditorPageProps {
   workflowId?: number;
 }
 
-const INVALID_CONFIGURATION_MESSAGE = workflowMessages.editor.invalidConfiguration;
-
 function pluginForWorkflowNode(node: WorkflowNode | null, plugins: WorkflowPlugin[] | undefined) {
   if (!node) {
     return undefined;
   }
   return plugins?.find((plugin) => plugin.type === node.pluginType);
+}
+
+function editorContextForNode(
+  nodeId: string,
+  nodes: WorkflowNode[],
+  edges: WorkflowEdge[],
+  plugins: WorkflowPlugin[] | undefined,
+  workflowId?: number,
+  workflows?: Array<{ id: number; name: string; status: string }>,
+) {
+  return createPluginConfigurationEditorContext({
+    nodeId,
+    nodes,
+    edges,
+    workflowId,
+    workflows,
+    sourceLabel: (node) =>
+      node.displayName?.trim() ||
+      plugins?.find((plugin) => plugin.type === node.pluginType)?.displayName ||
+      node.pluginType,
+  });
 }
 
 function toEditableRequest(workflow: Workflow): SaveWorkflowRequest {
@@ -85,6 +106,7 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
   const hasValidWorkflowId = isNew || (Number.isSafeInteger(workflowId) && (workflowId ?? 0) > 0);
   const detail = useWorkflowQuery(workflowId ?? 0, isAllowed && !isNew && hasValidWorkflowId);
   const plugins = useWorkflowPluginsQuery(isAllowed);
+  const workflowOptions = useAllWorkflowsQuery(isAllowed);
   const createMutation = useCreateWorkflowMutation();
   const updateMutation = useUpdateWorkflowMutation();
   const deleteMutation = useDeleteWorkflowMutation();
@@ -96,7 +118,6 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
   const [metadata, setMetadata] = useState<JsonObject>({});
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [metadataValid, setMetadataValid] = useState(true);
-  const [configurationValid, setConfigurationValid] = useState(true);
   const [configurationNodeId, setConfigurationNodeId] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -117,7 +138,6 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
     setSelectedNodeId(null);
     setConfigurationNodeId(null);
     setMetadataValid(true);
-    setConfigurationValid(true);
     setLocalError(null);
     setEditorResetVersion((current) => current + 1);
   }, []);
@@ -148,9 +168,29 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
     () => pluginForWorkflowNode(configurationNode, plugins.data?.items),
     [configurationNode, plugins.data?.items],
   );
+  const editorWorkflows = workflowOptions.data?.map((workflow) => ({
+    id: workflow.id,
+    name: workflow.name,
+    status: workflow.status,
+  }));
   const hasInvalidStoredConfiguration = useMemo(
-    () => nodes.some((node) => !isPluginConfigurationValid(node.pluginType, node.configuration)),
-    [nodes],
+    () =>
+      nodes.some(
+        (node) =>
+          !isPluginConfigurationValid(
+            node.pluginType,
+            node.configuration,
+            editorContextForNode(
+              node.nodeId,
+              nodes,
+              edges,
+              plugins.data?.items,
+              workflowId,
+              editorWorkflows,
+            ),
+          ),
+      ),
+    [edges, editorWorkflows, nodes, plugins.data?.items, workflowId],
   );
   const readOnly = !isNew && detail.data?.status !== "DRAFT";
   const saving = createMutation.isPending || updateMutation.isPending;
@@ -169,12 +209,7 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
     isNew ||
     (persistedBaseline !== null && !editableRequestsMatch(editableRequest, persistedBaseline));
   const metadataValidityChange = useCallback((valid: boolean) => setMetadataValid(valid), []);
-  const configurationValidityChange = useCallback((valid: boolean) => {
-    setConfigurationValid(valid);
-    if (valid) {
-      setLocalError((current) => (current === INVALID_CONFIGURATION_MESSAGE ? null : current));
-    }
-  }, []);
+  const ignoreConfigurationValidity = useCallback(() => {}, []);
 
   const lifecyclePending = saving || deleteMutation.isPending;
   let lifecycleDisabled = lifecyclePending;
@@ -186,18 +221,13 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
     if (isDirty) {
       lifecycleDisabled = true;
       lifecycleDisabledReason = workflowMessages.editor.unsavedDraft;
-    } else if (!metadataValid || !configurationValid || hasInvalidStoredConfiguration) {
+    } else if (!metadataValid || hasInvalidStoredConfiguration) {
       lifecycleDisabled = true;
       lifecycleDisabledReason = workflowMessages.editor.unresolvedErrors;
     }
   }
 
   function dropPlugin(plugin: WorkflowPlugin, position: XYPosition) {
-    if (!configurationValid) {
-      setLocalError(INVALID_CONFIGURATION_MESSAGE);
-      return;
-    }
-
     const nodeId = createClientId("node");
     const configuration = createDefaultPluginConfiguration(plugin.type);
     setNodes((current) => [
@@ -212,8 +242,6 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
       },
     ]);
     setSelectedNodeId(nodeId);
-    setConfigurationNodeId(nodeId);
-    setConfigurationValid(isPluginConfigurationValid(plugin.type, configuration));
   }
 
   function deleteNodes(nodeIds: string[]) {
@@ -224,12 +252,9 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
     );
     if (selectedNodeId && ids.has(selectedNodeId)) {
       setSelectedNodeId(null);
-      setConfigurationValid(true);
-      setLocalError((current) => (current === INVALID_CONFIGURATION_MESSAGE ? null : current));
     }
     if (configurationNodeId && ids.has(configurationNodeId)) {
       setConfigurationNodeId(null);
-      setConfigurationValid(true);
     }
   }
 
@@ -238,13 +263,7 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
       return;
     }
 
-    if (!configurationValid) {
-      setLocalError(INVALID_CONFIGURATION_MESSAGE);
-      return;
-    }
-
     setSelectedNodeId(nodeId);
-    setConfigurationValid(true);
   }
 
   async function saveWorkflow() {
@@ -257,8 +276,34 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
       setLocalError(workflowMessages.editor.invalidDescription);
       return;
     }
-    if (!metadataValid || !configurationValid) {
+    if (!metadataValid) {
       setLocalError(workflowMessages.editor.invalidJson);
+      return;
+    }
+    const firstInvalidNode = nodes.find(
+      (node) =>
+        !isPluginConfigurationValid(
+          node.pluginType,
+          node.configuration,
+          editorContextForNode(
+            node.nodeId,
+            nodes,
+            edges,
+            plugins.data?.items,
+            workflowId,
+            editorWorkflows,
+          ),
+        ),
+    );
+    if (firstInvalidNode) {
+      setSelectedNodeId(firstInvalidNode.nodeId);
+      setLocalError(
+        workflowMessages.editor.invalidNodeConfiguration(
+          firstInvalidNode.displayName?.trim() ||
+            pluginForWorkflowNode(firstInvalidNode, plugins.data?.items)?.displayName ||
+            firstInvalidNode.pluginType,
+        ),
+      );
       return;
     }
     setLocalError(null);
@@ -388,7 +433,7 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
           ) : null}
           <Button
             type="button"
-            disabled={readOnly || saving || !metadataValid || !configurationValid}
+            disabled={readOnly || saving || !metadataValid}
             onClick={() => void saveWorkflow()}
           >
             {saving ? workflowMessages.editor.saving : workflowMessages.editor.save}
@@ -409,13 +454,15 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
       }
     >
       <div className={styles.workflowEditor}>
-        <section className={styles.workflowEditor__toolbar}>
-          <Box className={styles.workflowEditor__toolbarHeader}>
-            <Typography as="p" className={styles.workflowEditor__eyebrow}>
-              {workflowMessages.editor.detailsEyebrow}
-            </Typography>
-            <Typography as="h2">{workflowMessages.editor.detailsTitle}</Typography>
-          </Box>
+        <section className={styles.workflowEditor__toolbar} data-create={isNew}>
+          {!isNew ? (
+            <Box className={styles.workflowEditor__toolbarHeader}>
+              <Typography as="p" className={styles.workflowEditor__eyebrow}>
+                {workflowMessages.editor.detailsEyebrow}
+              </Typography>
+              <Typography as="h2">{workflowMessages.editor.detailsTitle}</Typography>
+            </Box>
+          ) : null}
           <Box className={styles.workflowEditor__formGrid}>
             <label className={styles.workflowEditor__field}>
               <Typography as="span">{workflowMessages.editor.nameLabel}</Typography>
@@ -455,19 +502,27 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
           ) : null}
         </section>
 
+        {detail.data ? (
+          <WorkflowRuntimeActions
+            workflow={detail.data}
+            plugins={plugins.data?.items ?? []}
+            canManage={isAllowed}
+          />
+        ) : null}
+
         <Box className={styles.workflowEditor__workspace}>
           <PluginPalette
             plugins={plugins.data?.items ?? []}
             isLoading={plugins.isPending}
             errorMessage={plugins.error?.message}
-            readOnly={readOnly || !configurationValid}
+            readOnly={readOnly}
           />
           <WorkflowCanvas
             workflowNodes={nodes}
             workflowEdges={edges}
             plugins={plugins.data?.items ?? []}
             readOnly={readOnly}
-            selectionLocked={!configurationValid}
+            selectionLocked={false}
             selectedNodeId={selectedNodeId}
             onSelectNode={selectNode}
             onMoveNode={(nodeId, x, y) =>
@@ -504,28 +559,12 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
                 return;
               }
               setConfigurationNodeId(selectedNode.nodeId);
-              setConfigurationValid(
-                isPluginConfigurationValid(selectedNode.pluginType, selectedNode.configuration),
-              );
             }}
             onDelete={() => {
               if (selectedNodeId) deleteNodes([selectedNodeId]);
             }}
           />
         </Box>
-
-        {detail.data ? (
-          <details className={styles.workflowEditor__secondaryPanel}>
-            <summary>{workflowMessages.runtime.title}</summary>
-            <Box className={styles.workflowEditor__secondaryBody}>
-              <WorkflowRuntimeActions
-                workflow={detail.data}
-                plugins={plugins.data?.items ?? []}
-                canManage={isAllowed}
-              />
-            </Box>
-          </details>
-        ) : null}
 
         <details className={styles.workflowEditor__secondaryPanel}>
           <summary>{workflowMessages.editor.advancedMetadataTitle}</summary>
@@ -567,6 +606,14 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
           pluginVersion={configurationNode.pluginVersion}
           configuration={configurationNode.configuration}
           readOnly={readOnly}
+          editorContext={editorContextForNode(
+            configurationNode.nodeId,
+            nodes,
+            edges,
+            plugins.data?.items,
+            workflowId,
+            editorWorkflows,
+          )}
           uploadPending={uploadMutation.isPending}
           uploadError={uploadMutation.isError}
           onUploadFile={async (file) => {
@@ -574,10 +621,9 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
             const uploaded = await uploadMutation.mutateAsync(file);
             return uploaded.fileName;
           }}
-          onValidityChange={configurationValidityChange}
+          onValidityChange={ignoreConfigurationValidity}
           onClose={() => {
             setConfigurationNodeId(null);
-            setConfigurationValid(true);
           }}
           onSave={(configuration) => {
             setNodes((current) =>
@@ -586,7 +632,6 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
               ),
             );
             setConfigurationNodeId(null);
-            setConfigurationValid(true);
           }}
         />
       ) : null}

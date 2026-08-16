@@ -11,6 +11,7 @@ import (
 
 type nodeAccess struct {
 	edges     []workflow.Edge
+	inputs    map[string]plugin.InputNodeData
 	explicit  bool
 	mutex     sync.Mutex
 	emissions map[string]any
@@ -23,16 +24,47 @@ func newNodeAccess(
 	routingMode plugin.OutputRoutingMode,
 ) *nodeAccess {
 	edges := make([]workflow.Edge, 0)
+	inputNodeIDs := make(map[string]struct{})
 	for _, edge := range definition.Edges {
 		if edge.SourceNodeID == nodeID {
 			edges = append(edges, edge)
 		}
+		if edge.TargetNodeID == nodeID {
+			inputNodeIDs[edge.SourceNodeID] = struct{}{}
+		}
+	}
+	inputs := make(map[string]plugin.InputNodeData, len(inputNodeIDs))
+	for _, node := range definition.Nodes {
+		if _, connected := inputNodeIDs[node.ID]; !connected {
+			continue
+		}
+		configuration := make(map[string]any, len(node.Configuration))
+		for key, value := range node.Configuration {
+			configuration[key] = value
+		}
+		inputs[node.ID] = plugin.InputNodeData{
+			ID: node.ID, PluginType: node.Type, Configuration: configuration,
+		}
 	}
 	return &nodeAccess{
 		edges:     edges,
+		inputs:    inputs,
 		explicit:  routingMode == plugin.OutputRoutingExplicit,
 		emissions: make(map[string]any),
 	}
+}
+
+func (access *nodeAccess) GetInputNode(nodeID string) (plugin.InputNodeData, bool) {
+	input, exists := access.inputs[nodeID]
+	if !exists {
+		return plugin.InputNodeData{}, false
+	}
+	configuration := make(map[string]any, len(input.Configuration))
+	for key, value := range input.Configuration {
+		configuration[key] = value
+	}
+	input.Configuration = configuration
+	return input, true
 }
 
 func NewNodeAccess(
@@ -41,6 +73,24 @@ func NewNodeAccess(
 	routingMode plugin.OutputRoutingMode,
 ) plugin.Access {
 	return newNodeAccess(definition, nodeID, routingMode)
+}
+
+type NodeAccessCapture struct {
+	*nodeAccess
+}
+
+func NewNodeAccessCapture(
+	definition workflow.Workflow,
+	nodeID string,
+	routingMode plugin.OutputRoutingMode,
+) *NodeAccessCapture {
+	return &NodeAccessCapture{
+		nodeAccess: newNodeAccess(definition, nodeID, routingMode),
+	}
+}
+
+func (capture *NodeAccessCapture) Outcome() model.NodeRoutingOutcome {
+	return capture.outcome()
 }
 
 func (access *nodeAccess) GetOutputEdgeCount() int {
@@ -104,6 +154,7 @@ func decodeNodeExecutionOutcome(
 	node model.NodeExecution,
 	registry *plugin.NodeRegistry,
 ) (model.NodeExecution, error) {
+	node = decodePersistedSummaries(node)
 	if registry == nil {
 		return node, nil
 	}
@@ -118,19 +169,34 @@ func decodeNodeExecutionOutcome(
 	if node.Status != model.NodeSucceeded {
 		return node, nil
 	}
-	if node.Output["format"] != model.PersistedRoutedOutputFormat {
+	if node.Routing.EdgePayloads == nil {
 		return model.NodeExecution{}, fmt.Errorf(
 			"explicit routing outcome for node %q is invalid", node.NodeID,
 		)
 	}
-	output, outputExists := node.Output["output"].(map[string]any)
-	edgePayloads, routesExist := node.Output["edgePayloads"].(map[string]any)
-	if !outputExists || !routesExist {
-		return model.NodeExecution{}, fmt.Errorf(
-			"explicit routing outcome for node %q is incomplete", node.NodeID,
-		)
-	}
-	node.Output = output
-	node.Routing.EdgePayloads = edgePayloads
 	return node, nil
+}
+
+func decodePersistedSummaries(node model.NodeExecution) model.NodeExecution {
+	if node.Input != nil {
+		node.InputPayload = model.DecodePersistedValue(node.Input)
+		node.Input = model.PublicSummary(node.InputPayload)
+	}
+	if node.Output == nil {
+		return node
+	}
+	if node.Output["format"] == model.PersistedRoutedOutputFormat {
+		outputEnvelope, outputExists := node.Output["output"].(map[string]any)
+		edgePayloads, routesExist := node.Output["edgePayloads"].(map[string]any)
+		if outputExists && routesExist {
+			node.OutputPayload = model.DecodePersistedValue(outputEnvelope)
+			node.Output = model.PublicSummary(node.OutputPayload)
+			node.Routing.Explicit = true
+			node.Routing.EdgePayloads = model.DecodePersistedEdgePayloads(edgePayloads)
+			return node
+		}
+	}
+	node.OutputPayload = model.DecodePersistedValue(node.Output)
+	node.Output = model.PublicSummary(node.OutputPayload)
+	return node
 }

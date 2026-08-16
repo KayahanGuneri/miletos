@@ -131,12 +131,16 @@ export function useResetWorkflowTriggerBindings() {
   );
 }
 
-export function useWorkflowCronTriggerQuery(workflowId: number, enabled: boolean) {
+export function useWorkflowCronTriggerQuery(
+  workflowId: number,
+  triggerNodeId: string,
+  enabled: boolean,
+) {
   return useQuery<CronTrigger | null, ApiError>({
-    queryKey: workflowQueryKeys.cronTrigger(workflowId),
+    queryKey: workflowQueryKeys.cronTrigger(workflowId, triggerNodeId),
     queryFn: async () => {
       try {
-        return await getActiveWorkflowCronTrigger(workflowId);
+        return await getActiveWorkflowCronTrigger(workflowId, triggerNodeId);
       } catch (error) {
         const apiError = toApiError(error);
         if (isMissingActiveTrigger(apiError)) {
@@ -145,6 +149,10 @@ export function useWorkflowCronTriggerQuery(workflowId: number, enabled: boolean
         throw apiError;
       }
     },
-    enabled: enabled && Number.isSafeInteger(workflowId) && workflowId > 0,
+    enabled:
+      enabled &&
+      Number.isSafeInteger(workflowId) &&
+      workflowId > 0 &&
+      triggerNodeId.trim().length > 0,
   });
 }

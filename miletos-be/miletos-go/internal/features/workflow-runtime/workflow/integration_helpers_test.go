@@ -54,9 +54,9 @@ func integrationDatabase(t *testing.T) *pgxpool.Pool {
 	files, err := filepath.Glob(filepath.Join(
 		filepath.Dir(helperFile), "..", "..", "..", "..", ".local", "migrations", "*.sql",
 	))
-	if err != nil || len(files) != 10 {
+	if err != nil || len(files) != 13 {
 		pool.Close()
-		t.Fatalf("expected ten local migration files")
+		t.Fatalf("expected thirteen local migration files")
 	}
 	sort.Strings(files)
 	for _, file := range files {

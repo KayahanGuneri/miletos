@@ -1,4 +1,6 @@
 import { createFormPluginDefinition } from "@/shared/plugins/form/create-form-plugin-definition";
+import { withSchemaConfiguration } from "@/shared/plugins/editors/schema/with-schema-configuration";
+import { validateFormConfiguration } from "@/shared/plugins/form/form-configuration";
 import type { FlatFormSchema } from "@/shared/plugins/form/form-schema-types";
 import { pluginMessages } from "@/shared/plugins/messages/plugin-messages";
 
@@ -22,7 +24,8 @@ const excelInputSchema: FlatFormSchema = {
       key: "fileName",
       label: messages.localUploadLabel,
       dataType: "STRING",
-      renderType: "FILE_UPLOAD",
+      renderType: "INPUT",
+      inputType: "file",
       required: true,
       defaultValue: "",
       accept: ".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -81,7 +84,8 @@ const excelInputSchema: FlatFormSchema = {
       key: "sftpPassword",
       label: messages.sftpPasswordLabel,
       dataType: "STRING",
-      renderType: "PASSWORD",
+      renderType: "INPUT",
+      inputType: "password",
       required: false,
       defaultValue: "",
       when: (data) => data.sourceType === "SFTP",
@@ -109,7 +113,14 @@ const excelInputSchema: FlatFormSchema = {
   ],
 };
 
-export const excelInputConfigurationDefinition = createFormPluginDefinition({
+const excelInputBaseDefinition = createFormPluginDefinition({
   pluginType: "core.excel-input",
   schema: excelInputSchema,
+  dialogSize: "large",
+  validate: (values) => validateFormConfiguration(excelInputSchema, values),
+});
+
+export const excelInputConfigurationDefinition = withSchemaConfiguration({
+  definition: excelInputBaseDefinition,
+  field: { key: "schema", label: messages.schemaLabel },
 });

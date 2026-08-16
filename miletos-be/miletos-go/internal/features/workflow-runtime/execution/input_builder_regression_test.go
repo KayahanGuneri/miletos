@@ -51,13 +51,15 @@ func TestJoinInputPreservesImmutableEdgeOrderAndEveryInput(t *testing.T) {
 	want := []map[string]any{
 		{
 			"edgeId": "right-first", "sourceNodeId": "right",
+			"edgeOrder":        0,
 			"sourceOutputPort": "output", "targetInputPort": "input",
-			"value": "right-output",
+			"value": map[string]any{"value": "right-output"},
 		},
 		{
 			"edgeId": "left-second", "sourceNodeId": "left",
+			"edgeOrder":        1,
 			"sourceOutputPort": "output", "targetInputPort": "input",
-			"value": "left-output",
+			"value": map[string]any{"value": "left-output"},
 		},
 	}
 	for index, expected := range want {

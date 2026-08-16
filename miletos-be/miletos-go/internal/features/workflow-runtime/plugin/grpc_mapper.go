@@ -13,7 +13,7 @@ func mapGRPCPluginList(registrations []NodeRegistration) *runtimev1.ListPluginsR
 func mapGRPCPlugin(registration NodeRegistration) *runtimev1.Plugin {
 	return &runtimev1.Plugin{
 		Type: registration.Key, Version: "v1",
-		DisplayName: registration.DisplayName, Description: registration.Description,
+		DisplayName:             registration.Key,
 		InputMode:               registration.InputMode,
 		AcceptsInitialVariables: CanReceiveEntryInput(registration) && allowsExecutionSource(registration, "MANUAL_DIRECT"),
 		InputPorts:              mapGRPCPorts(registration.InputPorts),
@@ -22,14 +22,32 @@ func mapGRPCPlugin(registration NodeRegistration) *runtimev1.Plugin {
 		OutputEdgeConstraint:    mapGRPCEdgeConstraint(registration.OutputEdgeConstraint),
 		AllowedRootOrigins:      append([]string(nil), registration.AllowedExecutionSources...),
 		ContextProvider:         registration.ContextProvider,
+		ConnectionRestrictions:  mapGRPCConnectionRestrictions(registration.ConnectionRestrictions),
 	}
 }
 
 func mapGRPCPorts(ports []Port) []*runtimev1.Port {
 	result := make([]*runtimev1.Port, 0, len(ports))
 	for _, port := range ports {
-		result = append(result, &runtimev1.Port{
-			Name: port.Name, DisplayName: port.DisplayName, Description: port.Description,
+		mapped := &runtimev1.Port{
+			Name: port.Name, DisplayName: port.Name,
+		}
+		if port.EdgeConstraint != nil {
+			mapped.EdgeConstraint = mapGRPCEdgeConstraint(*port.EdgeConstraint)
+		}
+		result = append(result, mapped)
+	}
+	return result
+}
+
+func mapGRPCConnectionRestrictions(
+	restrictions []ConnectionRestriction,
+) []*runtimev1.ConnectionRestriction {
+	result := make([]*runtimev1.ConnectionRestriction, 0, len(restrictions))
+	for _, restriction := range restrictions {
+		result = append(result, &runtimev1.ConnectionRestriction{
+			From: restriction.From, To: restriction.To,
+			Selector: string(restriction.Selector), Position: uint32(restriction.Position),
 		})
 	}
 	return result

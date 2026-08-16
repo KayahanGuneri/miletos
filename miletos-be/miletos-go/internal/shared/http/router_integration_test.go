@@ -16,6 +16,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -48,7 +49,7 @@ func (routerQueue) Consume(
 	return nil
 }
 
-func integrationRouter(t *testing.T) http.Handler {
+func integrationRouter(t *testing.T) (http.Handler, *pgxpool.Pool) {
 	t.Helper()
 	connectionURL := strings.TrimSpace(os.Getenv("MILETOS_TEST_DATABASE_URL"))
 	if connectionURL == "" {
@@ -82,9 +83,9 @@ func integrationRouter(t *testing.T) http.Handler {
 	files, err := filepath.Glob(filepath.Join(
 		filepath.Dir(helperFile), "..", "..", "..", ".local", "migrations", "*.sql",
 	))
-	if err != nil || len(files) != 10 {
+	if err != nil || len(files) == 0 {
 		pool.Close()
-		t.Fatalf("expected ten local migration files")
+		t.Fatalf("load local migration files: %v", err)
 	}
 	sort.Strings(files)
 	for _, file := range files {
@@ -119,12 +120,16 @@ func integrationRouter(t *testing.T) http.Handler {
 	if err := plugin.RegisterBuiltinNodes(registry); err != nil {
 		t.Fatalf("RegisterBuiltinNodes() error = %v", err)
 	}
-	if err := registry.DefineNode("test.failure", func(
-		context.Context, plugin.NodeExecutionContext, map[string]any, any,
-	) (any, error) {
-		return nil, errors.New("controlled integration failure")
+	if err := registry.RegisterNode(plugin.NodeRegistration{
+		Key: "test.failure",
+		Handler: func(ctx *plugin.Context) error {
+			ctx.Lifecycles.OnRun(func() (any, error) {
+				return nil, errors.New("controlled integration failure")
+			})
+			return nil
+		},
 	}); err != nil {
-		t.Fatalf("DefineNode(test.failure) error = %v", err)
+		t.Fatalf("RegisterNode(test.failure) error = %v", err)
 	}
 	var nodeQueue queue.Queue = routerQueue{}
 	scheduler := execution.NewScheduler(
@@ -132,13 +137,14 @@ func integrationRouter(t *testing.T) http.Handler {
 	)
 	processor, err := execution.NewNodeProcessor(
 		workflows, executions, registry, scheduler, nodeQueue, "commands", 1, time.Millisecond,
+		nil, nil,
 	)
 	if err != nil {
 		t.Fatalf("NewNodeProcessor() error = %v", err)
 	}
 	workflowService := workflowfeature.NewWorkflowService(workflows, registry)
 	executionService := execution.NewExecutionService(
-		workflowService, executions, scheduler, processor, true,
+		workflowService, executions, scheduler, processor, nil, true,
 	)
 	recoveryService := execution.NewRecoveryService(
 		workflows, executions, workflowService, scheduler,
@@ -148,7 +154,7 @@ func integrationRouter(t *testing.T) http.Handler {
 	pluginController := plugin.NewController(registry)
 	executionController := execution.NewExecutionController(
 		executionService, recoveryService,
-		execution.NewExecutionQueryService(executions, workflows),
+		execution.NewExecutionQueryService(executions, workflows, registry),
 	)
 	publicController := httptrigger.NewPublicController(nil)
 	validator, err := security.NewInternalTokenValidator(routerToken)
@@ -173,7 +179,7 @@ func integrationRouter(t *testing.T) http.Handler {
 			GetExecutionErrors:     executionController.GetErrors,
 			RecoverExecution:       executionController.Recover,
 		},
-	)
+	), pool
 }
 
 func safeRouterTestDatabase(host, database string) bool {
@@ -196,6 +202,20 @@ func routerRequest(
 	body any,
 	idempotencyKey string,
 ) *httptest.ResponseRecorder {
+	return routerRequestForCompany(
+		t, router, method, path, body, idempotencyKey, "company-1",
+	)
+}
+
+func routerRequestForCompany(
+	t *testing.T,
+	router http.Handler,
+	method string,
+	path string,
+	body any,
+	idempotencyKey string,
+	companyID string,
+) *httptest.ResponseRecorder {
 	t.Helper()
 	var encoded []byte
 	if body != nil {
@@ -207,7 +227,7 @@ func routerRequest(
 	}
 	request := httptest.NewRequest(method, path, bytes.NewReader(encoded))
 	request.Header.Set("Authorization", "Bearer "+routerToken)
-	request.Header.Set(requestcontext.HeaderCompanyID, "company-1")
+	request.Header.Set(requestcontext.HeaderCompanyID, companyID)
 	if body != nil {
 		request.Header.Set("Content-Type", "application/json")
 	}
@@ -242,7 +262,7 @@ func successfulWorkflowRequest() map[string]any {
 }
 
 func TestRouterExecutionContractsIntegration(t *testing.T) {
-	router := integrationRouter(t)
+	router, _ := integrationRouter(t)
 	syncResponse := routerRequest(
 		t, router, http.MethodPost, "/api/v1/executions/sync",
 		successfulWorkflowRequest(), "sync-key",
@@ -286,8 +306,162 @@ func TestRouterExecutionContractsIntegration(t *testing.T) {
 	}
 }
 
+func TestRouterConcurrentAsyncIdempotencyIntegration(t *testing.T) {
+	router, pool := integrationRouter(t)
+	body := successfulWorkflowRequest()
+	encodedBody, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("encode concurrent request: %v", err)
+	}
+
+	const requestCount = 10
+	type concurrentResponse struct {
+		status int
+		body   []byte
+	}
+	responses := make(chan concurrentResponse, requestCount)
+	start := make(chan struct{})
+	var waitGroup sync.WaitGroup
+	for index := 0; index < requestCount; index++ {
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			<-start
+			request := httptest.NewRequest(
+				http.MethodPost,
+				"/api/v1/executions/async",
+				bytes.NewReader(encodedBody),
+			)
+			request.Header.Set("Authorization", "Bearer "+routerToken)
+			request.Header.Set(requestcontext.HeaderCompanyID, "company-1")
+			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set("Idempotency-Key", "concurrent-async-key")
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+			responses <- concurrentResponse{
+				status: response.Code,
+				body:   append([]byte(nil), response.Body.Bytes()...),
+			}
+		}()
+	}
+	close(start)
+	waitGroup.Wait()
+	close(responses)
+
+	executionIDs := make(map[string]bool)
+	acceptedCount := 0
+	inProgressCount := 0
+	for response := range responses {
+		var document map[string]any
+		if err := json.Unmarshal(response.body, &document); err != nil {
+			t.Fatalf("decode concurrent response: %v; body=%s", err, response.body)
+		}
+		switch response.status {
+		case http.StatusAccepted:
+			acceptedCount++
+			executionID, _ := document["executionId"].(string)
+			if executionID == "" {
+				t.Fatalf("accepted response has no execution ID: %s", response.body)
+			}
+			executionIDs[executionID] = true
+		case http.StatusConflict:
+			if document["code"] != "IDEMPOTENCY_REQUEST_IN_PROGRESS" {
+				t.Fatalf("unexpected conflict response: %s", response.body)
+			}
+			inProgressCount++
+		default:
+			t.Fatalf("unexpected concurrent status %d: %s", response.status, response.body)
+		}
+	}
+	if acceptedCount+inProgressCount != requestCount || acceptedCount == 0 {
+		t.Fatalf(
+			"concurrent outcomes accepted=%d in-progress=%d, want total=%d with acceptance",
+			acceptedCount, inProgressCount, requestCount,
+		)
+	}
+	if len(executionIDs) != 1 {
+		t.Fatalf("accepted execution IDs = %v, want exactly one", executionIDs)
+	}
+
+	replay := routerRequest(
+		t, router, http.MethodPost, "/api/v1/executions/async",
+		body, "concurrent-async-key",
+	)
+	if replay.Code != http.StatusAccepted {
+		t.Fatalf("eventual replay status=%d body=%s", replay.Code, replay.Body)
+	}
+	var replayDocument map[string]any
+	if err := json.Unmarshal(replay.Body.Bytes(), &replayDocument); err != nil {
+		t.Fatalf("decode replay response: %v", err)
+	}
+	replayID, _ := replayDocument["executionId"].(string)
+	if !executionIDs[replayID] || replayDocument["replayed"] != true {
+		t.Fatalf("eventual replay = %#v, accepted IDs=%v", replayDocument, executionIDs)
+	}
+
+	var executionCount int
+	if err := pool.QueryRow(context.Background(), `
+		SELECT count(*)
+		FROM workflow_runtime.workflow_executions
+		WHERE company_id = $1 AND workflow_id = $2`,
+		"company-1", "workflow-success",
+	).Scan(&executionCount); err != nil {
+		t.Fatalf("count concurrent workflow executions: %v", err)
+	}
+	if executionCount != 1 {
+		t.Fatalf("workflow execution count = %d, want 1", executionCount)
+	}
+	var commandCount int
+	if err := pool.QueryRow(context.Background(), `
+		SELECT count(*)
+		FROM workflow_runtime.outbox_messages
+		WHERE company_id = $1
+		  AND workflow_execution_id = $2
+		  AND operation_kind = 'NODE_COMMAND'`,
+		"company-1", replayID,
+	).Scan(&commandCount); err != nil {
+		t.Fatalf("count concurrent scheduling commands: %v", err)
+	}
+	if commandCount != 1 {
+		t.Fatalf("durable scheduling command count = %d, want 1", commandCount)
+	}
+
+	conflictingBody := successfulWorkflowRequest()
+	conflictingDefinition := conflictingBody["definition"].(map[string]any)
+	conflictingDefinition["name"] = "Different request"
+	conflict := routerRequest(
+		t, router, http.MethodPost, "/api/v1/executions/async",
+		conflictingBody, "concurrent-async-key",
+	)
+	if conflict.Code != http.StatusConflict {
+		t.Fatalf("reused-key status=%d body=%s", conflict.Code, conflict.Body)
+	}
+	var conflictDocument map[string]any
+	if err := json.Unmarshal(conflict.Body.Bytes(), &conflictDocument); err != nil {
+		t.Fatalf("decode reused-key response: %v", err)
+	}
+	if conflictDocument["code"] != "IDEMPOTENCY_KEY_REUSED" {
+		t.Fatalf("reused-key response = %#v", conflictDocument)
+	}
+
+	crossCompany := routerRequestForCompany(
+		t, router, http.MethodPost, "/api/v1/executions/async",
+		body, "concurrent-async-key", "company-2",
+	)
+	if crossCompany.Code != http.StatusAccepted {
+		t.Fatalf("cross-company status=%d body=%s", crossCompany.Code, crossCompany.Body)
+	}
+	var crossCompanyDocument map[string]any
+	if err := json.Unmarshal(crossCompany.Body.Bytes(), &crossCompanyDocument); err != nil {
+		t.Fatalf("decode cross-company response: %v", err)
+	}
+	if crossCompanyDocument["executionId"] == replayID {
+		t.Fatalf("cross-company execution reused company-1 execution: %#v", crossCompanyDocument)
+	}
+}
+
 func TestRouterRecoveryContractIntegration(t *testing.T) {
-	router := integrationRouter(t)
+	router, _ := integrationRouter(t)
 	failingRequest := map[string]any{
 		"definition": map[string]any{
 			"id": "workflow-failure", "name": "Failure", "revision": 1,

@@ -47,21 +47,13 @@ func TestNodeProcessorIsolatesPanicAndContinuesIndependentBranchIntegration(t *t
 		workflowfeature.NewWorkflowRepository(engineDatabaseClient(t)), executions, nodeQueue, "commands", registry,
 	)
 	var panicCalls atomic.Int32
-	if err := registry.DefineNode("panic-node", func(
-		context.Context, plugin.NodeExecutionContext, map[string]any, any,
-	) (any, error) {
+	registerTestNode(t, registry, "panic-node", func(any) (any, error) {
 		panicCalls.Add(1)
 		panic(panicSecret)
-	}); err != nil {
-		t.Fatalf("DefineNode(panic-node) error = %v", err)
-	}
-	if err := registry.DefineNode("success-node", func(
-		_ context.Context, _ plugin.NodeExecutionContext, _ map[string]any, input any,
-	) (any, error) {
+	})
+	registerTestNode(t, registry, "success-node", func(input any) (any, error) {
 		return input, nil
-	}); err != nil {
-		t.Fatalf("DefineNode(success-node) error = %v", err)
-	}
+	})
 	processor := newEngineNodeProcessor(t,
 		workflowfeature.NewWorkflowRepository(engineDatabaseClient(t)), executions, registry, scheduler,
 		nodeQueue, "commands", 1, time.Millisecond,
@@ -206,17 +198,13 @@ func TestNodeProcessorRetryableFailureThenExhaustionIntegration(t *testing.T) {
 		workflowfeature.NewWorkflowRepository(engineDatabaseClient(t)), executions, nodeQueue, "commands", registry,
 	)
 	var calls atomic.Int32
-	if err := registry.DefineNode("retry-node", func(
-		context.Context, plugin.NodeExecutionContext, map[string]any, any,
-	) (any, error) {
+	registerTestNode(t, registry, "retry-node", func(any) (any, error) {
 		calls.Add(1)
 		return nil, &plugin.NodeError{
 			Category: string(model.FailureCategoryExecution),
 			Code:     "TEST_RETRYABLE_FAILURE", Message: "retryable failure", CanRetry: true,
 		}
-	}); err != nil {
-		t.Fatalf("DefineNode() error = %v", err)
-	}
+	})
 	retryDelay := time.Millisecond
 	processor := newEngineNodeProcessor(t,
 		workflowfeature.NewWorkflowRepository(engineDatabaseClient(t)), executions, registry, scheduler,
@@ -335,19 +323,15 @@ func TestNodeProcessorSyncPanicReturnsSafeErrorIntegration(t *testing.T) {
 		CorrelationID: execution.CorrelationID, Payload: "input secret",
 	}
 	registry := plugin.NewNodeRegistry()
-	if err := registry.DefineNode("panic-node", func(
-		context.Context, plugin.NodeExecutionContext, map[string]any, any,
-	) (any, error) {
+	registerTestNode(t, registry, "panic-node", func(any) (any, error) {
 		panic("panic secret")
-	}); err != nil {
-		t.Fatalf("DefineNode() error = %v", err)
-	}
+	})
 	processor := newEngineNodeProcessor(t,
 		workflowfeature.NewWorkflowRepository(engineDatabaseClient(t)), executions, registry, nil,
 		nil, "", 1, time.Millisecond,
 	)
 
-	_, executionError := processor.ProcessSync(context.Background(), job, workflow.Nodes[0])
+	_, executionError := processor.ProcessSync(context.Background(), job, workflow, workflow.Nodes[0])
 
 	if executionError == nil {
 		t.Fatal("ProcessSync() error = nil")
@@ -453,13 +437,9 @@ func TestNodeProcessorUnknownHandlerDoesNotStallIntegration(t *testing.T) {
 	executions := repository.NewExecutionRepository(engineDatabaseClient(t))
 	nodeQueue := &recordingQueue{}
 	schedulingRegistry := plugin.NewNodeRegistry()
-	if err := schedulingRegistry.DefineNode("unknown.node", func(
-		context.Context, plugin.NodeExecutionContext, map[string]any, any,
-	) (any, error) {
+	registerTestNode(t, schedulingRegistry, "unknown.node", func(any) (any, error) {
 		return nil, nil
-	}); err != nil {
-		t.Fatalf("DefineNode(unknown.node) error = %v", err)
-	}
+	})
 	scheduler := executionfeature.NewScheduler(
 		workflowfeature.NewWorkflowRepository(engineDatabaseClient(t)), executions, nodeQueue, "commands", schedulingRegistry,
 	)
@@ -509,9 +489,7 @@ func TestNodeProcessorRetriesThenSucceedsAndIgnoresDuplicateDeliveryIntegration(
 		workflowfeature.NewWorkflowRepository(engineDatabaseClient(t)), executions, nodeQueue, "commands", registry,
 	)
 	var calls atomic.Int32
-	if err := registry.DefineNode("test.retry", func(
-		context.Context, plugin.NodeExecutionContext, map[string]any, any,
-	) (any, error) {
+	registerTestNode(t, registry, "test.retry", func(any) (any, error) {
 		if calls.Add(1) == 1 {
 			return nil, &plugin.NodeError{
 				Category: string(model.FailureCategoryExecution),
@@ -519,9 +497,7 @@ func TestNodeProcessorRetriesThenSucceedsAndIgnoresDuplicateDeliveryIntegration(
 			}
 		}
 		return "success", nil
-	}); err != nil {
-		t.Fatalf("DefineNode() error = %v", err)
-	}
+	})
 	processor := newEngineNodeProcessor(t,
 		workflowfeature.NewWorkflowRepository(engineDatabaseClient(t)), executions, registry, scheduler,
 		nodeQueue, "commands", 2, time.Millisecond,

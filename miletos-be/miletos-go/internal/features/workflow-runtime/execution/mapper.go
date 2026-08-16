@@ -11,6 +11,7 @@ import (
 
 	"miletos-go/internal/features/workflow-runtime/execution/model"
 	"miletos-go/internal/features/workflow-runtime/execution/repository"
+	"miletos-go/internal/features/workflow-runtime/plugin"
 	"miletos-go/internal/features/workflow-runtime/workflow"
 	"miletos-go/internal/shared/requestcontext"
 )
@@ -39,6 +40,7 @@ type workflowRequest struct {
 
 type nodeRequest struct {
 	ID            string                 `json:"id"`
+	DisplayName   string                 `json:"displayName,omitempty"`
 	PluginType    string                 `json:"pluginType"`
 	PluginVersion string                 `json:"pluginVersion"`
 	Configuration map[string]any         `json:"configuration,omitempty"`
@@ -76,17 +78,19 @@ func recoveryFingerprint(companyID string, executionID string) string {
 }
 
 type executionResponse struct {
-	ExecutionID      string                `json:"executionId"`
-	WorkflowID       string                `json:"workflowId"`
-	WorkflowRevision uint64                `json:"workflowRevision"`
-	Mode             string                `json:"mode"`
-	Status           model.ExecutionStatus `json:"status"`
-	CorrelationID    string                `json:"correlationId"`
-	CreatedAt        string                `json:"createdAt"`
-	StartedAt        *string               `json:"startedAt,omitempty"`
-	FinishedAt       *string               `json:"finishedAt,omitempty"`
-	ScheduledRoots   int                   `json:"scheduledRoots,omitempty"`
-	Replayed         bool                  `json:"replayed"`
+	ExecutionID      string   `json:"executionId,omitempty"`
+	ExecutionIDs     []string `json:"executionIds"`
+	ExecutionCount   int      `json:"executionCount"`
+	WorkflowID       string   `json:"workflowId"`
+	WorkflowRevision uint64   `json:"workflowRevision"`
+	Mode             string   `json:"mode"`
+	Status           string   `json:"status"`
+	CorrelationID    string   `json:"correlationId"`
+	CreatedAt        string   `json:"createdAt"`
+	StartedAt        *string  `json:"startedAt,omitempty"`
+	FinishedAt       *string  `json:"finishedAt,omitempty"`
+	ScheduledRoots   int      `json:"scheduledRoots,omitempty"`
+	Replayed         bool     `json:"replayed"`
 }
 
 type executionSummaryResponse struct {
@@ -164,7 +168,8 @@ func mapWorkflowRequest(request workflowRequest, companyID string) workflow.Work
 	}
 	for _, node := range request.Nodes {
 		definition.Nodes = append(definition.Nodes, workflow.WorkflowNode{
-			ID: node.ID, Type: node.PluginType, Version: node.PluginVersion,
+			ID: node.ID, DisplayName: node.DisplayName,
+			Type: node.PluginType, Version: node.PluginVersion,
 			Configuration: node.Configuration, Position: node.Position,
 		})
 	}
@@ -183,12 +188,34 @@ func mapExecutionOutcome(outcome ExecutionOutcome) executionResponse {
 	return executionResponse{
 		ExecutionID: execution.ID, WorkflowID: execution.WorkflowID,
 		WorkflowRevision: execution.WorkflowRevision, Mode: execution.Mode,
-		Status: execution.Status, CorrelationID: execution.CorrelationID,
+		Status: string(execution.Status), CorrelationID: execution.CorrelationID,
 		CreatedAt: execution.CreatedAt.UTC().Format(time.RFC3339Nano),
 		StartedAt: formatTime(execution.StartedAt), FinishedAt: formatTime(execution.FinishedAt),
 		ScheduledRoots: outcome.ScheduledEntryNodes,
 		Replayed:       outcome.Replayed,
+		ExecutionIDs:   []string{execution.ID},
+		ExecutionCount: 1,
 	}
+}
+
+func mapManualExecutionBatch(batch ManualExecutionBatch) executionResponse {
+	response := executionResponse{
+		ExecutionIDs:   make([]string, 0, len(batch.Executions)),
+		ExecutionCount: len(batch.Executions), WorkflowID: batch.WorkflowID,
+		WorkflowRevision: batch.WorkflowRevision, Mode: batch.Mode, Status: batch.Status,
+		CorrelationID: batch.CorrelationID, ScheduledRoots: batch.ScheduledEntryNodes,
+		Replayed: batch.Replayed,
+	}
+	for _, execution := range batch.Executions {
+		response.ExecutionIDs = append(response.ExecutionIDs, execution.ID)
+	}
+	if len(batch.Executions) == 1 {
+		return mapExecutionOutcome(ExecutionOutcome{
+			Execution: batch.Executions[0], ScheduledEntryNodes: batch.ScheduledEntryNodes,
+			Replayed: batch.Replayed,
+		})
+	}
+	return response
 }
 
 func mapExecutionSummary(execution model.Execution) executionSummaryResponse {
@@ -249,6 +276,20 @@ func fingerprint(value any) string {
 }
 
 func writeExecutionError(writer http.ResponseWriter, request *http.Request, err error) {
+	var nodeError *plugin.NodeError
+	if errors.As(err, &nodeError) {
+		statusCode := http.StatusInternalServerError
+		if nodeError.Category == "VALIDATION" {
+			statusCode = http.StatusUnprocessableEntity
+		} else if nodeError.Category == "EXECUTION" {
+			statusCode = http.StatusBadGateway
+			if nodeError.CanRetry {
+				statusCode = http.StatusServiceUnavailable
+			}
+		}
+		WriteAPIError(writer, request, statusCode, nodeError.Code, nodeError.Message)
+		return
+	}
 	switch {
 	case errors.Is(err, repository.ErrNotFound):
 		WriteAPIError(writer, request, http.StatusNotFound, "NOT_FOUND",
@@ -256,6 +297,9 @@ func writeExecutionError(writer http.ResponseWriter, request *http.Request, err 
 	case errors.Is(err, repository.ErrIdempotencyConflict):
 		WriteAPIError(writer, request, http.StatusConflict, "IDEMPOTENCY_KEY_REUSED",
 			"Idempotency-Key was already used for a different request.")
+	case errors.Is(err, ErrIdempotencyRequestInProgress):
+		WriteAPIError(writer, request, http.StatusConflict, "IDEMPOTENCY_REQUEST_IN_PROGRESS",
+			"A request with this Idempotency-Key is still in progress.")
 	case errors.Is(err, context.DeadlineExceeded):
 		WriteAPIError(writer, request, http.StatusGatewayTimeout, "REQUEST_TIMEOUT",
 			"Workflow execution exceeded the allowed request deadline.")
@@ -279,6 +323,10 @@ func writeExecutionError(writer http.ResponseWriter, request *http.Request, err 
 		WriteAPIError(writer, request, http.StatusUnprocessableEntity,
 			"INVALID_EXECUTION_ORIGIN",
 			"The workflow is incompatible with this execution origin.")
+	case errors.Is(err, ErrAmbiguousRecordSources):
+		WriteAPIError(writer, request, http.StatusUnprocessableEntity,
+			"AMBIGUOUS_RECORD_SOURCES",
+			"Multiple record sources require an explicit correlation contract.")
 	case errors.Is(err, ErrRecoveryUnsupported):
 		WriteAPIError(writer, request, http.StatusConflict, "RECOVERY_NOT_SUPPORTED",
 			"The source execution is not eligible for partial recovery.")

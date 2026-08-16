@@ -51,9 +51,10 @@ func MapWorkflowFromGRPC(
 	}
 	for _, node := range definition.GetNodes() {
 		mapped := workflow.WorkflowNode{
-			ID:      node.GetNodeId(),
-			Type:    node.GetPluginType(),
-			Version: node.GetPluginVersion(),
+			ID:          node.GetNodeId(),
+			DisplayName: node.GetDisplayName(),
+			Type:        node.GetPluginType(),
+			Version:     node.GetPluginVersion(),
 		}
 		if node.Configuration != nil {
 			mapped.Configuration = node.Configuration.AsMap()
@@ -89,6 +90,7 @@ func mapGRPCWorkflow(definition workflow.Workflow) *runtimev1.WorkflowDefinition
 	for _, node := range definition.Nodes {
 		mapped := &runtimev1.WorkflowNode{
 			NodeId:        node.ID,
+			DisplayName:   &node.DisplayName,
 			PluginType:    node.Type,
 			PluginVersion: node.Version,
 			Configuration: grpcserver.Struct(node.Configuration),
@@ -131,7 +133,43 @@ func mapGRPCExecutionOutcome(outcome ExecutionOutcome, requestID string) *runtim
 		Replayed:         outcome.Replayed,
 		TerminalOutputs:  grpcserver.Struct(execution.TerminalOutputs),
 		FailureSummary:   grpcserver.Struct(execution.Failure),
+		ExecutionIds:     []string{execution.ID},
+		ExecutionCount:   1,
 	}
+}
+
+func mapGRPCManualExecutionBatch(
+	batch ManualExecutionBatch,
+	requestID string,
+) *runtimev1.ExecutionResponse {
+	response := &runtimev1.ExecutionResponse{
+		WorkflowId:       batch.WorkflowID,
+		WorkflowRevision: batch.WorkflowRevision,
+		SnapshotId:       batch.SnapshotID,
+		Mode:             batch.Mode,
+		Status:           batch.Status,
+		ExecutionOrigin:  string(model.ExecutionOriginManualDirect),
+		CorrelationId:    batch.CorrelationID,
+		RequestId:        requestID,
+		ScheduledRoots:   uint32(batch.ScheduledEntryNodes),
+		Replayed:         batch.Replayed,
+		ExecutionIds:     make([]string, 0, len(batch.Executions)),
+		ExecutionCount:   uint32(len(batch.Executions)),
+	}
+	for _, execution := range batch.Executions {
+		response.ExecutionIds = append(response.ExecutionIds, execution.ID)
+	}
+	if len(batch.Executions) != 1 {
+		return response
+	}
+	single := mapGRPCExecutionOutcome(
+		ExecutionOutcome{
+			Execution: batch.Executions[0], ScheduledEntryNodes: batch.ScheduledEntryNodes,
+			Replayed: batch.Replayed,
+		},
+		requestID,
+	)
+	return single
 }
 
 func mapGRPCExecutionPage(page model.Page[model.Execution]) *runtimev1.ExecutionPage {

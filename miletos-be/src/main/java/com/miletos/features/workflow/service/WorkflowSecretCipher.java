@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 @Component
-public class SftpPasswordCipher {
+public class WorkflowSecretCipher {
 
   private static final String TRANSFORMATION = "AES/GCM/NoPadding";
   private static final int GCM_IV_LENGTH_BYTES = 12;
@@ -25,7 +25,7 @@ public class SftpPasswordCipher {
   private final byte[] keyBytes;
   private final SecureRandom secureRandom = new SecureRandom();
 
-  public SftpPasswordCipher(SecretsProperties secretsProperties) {
+  public WorkflowSecretCipher(SecretsProperties secretsProperties) {
     this.keyBytes = decodeKey(secretsProperties == null ? null : secretsProperties.aesKey());
   }
 

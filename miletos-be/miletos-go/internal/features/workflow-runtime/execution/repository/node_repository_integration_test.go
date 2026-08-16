@@ -122,7 +122,7 @@ func TestNodeRepositorySuccessIntegration(t *testing.T) {
 		t.Fatalf("MarkNodeRunning() = (%v, %v)", started, err)
 	}
 	if err := repository.SaveNodeSuccess(
-		context.Background(), job, map[string]any{"result": "success"},
+		context.Background(), job, map[string]any{"result": "success"}, model.NodeRoutingOutcome{},
 	); err != nil {
 		t.Fatalf("SaveNodeSuccess() error = %v", err)
 	}

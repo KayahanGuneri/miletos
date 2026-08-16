@@ -48,8 +48,11 @@ func (server *GRPCService) GetActiveCronTriggerByWorkflow(
 	if request == nil || request.GetWorkflowId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "workflow id is required")
 	}
-	binding, err := server.service.GetActiveByWorkflow(
-		ctx, requestcontext.CompanyID(ctx), request.GetWorkflowId(),
+	if request.GetTriggerNodeId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "trigger node id is required")
+	}
+	binding, err := server.service.GetActiveByWorkflowAndNode(
+		ctx, requestcontext.CompanyID(ctx), request.GetWorkflowId(), request.GetTriggerNodeId(),
 	)
 	if err != nil {
 		return nil, mapGRPCError(err)

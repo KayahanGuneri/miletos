@@ -138,7 +138,6 @@ public class WorkflowRuntimeGrpcJsonAdapter {
           node -> {
             if (node instanceof ObjectNode object) {
               rename(object, "id", "nodeId");
-              object.remove("displayName");
             }
           });
     }

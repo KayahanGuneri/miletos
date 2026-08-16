@@ -113,6 +113,8 @@ type NodeExecution struct {
 	UpdatedAt     time.Time          `json:"updatedAt"`
 	Input         map[string]any     `json:"inputSummary,omitempty"`
 	Output        map[string]any     `json:"outputSummary,omitempty"`
+	InputPayload  any                `json:"-"`
+	OutputPayload any                `json:"-"`
 	Failure       map[string]any     `json:"failureSummary,omitempty"`
 	Routing       NodeRoutingOutcome `json:"-"`
 	LockVersion   int64              `json:"-"`
@@ -122,6 +124,7 @@ const (
 	ExecutionOriginManualDirect ExecutionOrigin = "MANUAL_DIRECT"
 	ExecutionOriginHTTPWebhook  ExecutionOrigin = "HTTP_WEBHOOK"
 	ExecutionOriginCron         ExecutionOrigin = "CRON"
+	ExecutionOriginDataArrival  ExecutionOrigin = "DATA_ARRIVAL"
 )
 
 type ExecutionEvent struct {

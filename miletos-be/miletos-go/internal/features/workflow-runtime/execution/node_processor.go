@@ -12,7 +12,7 @@ import (
 	"miletos-go/internal/features/workflow-runtime/execution/queue"
 	"miletos-go/internal/features/workflow-runtime/execution/repository"
 	"miletos-go/internal/features/workflow-runtime/plugin"
-	"miletos-go/internal/features/workflow-runtime/pluginstate"
+	pluginstate "miletos-go/internal/features/workflow-runtime/plugin-state"
 	"miletos-go/internal/features/workflow-runtime/workflow"
 )
 
@@ -27,6 +27,23 @@ type NodeProcessor struct {
 	retryDelay      time.Duration
 	state           *pluginstate.Repository
 	emitter         *PluginEmitter
+	workflowsInfra  *WorkflowInfrastructure
+	database        plugin.DatabaseInfrastructure
+	secrets         plugin.SecretsInfrastructure
+}
+
+func (processor *NodeProcessor) SetWorkflowInfrastructure(
+	infrastructure *WorkflowInfrastructure,
+) {
+	processor.workflowsInfra = infrastructure
+}
+
+func (processor *NodeProcessor) SetDatabase(database plugin.DatabaseInfrastructure) {
+	processor.database = database
+}
+
+func (processor *NodeProcessor) SetSecrets(secrets plugin.SecretsInfrastructure) {
+	processor.secrets = secrets
 }
 
 type classifiedNodeError struct {
@@ -266,7 +283,7 @@ func (processor *NodeProcessor) processAttempts(
 					return nodeRunResult{}, decodeErr
 				}
 				return nodeRunResult{
-					output: decoded.Output, routing: decoded.Routing,
+					output: decoded.OutputPayload, routing: decoded.Routing,
 				}, nil
 			}
 			if state.Status == model.NodeRunning {
@@ -304,6 +321,17 @@ func (processor *NodeProcessor) processAttempts(
 			infrastructure := plugin.Infrastructure{}
 			if processor.emitter != nil {
 				infrastructure.Emitter = processor.emitter.ForContext(ctx, registration.Key)
+			}
+			if processor.workflowsInfra != nil {
+				infrastructure.Workflow = processor.workflowsInfra.ForContext(
+					ctx, job.CompanyID, job.WorkflowID,
+				)
+			}
+			if processor.database != nil {
+				infrastructure.Database = processor.database
+			}
+			if processor.secrets != nil {
+				infrastructure.Secrets = processor.secrets
 			}
 			nodeContext := plugin.NewContext(plugin.ContextOptions{
 				Runtime:        ctx,

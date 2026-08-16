@@ -145,7 +145,7 @@ func (service *RecoveryService) Recover(
 				return RecoveryOutcome{}, decodeErr
 			}
 			recoveryOutcomes[state.NodeID] = nodeOutcome{
-				status: decoded.Status, output: decoded.Output, routing: decoded.Routing,
+				status: decoded.Status, output: decoded.OutputPayload, routing: decoded.Routing,
 			}
 		} else if excluded[state.NodeID] {
 			recoveryOutcomes[state.NodeID] = nodeOutcome{

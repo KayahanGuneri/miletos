@@ -59,12 +59,13 @@ public class WorkflowController {
   @PostMapping
   public ResponseEntity<WorkflowResponse> createWorkflow(
       @Valid @RequestBody CreateWorkflowRequest request,
-      @AuthenticationPrincipal(expression = "subject") String actorEmail) {
+      @AuthenticationPrincipal(expression = "subject") String actorEmail,
+      @RequestHeader HttpHeaders browserHeaders) {
 
     User user = authenticatedActorResolver.resolve(actorEmail);
     Workflow workflow = workflowMapper.toEntity(request, user);
 
-    Workflow createdWorkflow = workflowService.createWorkflow(workflow);
+    Workflow createdWorkflow = workflowService.createWorkflow(workflow, browserHeaders);
 
     return ResponseEntity.status(HttpStatus.CREATED)
         .body(workflowMapper.toResponse(createdWorkflow));
@@ -104,12 +105,13 @@ public class WorkflowController {
   public ResponseEntity<WorkflowResponse> updateWorkflow(
       @PathVariable Long workflowId,
       @Valid @RequestBody UpdateWorkflowRequest request,
-      @AuthenticationPrincipal(expression = "subject") String actorEmail) {
+      @AuthenticationPrincipal(expression = "subject") String actorEmail,
+      @RequestHeader HttpHeaders browserHeaders) {
 
     User user = authenticatedActorResolver.resolve(actorEmail);
     Workflow changes = workflowMapper.toEntity(request, user);
 
-    Workflow updatedWorkflow = workflowService.updateWorkflow(workflowId, changes);
+    Workflow updatedWorkflow = workflowService.updateWorkflow(workflowId, changes, browserHeaders);
 
     return ResponseEntity.ok(workflowMapper.toResponse(updatedWorkflow));
   }

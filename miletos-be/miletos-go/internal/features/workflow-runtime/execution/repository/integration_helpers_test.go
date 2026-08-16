@@ -77,8 +77,8 @@ func applyIntegrationMigrations(t *testing.T, pool *pgxpool.Pool) {
 		filepath.Dir(helperFile), "..", "..", "..", "..", "..", ".local", "migrations",
 	)
 	files, err := filepath.Glob(filepath.Join(directory, "*.sql"))
-	if err != nil || len(files) != 10 {
-		t.Fatalf("expected ten local migration files in %s; prepare the test schema manually if unavailable", directory)
+	if err != nil || len(files) != 13 {
+		t.Fatalf("expected thirteen local migration files in %s; prepare the test schema manually if unavailable", directory)
 	}
 	sort.Strings(files)
 	for _, file := range files {

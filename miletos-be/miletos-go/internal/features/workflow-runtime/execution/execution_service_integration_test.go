@@ -72,6 +72,7 @@ func integrationExecutionService(
 		executions,
 		scheduler,
 		processor,
+		nil,
 		true,
 	)
 

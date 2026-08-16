@@ -17,6 +17,7 @@ export interface WorkflowDefinition {
   revision: number;
   nodes: Array<{
     id: string;
+    displayName?: string;
     pluginType: string;
     pluginVersion: string;
     configuration?: Record<string, unknown>;
@@ -204,11 +205,13 @@ export interface RunWorkflowCommand {
 }
 
 export interface RunWorkflowResponse {
-  executionId: string;
+  executionId?: string;
+  executionIds: string[];
+  executionCount: number;
   workflowId: string;
   workflowRevision: number;
   mode: ExecutionMode;
-  status: ExecutionStatus;
+  status: ExecutionStatus | "DISPATCHED" | "NO_RECORDS";
   correlationId: string;
   createdAt: string;
   startedAt?: string;

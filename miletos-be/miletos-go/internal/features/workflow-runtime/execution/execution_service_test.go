@@ -17,7 +17,7 @@ func TestExecutionServiceRejectsAsyncWhenUnavailable(t *testing.T) {
 	}
 	workflowService := workflow.NewWorkflowService(nil, registry)
 	scheduler := execution.NewScheduler(nil, nil, nil, "", registry)
-	service := execution.NewExecutionService(workflowService, nil, scheduler, nil, false)
+	service := execution.NewExecutionService(workflowService, nil, scheduler, nil, nil, false)
 	definition := workflow.Workflow{
 		ID: "workflow-1", CompanyID: "company-1", Name: "Workflow", Revision: 1,
 		Nodes: []workflow.WorkflowNode{{
@@ -37,7 +37,7 @@ func TestExecutionServiceRejectsAsyncWhenUnavailable(t *testing.T) {
 
 func TestExecutionServiceRejectsInvalidSyncWorkflowBeforePersistence(t *testing.T) {
 	workflowService := workflow.NewWorkflowService(nil, plugin.NewNodeRegistry())
-	service := execution.NewExecutionService(workflowService, nil, nil, nil, false)
+	service := execution.NewExecutionService(workflowService, nil, nil, nil, nil, false)
 
 	_, err := service.ExecuteSync(
 		context.Background(), workflow.Workflow{}, nil, "corr-1", "key-1", "fingerprint",
@@ -55,7 +55,7 @@ func TestExecutionServiceRejectsStartInputForStaticEntryNodeBeforePersistence(t 
 	}
 	workflowService := workflow.NewWorkflowService(nil, registry)
 	scheduler := execution.NewScheduler(nil, nil, nil, "", registry)
-	service := execution.NewExecutionService(workflowService, nil, scheduler, nil, false)
+	service := execution.NewExecutionService(workflowService, nil, scheduler, nil, nil, false)
 	definition := workflow.Workflow{
 		ID: "workflow-1", CompanyID: "company-1", Name: "Workflow", Revision: 1,
 		Nodes: []workflow.WorkflowNode{{

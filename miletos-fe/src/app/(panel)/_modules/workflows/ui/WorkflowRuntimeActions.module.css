@@ -1,17 +1,23 @@
 .workflowRuntime__panel {
   margin: 0;
-  padding: 4px 0 0;
+  padding: 16px 18px 18px;
   display: grid;
   gap: 10px;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
+  border: 1px solid rgba(75, 70, 255, 0.12);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .workflowRuntime__panel > header h2,
 .workflowRuntime__card h3 {
   margin: 0;
   color: var(--color-text);
+}
+
+.workflowRuntime__panel > header h2 {
+  font-size: 16px;
+  letter-spacing: -0.02em;
 }
 
 .workflowRuntime__panel > header p,

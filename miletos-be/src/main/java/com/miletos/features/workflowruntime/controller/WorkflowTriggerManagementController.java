@@ -91,10 +91,12 @@ public class WorkflowTriggerManagementController {
   @GetMapping("/triggers/cron")
   public ResponseEntity<byte[]> getActiveCronTrigger(
       @PathVariable Long workflowId,
+      @RequestParam String triggerNodeId,
       @CurrentUser User user,
       @RequestHeader HttpHeaders browserHeaders) {
     return response(
-        triggerManagementService.getActiveCronTrigger(user, workflowId, browserHeaders));
+        triggerManagementService.getActiveCronTrigger(
+            user, workflowId, triggerNodeId, browserHeaders));
   }
 
   @Authorize(RequiredRole.COMPANY_ADMIN)

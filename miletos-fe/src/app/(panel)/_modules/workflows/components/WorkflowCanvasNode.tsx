@@ -22,16 +22,20 @@ export function WorkflowCanvasNode({ data, selected }: NodeProps) {
 
   return (
     <Box className={styles.workflowEditor__node} data-selected={selected}>
-      {nodeData.plugin?.inputPorts.map((port, index) => (
-        <Handle
-          key={port.name}
-          id={port.name}
-          type="target"
-          position={Position.Left}
-          style={{ top: 28 + index * 16 }}
-          title={port.displayName}
-        />
-      ))}
+      {nodeData.plugin?.inputPorts.map((port, index) => {
+        const top = 30 + index * 20;
+        return (
+          <span key={port.name} className={styles.workflowEditor__inputPort} style={{ top }}>
+            <Handle
+              id={port.name}
+              type="target"
+              position={Position.Left}
+              title={port.description || port.displayName || port.name}
+            />
+            <span>{port.displayName || port.name}</span>
+          </span>
+        );
+      })}
       <Typography as="span" className={styles.workflowEditor__nodeCategory}>
         {PLUGIN_CATEGORY_LABELS[category]}
       </Typography>
@@ -39,16 +43,20 @@ export function WorkflowCanvasNode({ data, selected }: NodeProps) {
       <Typography as="small">
         {nodeData.pluginType} · {nodeData.pluginVersion}
       </Typography>
-      {nodeData.plugin?.outputPorts.map((port, index) => (
-        <Handle
-          key={port.name}
-          id={port.name}
-          type="source"
-          position={Position.Right}
-          style={{ top: 28 + index * 16 }}
-          title={port.displayName}
-        />
-      ))}
+      {nodeData.plugin?.outputPorts.map((port, index) => {
+        const top = 30 + index * 20;
+        return (
+          <span key={port.name} className={styles.workflowEditor__outputPort} style={{ top }}>
+            <span>{port.displayName || port.name}</span>
+            <Handle
+              id={port.name}
+              type="source"
+              position={Position.Right}
+              title={port.description || port.displayName || port.name}
+            />
+          </span>
+        );
+      })}
     </Box>
   );
 }

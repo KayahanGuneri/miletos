@@ -84,7 +84,7 @@ func (repository *ExecutionRepository) MarkNodeQueued(
 	now := time.Now().UTC()
 	var encodedInput any
 	if len(payload) > 0 {
-		encoded, encodeErr := encodeJSON(objectSummary(payload[0]))
+		encoded, encodeErr := encodeJSON(model.EncodePersistedValue(payload[0]))
 		if encodeErr != nil {
 			return model.NodeExecution{}, false, encodeErr
 		}
@@ -104,7 +104,7 @@ func (repository *ExecutionRepository) MarkNodeQueued(
 			input_summary = COALESCE(CAST($5 AS jsonb), input_summary),
 			updated_at = $4, lock_version = lock_version + 1
 		WHERE company_id = $1 AND workflow_execution_id = $2 AND node_id = $3
-		  AND status IN ('PENDING', 'RETRY_PENDING')
+		  AND status IN ('PENDING', 'READY', 'RETRY_PENDING')
 		RETURNING node_execution_id`,
 		companyID, executionID, nodeID, now, encodedInput,
 	).Scan(&nodeExecutionID)
@@ -143,7 +143,7 @@ func (repository *ExecutionRepository) QueueNodeCommand(
 	now := time.Now().UTC()
 
 	encodedInput, err := encodeJSON(
-		objectSummary(payload),
+		model.EncodePersistedValue(payload),
 	)
 	if err != nil {
 		return model.NodeExecution{}, false, err
@@ -160,7 +160,6 @@ func (repository *ExecutionRepository) QueueNodeCommand(
 
 	var nodeExecutionID string
 
-	// The node transition and its durable command are committed atomically.
 	err = transaction.QueryRow(ctx, `
 UPDATE workflow_runtime.node_executions
 SET status = 'QUEUED',
@@ -268,7 +267,7 @@ RETURNING node_execution_id`,
 }
 func (repository *ExecutionRepository) MarkNodeRunning(ctx context.Context, job model.NodeJob) (bool, error) {
 	now := time.Now().UTC()
-	input, err := encodeJSON(objectSummary(job.Payload))
+	input, err := encodeJSON(model.EncodePersistedValue(job.Payload))
 	if err != nil {
 		return false, err
 	}
@@ -277,7 +276,6 @@ func (repository *ExecutionRepository) MarkNodeRunning(ctx context.Context, job 
 		return false, fmt.Errorf("begin node start transaction: %w", err)
 	}
 	defer transaction.Rollback(ctx)
-	// Raw SQL performs the queued-to-running compare-and-set in the attempt transaction.
 	command, err := transaction.Exec(ctx, `
 		UPDATE workflow_runtime.node_executions
 		SET status = 'RUNNING', attempt = $5, started_at = COALESCE(started_at, $6),
@@ -345,13 +343,13 @@ func (repository *ExecutionRepository) SaveNodeSuccess(
 	routing model.NodeRoutingOutcome,
 ) error {
 	now := time.Now().UTC()
-	outputSummary := objectSummary(output)
-	var persistedOutput any = outputSummary
+	persistedValue := model.EncodePersistedValue(output)
+	var persistedOutput any = persistedValue
 	if routing.Explicit {
 		persistedOutput = model.PersistedRoutedOutput{
 			Format:       model.PersistedRoutedOutputFormat,
-			Output:       outputSummary,
-			EdgePayloads: routing.EdgePayloads,
+			Output:       persistedValue,
+			EdgePayloads: model.EncodePersistedEdgePayloads(routing.EdgePayloads),
 		}
 	}
 	encoded, err := encodeJSON(persistedOutput)
@@ -363,7 +361,6 @@ func (repository *ExecutionRepository) SaveNodeSuccess(
 		return fmt.Errorf("begin node success transaction: %w", err)
 	}
 	defer transaction.Rollback(ctx)
-	// Raw SQL guards success persistence by node execution id, attempt, and running state.
 	command, err := transaction.Exec(ctx, `
 		UPDATE workflow_runtime.node_executions
 		SET status = 'SUCCEEDED', output_summary = $5, failure_summary = NULL,
@@ -379,7 +376,6 @@ func (repository *ExecutionRepository) SaveNodeSuccess(
 	if command.RowsAffected() != 1 {
 		return fmt.Errorf("%w: node success requires one RUNNING node", ErrStateTransition)
 	}
-	// Raw SQL completes only the exact running attempt in the node-success transaction.
 	command, err = transaction.Exec(ctx, `
 		UPDATE workflow_runtime.node_execution_attempts
 		SET attempt_status = 'SUCCEEDED', output_summary = $5, finished_at = $6, updated_at = $6
@@ -455,15 +451,9 @@ func (repository *ExecutionRepository) SaveNodeFailure(
 	status := model.NodeFailed
 	eventType := "NODE_FAILED"
 
-	// Final failure:
-	// finished_at = failedAt
-	// next_attempt_at = NULL
 	var finishedAt any = failedAt
 	var scheduledAt any
 
-	// Retriable failure:
-	// finished_at = NULL
-	// next_attempt_at = nextAttempt
 	if retry {
 		status = model.NodeRetryPending
 		eventType = "NODE_RETRY_PENDING"
@@ -471,7 +461,6 @@ func (repository *ExecutionRepository) SaveNodeFailure(
 		scheduledAt = nextAttempt
 	}
 
-	// Raw SQL persists failure and retry scheduling as one guarded state transition.
 	command, err := transaction.Exec(ctx, `
 		UPDATE workflow_runtime.node_executions
 		SET status = $5::text,
@@ -524,7 +513,6 @@ func (repository *ExecutionRepository) SaveNodeFailure(
 		)
 	}
 
-	// Raw SQL synchronizes the parent execution state with the node failure transaction.
 	command, err = transaction.Exec(ctx, `
 		UPDATE workflow_runtime.workflow_executions
 		SET updated_at = $3::timestamptz,
@@ -572,7 +560,6 @@ func (repository *ExecutionRepository) SaveNodeFailure(
 		}
 	}
 
-	// Raw SQL records retry metadata only for the exact failed attempt.
 	command, err = transaction.Exec(ctx, `
 		UPDATE workflow_runtime.node_execution_attempts
 		SET attempt_status = 'FAILED',
@@ -746,7 +733,6 @@ func (repository *ExecutionRepository) MarkNodeSkipped(
 	}
 	defer transaction.Rollback(ctx)
 	var nodeExecutionID string
-	// Raw SQL needs UPDATE RETURNING to couple the guarded skip transition to its event.
 	err = transaction.QueryRow(ctx, `
 		UPDATE workflow_runtime.node_executions
 		SET status = 'SKIPPED', finished_at = $4, updated_at = $4,
@@ -799,7 +785,6 @@ func skipReasonMessage(reason string) string {
 func (repository *ExecutionRepository) PrepareRetry(ctx context.Context, job model.NodeJob) (model.NodeJob, error) {
 	now := time.Now().UTC()
 	nextAttempt := job.Attempt + 1
-	// Raw SQL needs UPDATE RETURNING for the attempt-and-status guarded retry handoff.
 	err := repository.dbClient.QueryRow(ctx, `
 		UPDATE workflow_runtime.node_executions
 		SET status = 'QUEUED', attempt = $5, queued_at = $6, next_attempt_at = NULL,
@@ -831,17 +816,4 @@ func (repository *ExecutionRepository) PrepareRetry(ctx context.Context, job mod
 	}
 	job.Attempt = nextAttempt
 	return job, nil
-}
-
-func objectSummary(value any) map[string]any {
-	if value == nil {
-		return map[string]any{}
-	}
-	if object, ok := value.(map[string]any); ok {
-		if object == nil {
-			return map[string]any{}
-		}
-		return object
-	}
-	return map[string]any{"value": value}
 }

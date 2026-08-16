@@ -1,0 +1,4 @@
+name: miletos-auth-runtime
+
+include:
+  - path: ./miletos-be/docker-compose.yml

@@ -53,6 +53,7 @@ func (service *WorkflowService) Validate(workflow Workflow) error {
 		workflow,
 		service.registry.Get,
 		service.registry.ValidateConfiguration,
+		service.registry.ConnectionRestricted,
 	); err != nil {
 		var validationError *WorkflowDefinitionValidationError
 		if errors.As(err, &validationError) {
@@ -63,4 +64,20 @@ func (service *WorkflowService) Validate(workflow Workflow) error {
 		return fmt.Errorf("%w: %v", ErrInvalidWorkflow, err)
 	}
 	return nil
+}
+
+func (service *WorkflowService) FindCatalog(
+	ctx context.Context,
+	companyID string,
+	workflowID string,
+) (CatalogWorkflow, error) {
+	return service.workflows.FindCatalog(ctx, companyID, workflowID)
+}
+
+func (service *WorkflowService) FindSnapshot(
+	ctx context.Context,
+	companyID string,
+	snapshotID string,
+) (WorkflowSnapshot, error) {
+	return service.workflows.FindBySnapshotID(ctx, companyID, snapshotID)
 }

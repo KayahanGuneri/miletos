@@ -45,7 +45,7 @@ func resolveNodeRoutes(
 				}
 				continue
 			}
-			edgePayloads[edge.ID] = normalizeOutput(predecessor.output)
+			edgePayloads[edge.ID] = predecessor.output
 			active++
 		case model.NodeSkipped:
 			if predecessor.skipReason == model.SkipReasonDependencyFailed {
@@ -78,7 +78,7 @@ func nodeOutcomes(states map[string]model.NodeExecution) map[string]nodeOutcome 
 	for nodeID, state := range states {
 		outcomes[nodeID] = nodeOutcome{
 			status: state.Status, skipReason: model.SkipReason(nodeSkipReason(state)),
-			output: state.Output, routing: state.Routing,
+			output: state.OutputPayload, routing: state.Routing,
 		}
 	}
 	return outcomes
