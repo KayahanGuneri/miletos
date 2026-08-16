@@ -10,15 +10,15 @@
 }
 
 .dialog__panel {
-  width: min(620px, 100%);
-  max-height: min(760px, calc(100dvh - 48px));
+  width: min(560px, 100%);
+  max-height: min(720px, calc(100dvh - 48px));
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;
   border: 1px solid var(--color-border);
-  border-radius: 20px;
+  border-radius: var(--radius-lg);
   background: #fff;
-  box-shadow: 0 24px 72px rgba(16, 24, 40, 0.24);
+  box-shadow: 0 24px 60px rgba(16, 24, 40, 0.18);
 }
 
 .dialog__panel[data-size="large"] {
@@ -26,7 +26,7 @@
 }
 
 .dialog__header {
-  padding: 20px 22px 16px;
+  padding: 18px 20px 14px;
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -37,7 +37,7 @@
 
 .dialog__header h2 {
   color: var(--color-text);
-  font-size: 20px;
+  font-size: 18px;
 }
 
 .dialog__header p {
@@ -48,14 +48,14 @@
 }
 
 .dialog__body {
-  padding: 22px;
+  padding: 16px 18px;
   overflow-y: auto;
 }
 
 .dialog__footer {
-  padding: 14px 22px;
+  padding: 12px 18px;
   display: flex;
-  gap: 10px;
+  gap: 8px;
   justify-content: flex-end;
   border-top: 1px solid var(--color-border);
   background: var(--color-surface-soft);

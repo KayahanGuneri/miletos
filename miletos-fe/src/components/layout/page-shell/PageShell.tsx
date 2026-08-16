@@ -9,11 +9,23 @@ interface PageShellProps {
   description: string;
   actions?: ReactNode;
   children: ReactNode;
+  variant?: "default" | "workbench";
 }
 
-export function PageShell({ eyebrow, title, description, actions, children }: PageShellProps) {
+export function PageShell({
+  eyebrow,
+  title,
+  description,
+  actions,
+  children,
+  variant = "default",
+}: PageShellProps) {
   return (
-    <main className={styles.pageShell}>
+    <main
+      className={[styles.pageShell, variant === "workbench" ? styles.pageShellWorkbench : ""]
+        .filter(Boolean)
+        .join(" ")}
+    >
       <Box className={styles.pageShell__inner}>
         <header className={styles.pageShell__header}>
           <Box className={styles.pageShell__heading}>

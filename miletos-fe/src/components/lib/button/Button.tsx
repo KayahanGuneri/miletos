@@ -4,6 +4,8 @@ import styles from "./Button.module.css";
 export enum ButtonVariant {
   Primary = "primary",
   Secondary = "secondary",
+  Ghost = "ghost",
+  Danger = "danger",
 }
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {

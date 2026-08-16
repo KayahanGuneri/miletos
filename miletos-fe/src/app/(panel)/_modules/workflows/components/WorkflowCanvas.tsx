@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState, type DragEvent as ReactDragEvent } from "react";
 import {
-  addEdge,
   applyNodeChanges,
   Background,
   Controls,
@@ -24,6 +23,7 @@ import {
   type WorkflowNode,
 } from "@/app/(panel)/_modules/workflows/types/workflow-interfaces";
 import { type WorkflowPlugin } from "@/app/(panel)/_modules/workflows/types/workflow-types";
+import { validateWorkflowEdgeConnection } from "@/app/(panel)/_modules/workflows/utils/workflow-edge-validation";
 import { createClientId } from "@/app/(panel)/_modules/workflows/utils/workflow-utils";
 import {
   PLUGIN_DRAG_DATA_TYPE,
@@ -64,27 +64,29 @@ export function WorkflowCanvas({
   onDeleteNodes,
   onDeleteEdges,
 }: WorkflowCanvasProps) {
-  const pluginByKey = useMemo(
-    () => new Map(plugins.map((plugin) => [`${plugin.type}:${plugin.version}`, plugin])),
+  const pluginByType = useMemo(
+    () => new Map(plugins.map((plugin) => [plugin.type, plugin])),
     [plugins],
   );
   const mappedNodes = useMemo<CanvasNode[]>(
     () =>
-      workflowNodes.map((node) => ({
-        id: node.nodeId,
-        type: "workflowNode",
-        position: node.position,
-        selected: node.nodeId === selectedNodeId,
-        data: {
-          label:
-            pluginByKey.get(`${node.pluginType}:${node.pluginVersion}`)?.displayName ?? node.nodeId,
-          pluginType: node.pluginType,
-          pluginVersion: node.pluginVersion,
-          plugin: pluginByKey.get(`${node.pluginType}:${node.pluginVersion}`),
-          readOnly,
-        },
-      })),
-    [pluginByKey, readOnly, selectedNodeId, workflowNodes],
+      workflowNodes.map((node) => {
+        const plugin = pluginByType.get(node.pluginType);
+        return {
+          id: node.nodeId,
+          type: "workflowNode",
+          position: node.position,
+          selected: node.nodeId === selectedNodeId,
+          data: {
+            label: node.displayName?.trim() || plugin?.displayName || node.pluginType,
+            pluginType: node.pluginType,
+            pluginVersion: node.pluginVersion,
+            plugin,
+            readOnly,
+          },
+        };
+      }),
+    [pluginByType, readOnly, selectedNodeId, workflowNodes],
   );
   const mappedEdges = useMemo<Edge[]>(
     () =>
@@ -108,25 +110,25 @@ export function WorkflowCanvas({
   useEffect(() => setEdges(mappedEdges), [mappedEdges, setEdges]);
 
   function connect(connection: Connection) {
-    if (
-      readOnly ||
-      !connection.source ||
-      !connection.target ||
-      !connection.sourceHandle ||
-      !connection.targetHandle ||
-      connection.source === connection.target
-    ) {
+    if (readOnly) {
       return;
     }
-    const edge: WorkflowEdge = {
+    const failure = validateWorkflowEdgeConnection({
+      connection,
+      nodes: workflowNodes,
+      edges: workflowEdges,
+      plugins,
+    });
+    if (failure) {
+      return;
+    }
+    onAddEdge({
       edgeId: createClientId("edge"),
-      sourceNodeId: connection.source,
-      sourceOutputPort: connection.sourceHandle,
-      targetNodeId: connection.target,
-      targetInputPort: connection.targetHandle,
-    };
-    setEdges((current) => addEdge({ ...connection, id: edge.edgeId }, current));
-    onAddEdge(edge);
+      sourceNodeId: connection.source!,
+      sourceOutputPort: connection.sourceHandle!,
+      targetNodeId: connection.target!,
+      targetInputPort: connection.targetHandle!,
+    });
   }
 
   function handleDragOver(event: ReactDragEvent<HTMLDivElement>) {
@@ -154,10 +156,7 @@ export function WorkflowCanvas({
     }
     event.preventDefault();
 
-    const plugin = plugins.find(
-      (candidate) =>
-        candidate.type === dragData.pluginType && candidate.version === dragData.pluginVersion,
-    );
+    const plugin = plugins.find((candidate) => candidate.type === dragData.pluginType);
     if (!plugin) {
       return;
     }

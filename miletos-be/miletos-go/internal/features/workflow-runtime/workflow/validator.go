@@ -34,9 +34,8 @@ func (validationError *WorkflowDefinitionValidationError) Error() string {
 	return validationError.Issues[0].Reason
 }
 
-type DefinitionLookup func(string, string) (plugin.NodeDefinition, bool)
-type TypeLookup func(string) bool
-type ConfigurationValidator func(string, string, map[string]any) error
+type RegistrationLookup func(string) (plugin.NodeRegistration, bool)
+type ConfigurationValidator func(string, map[string]any) error
 
 func ValidateWorkflow(workflow Workflow, nodeDefined func(string) bool) error {
 	inputPorts := make([]plugin.Port, 0, len(workflow.Edges))
@@ -45,24 +44,23 @@ func ValidateWorkflow(workflow Workflow, nodeDefined func(string) bool) error {
 		inputPorts = append(inputPorts, plugin.Port{Name: edge.TargetInputPort})
 		outputPorts = append(outputPorts, plugin.Port{Name: edge.SourceOutputPort})
 	}
-	lookup := func(nodeType, _ string) (plugin.NodeDefinition, bool) {
+	lookup := func(nodeType string) (plugin.NodeRegistration, bool) {
 		if nodeDefined == nil || nodeDefined(nodeType) {
-			return plugin.NodeDefinition{
-				Type: nodeType, Version: "v1",
+			return plugin.NodeRegistration{
+				Key:        nodeType,
 				InputPorts: inputPorts, OutputPorts: outputPorts,
 				InputEdgeConstraint:  plugin.EdgeConstraint{},
 				OutputEdgeConstraint: plugin.EdgeConstraint{},
 			}, true
 		}
-		return plugin.NodeDefinition{}, false
+		return plugin.NodeRegistration{}, false
 	}
-	return ValidateWorkflowDefinition(workflow, lookup, nil, nil)
+	return ValidateWorkflowDefinition(workflow, lookup, nil)
 }
 
 func ValidateWorkflowDefinition(
 	workflow Workflow,
-	definition DefinitionLookup,
-	typeDefined TypeLookup,
+	registration RegistrationLookup,
 	validateConfiguration ConfigurationValidator,
 ) error {
 	issues := make([]ValidationIssue, 0)
@@ -96,15 +94,12 @@ func ValidateWorkflowDefinition(
 	nodes := append([]WorkflowNode(nil), workflow.Nodes...)
 	sort.SliceStable(nodes, func(left, right int) bool {
 		if nodes[left].ID == nodes[right].ID {
-			if nodes[left].Type == nodes[right].Type {
-				return nodes[left].Version < nodes[right].Version
-			}
 			return nodes[left].Type < nodes[right].Type
 		}
 		return nodes[left].ID < nodes[right].ID
 	})
 	nodeByID := make(map[string]WorkflowNode, len(nodes))
-	definitions := make(map[string]plugin.NodeDefinition, len(nodes))
+	registrations := make(map[string]plugin.NodeRegistration, len(nodes))
 	for _, node := range nodes {
 		if strings.TrimSpace(node.ID) == "" {
 			issues = append(issues, ValidationIssue{
@@ -128,42 +123,27 @@ func ValidateWorkflowDefinition(
 			})
 			continue
 		}
-		version := strings.TrimSpace(node.Version)
-		if version == "" {
-			version = "v1"
-		}
-		descriptor, exists := definition(node.Type, version)
+		pluginVersion := normalizedVersion(node.Version)
+		declaration, exists := registration(node.Type)
 		if !exists {
-			code := "PLUGIN_NOT_FOUND"
-			field := "pluginType"
 			reason := fmt.Sprintf(
 				"node %q uses undefined plugin type %q",
 				node.ID,
 				node.Type,
 			)
-			if typeDefined != nil && typeDefined(node.Type) {
-				code = "PLUGIN_VERSION_NOT_FOUND"
-				field = "pluginVersion"
-				reason = fmt.Sprintf(
-					"node %q uses undefined plugin version %q for type %q",
-					node.ID,
-					version,
-					node.Type,
-				)
-			}
 			issues = append(issues, ValidationIssue{
-				Code: code, Field: field, Reason: reason,
-				NodeID: node.ID, PluginType: node.Type, PluginVersion: version,
+				Code: "PLUGIN_NOT_FOUND", Field: "pluginType", Reason: reason,
+				NodeID: node.ID, PluginType: node.Type, PluginVersion: pluginVersion,
 			})
 			continue
 		}
-		definitions[node.ID] = descriptor
+		registrations[node.ID] = declaration
 		if validateConfiguration != nil {
-			if err := validateConfiguration(node.Type, version, node.Configuration); err != nil {
+			if err := validateConfiguration(node.Type, node.Configuration); err != nil {
 				issues = append(issues, ValidationIssue{
 					Code: configurationIssueCode(err), Field: "configuration",
 					Reason: err.Error(), NodeID: node.ID,
-					PluginType: node.Type, PluginVersion: version,
+					PluginType: node.Type, PluginVersion: pluginVersion,
 				})
 			}
 		}
@@ -172,6 +152,7 @@ func ValidateWorkflowDefinition(
 	edges := append([]Edge(nil), workflow.Edges...)
 	sort.SliceStable(edges, func(left, right int) bool { return edges[left].ID < edges[right].ID })
 	edgeIDs := make(map[string]struct{}, len(edges))
+	edgeKeys := make(map[string]string, len(edges))
 	validEdges := make([]Edge, 0, len(edges))
 	incoming := make(map[string]uint, len(nodes))
 	outgoing := make(map[string]uint, len(nodes))
@@ -234,31 +215,50 @@ func ValidateWorkflowDefinition(
 			})
 		}
 		if sourceExists {
-			if descriptor, exists := definitions[source.ID]; exists &&
+			if declaration, exists := registrations[source.ID]; exists &&
 				!sourcePortBlank &&
-				!hasPort(descriptor.OutputPorts, edge.SourceOutputPort) {
+				!hasPort(declaration.OutputPorts, edge.SourceOutputPort) {
 				structurallyValid = false
 				issues = append(issues, ValidationIssue{
 					Code: "UNKNOWN_OUTPUT_PORT", Field: "sourceOutputPort",
 					Reason: "Source output port is not declared by the plugin.",
 					NodeID: source.ID, EdgeID: edge.ID, PluginType: source.Type,
 					PluginVersion: normalizedVersion(source.Version),
-					Expected:      portNames(descriptor.OutputPorts), Actual: edge.SourceOutputPort,
+					Expected:      portNames(declaration.OutputPorts), Actual: edge.SourceOutputPort,
 				})
 			}
 		}
 		if targetExists {
-			if descriptor, exists := definitions[target.ID]; exists &&
+			if declaration, exists := registrations[target.ID]; exists &&
 				!targetPortBlank &&
-				!hasPort(descriptor.InputPorts, edge.TargetInputPort) {
+				!hasPort(declaration.InputPorts, edge.TargetInputPort) {
 				structurallyValid = false
 				issues = append(issues, ValidationIssue{
 					Code: "UNKNOWN_INPUT_PORT", Field: "targetInputPort",
 					Reason: "Target input port is not declared by the plugin.",
 					NodeID: target.ID, EdgeID: edge.ID, PluginType: target.Type,
 					PluginVersion: normalizedVersion(target.Version),
-					Expected:      portNames(descriptor.InputPorts), Actual: edge.TargetInputPort,
+					Expected:      portNames(declaration.InputPorts), Actual: edge.TargetInputPort,
 				})
+			}
+		}
+		if !sourcePortBlank && !targetPortBlank {
+			edgeKey := strings.Join([]string{
+				edge.SourceNodeID, edge.SourceOutputPort, edge.TargetNodeID, edge.TargetInputPort,
+			}, "\x00")
+			if existingEdgeID, exists := edgeKeys[edgeKey]; exists {
+				structurallyValid = false
+				issues = append(issues, ValidationIssue{
+					Code: "DUPLICATE_EDGE", Field: "definition.edges",
+					Reason: fmt.Sprintf(
+						"Edge duplicates the connection already declared by edge %q.",
+						existingEdgeID,
+					),
+					EdgeID: edge.ID,
+					Actual: existingEdgeID,
+				})
+			} else {
+				edgeKeys[edgeKey] = edge.ID
 			}
 		}
 		if structurallyValid {
@@ -271,15 +271,15 @@ func ValidateWorkflowDefinition(
 	}
 
 	for _, node := range nodes {
-		descriptor, exists := definitions[node.ID]
+		declaration, exists := registrations[node.ID]
 		if !exists {
 			continue
 		}
 		issues = append(issues, constraintIssues(
-			node, "INPUT", incoming[node.ID], descriptor.InputEdgeConstraint,
+			node, "INPUT", incoming[node.ID], declaration.InputEdgeConstraint,
 		)...)
 		issues = append(issues, constraintIssues(
-			node, "OUTPUT", outgoing[node.ID], descriptor.OutputEdgeConstraint,
+			node, "OUTPUT", outgoing[node.ID], declaration.OutputEdgeConstraint,
 		)...)
 	}
 	canonicalWorkflow := workflow

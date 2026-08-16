@@ -1,23 +1,18 @@
 .companyUsers__link {
-  min-height: 46px;
-  padding: 0 18px;
+  min-height: 40px;
+  padding: 0 14px;
   display: inline-flex;
-  gap: 9px;
+  gap: 8px;
   align-items: center;
   justify-content: center;
   border: 1px solid var(--color-border);
-  border-radius: 14px;
+  border-radius: var(--control-radius);
   color: var(--color-text);
   background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 8px 24px rgba(31, 35, 71, 0.06);
-  font-size: 14px;
-  font-weight: 850;
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: 750;
   text-decoration: none;
-  transition:
-    border-color 160ms ease,
-    color 160ms ease,
-    box-shadow 160ms ease,
-    transform 160ms ease;
 }
 
 .companyUsers__link:hover {
@@ -28,19 +23,19 @@
 }
 
 .companyUsers__intro {
-  min-height: 420px;
+  min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 0.82fr) minmax(520px, 1.18fr);
-  gap: 34px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(220px, 0.8fr);
+  gap: 20px;
   align-items: center;
-  margin-bottom: 20px;
-  padding: 38px 42px;
-  border: 1px solid rgba(75, 70, 255, 0.15);
-  border-radius: 34px;
+  margin-bottom: 18px;
+  padding: 22px 24px;
+  border: 1px solid rgba(75, 70, 255, 0.14);
+  border-radius: var(--radius-xl);
   background:
-    radial-gradient(circle at 12% 16%, rgba(255, 184, 91, 0.12), transparent 20rem),
-    linear-gradient(135deg, #f9f6ff 0%, #ffffff 52%, #edf8ff 100%);
-  box-shadow: var(--shadow-card);
+    radial-gradient(circle at 12% 16%, rgba(255, 184, 91, 0.1), transparent 16rem),
+    linear-gradient(135deg, #f7f4ff 0%, #ffffff 52%, #edf8ff 100%);
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
 
@@ -71,18 +66,18 @@
   max-width: 610px;
   margin: 0;
   color: var(--color-text);
-  font-size: clamp(34px, 4vw, 56px);
-  line-height: 0.98;
-  letter-spacing: -0.058em;
+  font-size: clamp(18px, 1.6vw, 24px);
+  line-height: 1.2;
+  letter-spacing: -0.03em;
 }
 
 .companyUsers__introDescription {
   max-width: 610px;
   margin: 0;
   color: var(--color-muted);
-  font-size: 16px;
-  font-weight: 650;
-  line-height: 1.7;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
 }
 
 .companyUsers__introTags {
@@ -107,10 +102,11 @@
 
 .companyUsers__introImageFrame {
   min-width: 0;
-  min-height: 350px;
+  min-height: 0;
+  max-height: 140px;
   display: grid;
   align-items: center;
-  border-radius: 30px;
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 
@@ -130,13 +126,13 @@
 }
 
 .companyUsers__metrics article {
-  min-height: 124px;
-  padding: 20px;
+  min-height: 0;
+  padding: 14px;
   display: flex;
-  gap: 14px;
+  gap: 12px;
   align-items: flex-start;
   border: 1px solid rgba(75, 70, 255, 0.13);
-  border-radius: 22px;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.94);
   box-shadow: var(--shadow-sm);
 }
@@ -180,12 +176,12 @@
 }
 
 .companyUsers__card {
-  margin-top: 20px;
-  padding: 30px;
-  border: 1px solid rgba(75, 70, 255, 0.13);
-  border-radius: 28px;
-  background: rgba(255, 255, 255, 0.95);
-  box-shadow: var(--shadow-card);
+  margin-top: 16px;
+  padding: 20px 22px;
+  border: 1px solid rgba(75, 70, 255, 0.12);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: var(--shadow-sm);
 }
 
 .companyUsers__cardHeader {
@@ -214,8 +210,8 @@
 .companyUsers__cardTitle {
   margin: 0;
   color: var(--color-text);
-  font-size: 25px;
-  letter-spacing: -0.04em;
+  font-size: 18px;
+  letter-spacing: -0.03em;
 }
 
 .companyUsers__companyId {
@@ -255,15 +251,12 @@
 .companyUsers__searchField input,
 .companyUsers__filterField select {
   width: 100%;
-  min-height: 48px;
+  min-height: var(--control-height);
   border: 1px solid var(--color-border-strong);
-  border-radius: 14px;
+  border-radius: var(--control-radius);
   color: var(--color-text);
   background: #ffffff;
   outline: none;
-  transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease;
 }
 
 .companyUsers__searchField input {
@@ -321,18 +314,18 @@
 }
 
 .companyUsers__table th {
-  padding: 14px 16px;
+  padding: 11px 14px;
   color: var(--color-muted);
-  background: #f6f7fc;
-  font-size: 11px;
-  font-weight: 900;
+  background: #f7f8fd;
+  font-size: 10px;
+  font-weight: 800;
   letter-spacing: 0.08em;
   text-align: left;
   text-transform: uppercase;
 }
 
 .companyUsers__table td {
-  padding: 16px;
+  padding: 12px 14px;
   border-top: 1px solid var(--color-border);
   color: var(--color-text);
   font-size: 13px;
@@ -460,17 +453,19 @@
 }
 
 .companyUsers__emptyState {
-  min-height: 170px;
+  min-height: 200px;
   margin-top: 16px;
-  padding: 24px;
+  padding: 32px;
   display: grid;
   place-items: center;
   align-content: center;
-  gap: 7px;
-  border: 1px dashed var(--color-border-strong);
-  border-radius: 20px;
+  gap: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   color: var(--color-primary);
-  background: var(--color-surface-soft);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(75, 70, 255, 0.06), transparent 14rem),
+    var(--color-surface-soft);
   text-align: center;
 }
 
@@ -504,7 +499,8 @@
   }
 
   .companyUsers__introImageFrame {
-    min-height: 300px;
+    min-height: 0;
+    max-height: 140px;
   }
 
   .companyUsers__cardHeader {
@@ -531,11 +527,12 @@
   }
 
   .companyUsers__introTitle {
-    font-size: clamp(34px, 11vw, 48px);
+    font-size: 20px;
   }
 
   .companyUsers__introImageFrame {
-    min-height: 230px;
+    min-height: 0;
+    max-height: 120px;
   }
 
   .companyUsers__metrics,

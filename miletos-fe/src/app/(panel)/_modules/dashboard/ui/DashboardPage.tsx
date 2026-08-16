@@ -6,10 +6,7 @@ import { Box } from "@/components/lib/box/Box";
 import Icon from "@/components/lib/icon/Icon";
 import { Typography } from "@/components/lib/typography/Typography";
 import { PageShell } from "@/components/layout/page-shell/PageShell";
-import {
-  canAccessCompanyUsers,
-  canCreateCompany,
-} from "@/shared/session/permissions/session-permissions";
+import { canCreateCompany } from "@/shared/session/permissions/session-permissions";
 import { useCurrentUserQuery } from "@/shared/session/hooks/useCurrentUserQuery";
 import styles from "./DashboardPage.module.css";
 import {
@@ -44,11 +41,6 @@ const DashboardPage = () => {
 
   const canOpenCompanyManagement = canCreateCompany(user);
 
-  const companyUsersHref =
-    canAccessCompanyUsers(user) && user?.companyId
-      ? `/admin/companies/${user.companyId}/users`
-      : null;
-
   const displayName =
     [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() ||
     dashboardMessages.identity.defaultName;
@@ -77,7 +69,7 @@ const DashboardPage = () => {
       <section className={styles.dashboardHome__hero}>
         <Box className={styles.dashboardHome__heroContent}>
           <Box className={styles.dashboardHome__heroBadge}>
-            <Icon src={dashboardIconSource("sparkles")} size={17} />
+            <Icon src={dashboardIconSource("sparkles")} size={16} />
             Workflow operations center
           </Box>
 
@@ -89,23 +81,6 @@ const DashboardPage = () => {
             Move between account security, company administration and user onboarding without
             leaving the authenticated Miletos environment.
           </Typography>
-
-          <Box className={styles.dashboardHome__heroTags}>
-            <Typography as="span">
-              <Icon src={dashboardIconSource("shield")} size={16} />
-              Protected session
-            </Typography>
-
-            <Typography as="span">
-              <Icon src={dashboardIconSource("key")} size={16} />
-              Role-aware access
-            </Typography>
-
-            <Typography as="span">
-              <Icon src={dashboardIconSource("dashboard")} size={16} />
-              Unified operations
-            </Typography>
-          </Box>
         </Box>
 
         <figure className={styles.dashboardHome__heroVisual}>
@@ -277,24 +252,6 @@ const DashboardPage = () => {
                   <Typography as="small">
                     Create tenants and control company lifecycle status.
                   </Typography>
-                </Typography>
-
-                <Typography as="span" className={styles.dashboardHome__quickActionArrow}>
-                  <Icon src={dashboardIconSource("arrow")} size={18} />
-                </Typography>
-              </Link>
-            ) : null}
-
-            {companyUsersHref ? (
-              <Link className={styles.dashboardHome__quickAction} href={companyUsersHref}>
-                <Typography as="span" className={styles.dashboardHome__quickActionIcon}>
-                  <Icon src={dashboardIconSource("team")} />
-                </Typography>
-
-                <Typography as="span" className={styles.dashboardHome__quickActionCopy}>
-                  <Typography as="strong">Manage company users</Typography>
-
-                  <Typography as="small">Review members, roles and onboarding progress.</Typography>
                 </Typography>
 
                 <Typography as="span" className={styles.dashboardHome__quickActionArrow}>

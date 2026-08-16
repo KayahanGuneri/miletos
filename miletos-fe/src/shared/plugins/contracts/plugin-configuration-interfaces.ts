@@ -4,6 +4,7 @@ import type {
   PluginCategory,
   PluginConfigurationValue,
 } from "@/shared/plugins/contracts/plugin-configuration-types";
+import type { FlatFormSchema } from "@/shared/plugins/form/form-schema-types";
 
 export interface PluginConfiguration {
   [key: string]: PluginConfigurationValue;
@@ -47,26 +48,31 @@ export interface PluginConfigurationEditorProps<TValues> {
   disabled: boolean;
   validationErrors: Record<string, string>;
   onChange: (values: TValues) => void;
+  onUploadFile?: (file: File) => Promise<string>;
+  uploadPending?: boolean;
+  uploadError?: boolean;
 }
 
 export interface PluginConfigurationDefinition<TValues> {
   pluginType: string;
   dialogDescription?: string;
   dialogSize?: "default" | "large";
+  formSchema?: FlatFormSchema;
   createDefaultConfiguration: () => PluginConfiguration;
   deserialize: (configuration: PluginConfiguration) => TValues;
   validate: (values: TValues) => PluginConfigurationValidationResult;
   serialize: (values: TValues) => PluginConfiguration;
-  Editor: ComponentType<PluginConfigurationEditorProps<TValues>>;
+  Editor?: ComponentType<PluginConfigurationEditorProps<TValues>>;
 }
 
 export interface RegisteredPluginConfigurationDefinition {
   pluginType: string;
   dialogDescription?: string;
   dialogSize?: "default" | "large";
+  formSchema?: FlatFormSchema;
   createDefaultConfiguration: () => PluginConfiguration;
   deserialize: (configuration: PluginConfiguration) => unknown;
   validate: (values: unknown) => PluginConfigurationValidationResult;
   serialize: (values: unknown) => PluginConfiguration;
-  Editor: ComponentType<PluginConfigurationEditorProps<unknown>>;
+  Editor?: ComponentType<PluginConfigurationEditorProps<unknown>>;
 }

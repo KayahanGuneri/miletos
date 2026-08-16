@@ -214,7 +214,6 @@ func validateTriggerRoot(
 	}
 	if !registry.DeclaresExecutionSource(
 		rootNode.Type,
-		rootNode.Version,
 		string(executionmodel.ExecutionOriginCron),
 	) {
 		return ErrInvalidTrigger

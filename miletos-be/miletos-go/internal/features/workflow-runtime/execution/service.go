@@ -178,18 +178,39 @@ func (service *ExecutionService) ExecuteSync(
 	if err != nil {
 		return ExecutionOutcome{}, err
 	}
-	outputs := make(map[string]any)
-	failed := make(map[string]bool)
+	outcomes := make(map[string]nodeOutcome)
 	for _, nodeID := range order {
 		node, _ := findWorkflowNode(definition, nodeID)
-		if service.scheduler.Blocked(definition, nodeID, failed) {
-			failed[nodeID] = true
+		readiness := resolveNodeRoutes(definition, nodeID, outcomes)
+		if readiness.failed {
 			if err := service.executions.MarkNodeSkipped(
 				ctx, definition.CompanyID, execution.ID, nodeID,
+				string(model.SkipReasonDependencyFailed),
 			); err != nil {
 				return ExecutionOutcome{}, err
 			}
+			outcomes[nodeID] = nodeOutcome{
+				status: model.NodeSkipped, skipReason: model.SkipReasonDependencyFailed,
+			}
 			continue
+		}
+		if readiness.inactive {
+			if err := service.executions.MarkNodeSkipped(
+				ctx, definition.CompanyID, execution.ID, nodeID,
+				string(model.SkipReasonNoActiveRoute),
+			); err != nil {
+				return ExecutionOutcome{}, err
+			}
+			outcomes[nodeID] = nodeOutcome{
+				status: model.NodeSkipped, skipReason: model.SkipReasonNoActiveRoute,
+			}
+			continue
+		}
+		if !readiness.ready {
+			return ExecutionOutcome{}, fmt.Errorf(
+				"%w: node %s has unresolved incoming routes",
+				repository.ErrStateTransition, nodeID,
+			)
 		}
 		state, changed, err := service.executions.MarkNodeQueued(
 			ctx, definition.CompanyID, execution.ID, nodeID,
@@ -201,7 +222,7 @@ func (service *ExecutionService) ExecuteSync(
 			continue
 		}
 		payload := buildExecutionNodeInput(
-			definition, nodeID, outputs, service.scheduler.registry, startInput,
+			definition, nodeID, readiness.edgePayloads, service.scheduler.registry, startInput,
 			model.ExecutionOriginManualDirect,
 		)
 		job := model.NodeJob{
@@ -210,16 +231,18 @@ func (service *ExecutionService) ExecuteSync(
 			Attempt: state.Attempt, CorrelationID: correlationID,
 			Origin: model.ExecutionOriginManualDirect, Payload: payload,
 		}
-		output, runErr := service.processor.ProcessSync(ctx, job, node)
+		result, runErr := service.processor.ProcessSync(ctx, job, definition, node)
 		if runErr != nil {
 			var nodeFailure *PersistedNodeFailure
 			if errors.As(runErr, &nodeFailure) {
-				failed[nodeID] = true
+				outcomes[nodeID] = nodeOutcome{status: model.NodeFailed}
 				continue
 			}
 			return ExecutionOutcome{}, runErr
 		}
-		outputs[nodeID] = output
+		outcomes[nodeID] = nodeOutcome{
+			status: model.NodeSucceeded, output: result.output, routing: result.routing,
+		}
 	}
 	if err := service.scheduler.Finalize(ctx, execution, definition); err != nil {
 		return ExecutionOutcome{}, err
@@ -273,25 +296,17 @@ func (service *ExecutionService) ExecuteTriggerFromSnapshot(
 	if err := service.workflows.Validate(snapshotWorkflow); err != nil {
 		return ExecutionOutcome{}, err
 	}
-	if err := service.validateExecutionStart(
-		snapshotWorkflow, startInput, origin,
-	); err != nil {
-		return ExecutionOutcome{}, err
-	}
-	rootNodes := workflow.Roots(snapshotWorkflow)
-	if len(rootNodes) != 1 || rootNodes[0].ID != triggerNodeID {
+	triggerNode, isRoot := findRootNode(snapshotWorkflow, triggerNodeID)
+	if !isRoot {
 		return ExecutionOutcome{}, ErrInvalidExecutionOrigin
 	}
 	if !service.scheduler.registry.DeclaresExecutionSource(
-		rootNodes[0].Type,
-		rootNodes[0].Version,
+		triggerNode.Type,
 		string(origin),
 	) {
 		return ExecutionOutcome{}, ErrInvalidExecutionOrigin
 	}
-	// A matching idempotent request is returned as-is. Re-activating it would
-	// schedule the root nodes a second time; the reconciler and the outbox own
-	// durable recovery of an execution that has not progressed.
+
 	if existing, found, err := service.executions.FindIdempotent(
 		ctx, snapshotWorkflow.CompanyID, idempotencyKey, fingerprint,
 	); err != nil || found {
@@ -304,12 +319,33 @@ func (service *ExecutionService) ExecuteTriggerFromSnapshot(
 	if err != nil {
 		return ExecutionOutcome{}, err
 	}
+	inScope := workflow.Downstream(snapshotWorkflow, []string{triggerNodeID})
+	for _, node := range snapshotWorkflow.Nodes {
+		if inScope[node.ID] {
+			continue
+		}
+		if err := service.executions.MarkNodeSkipped(
+			ctx, snapshotWorkflow.CompanyID, execution.ID, node.ID,
+			string(model.SkipReasonOutOfTriggerScope),
+		); err != nil {
+			return ExecutionOutcome{}, err
+		}
+	}
 	scheduled, err := service.scheduler.Activate(ctx, execution, startInput)
 	if err != nil {
 		return ExecutionOutcome{}, err
 	}
 	execution.Status = model.ExecutionQueued
 	return ExecutionOutcome{Execution: execution, ScheduledEntryNodes: scheduled}, nil
+}
+
+func findRootNode(definition workflow.Workflow, nodeID string) (workflow.WorkflowNode, bool) {
+	for _, root := range workflow.Roots(definition) {
+		if root.ID == nodeID {
+			return root, true
+		}
+	}
+	return workflow.WorkflowNode{}, false
 }
 
 func (service *ExecutionService) validateExecutionStart(
@@ -323,15 +359,13 @@ func (service *ExecutionService) validateExecutionStart(
 			continue
 		}
 		if !service.scheduler.registry.CanStartFrom(
-			node.Type, node.Version, string(source),
+			node.Type, string(source),
 		) {
 			return ErrInvalidExecutionOrigin
 		}
 		if source == model.ExecutionOriginManualDirect && len(startInput) > 0 {
-			descriptor, exists := service.scheduler.registry.Definition(
-				node.Type, node.Version,
-			)
-			if exists && plugin.CanReceiveEntryInput(descriptor) {
+			registration, exists := service.scheduler.registry.Get(node.Type)
+			if exists && plugin.CanReceiveEntryInput(registration) {
 				acceptsManualEntryInput = true
 			}
 		}

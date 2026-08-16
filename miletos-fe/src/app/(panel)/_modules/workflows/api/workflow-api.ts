@@ -95,9 +95,10 @@ export async function createWorkflowHTTPTrigger(
   return response.data;
 }
 
-export async function getActiveWorkflowHTTPTrigger(workflowId: number) {
+export async function getActiveWorkflowHTTPTrigger(workflowId: number, triggerNodeId: string) {
   const response = await httpClient.get<HTTPTrigger>(
     `${WORKFLOWS_PATH}/${workflowId}/triggers/http`,
+    { params: { triggerNodeId } },
   );
 
   return response.data;
@@ -170,5 +171,15 @@ export async function runWorkflow(
     },
   );
 
+  return response.data;
+}
+
+export async function uploadWorkflowInputFile(file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await httpClient.post<{ fileName: string }>(
+    `${WORKFLOWS_PATH}/input-files`,
+    formData,
+  );
   return response.data;
 }

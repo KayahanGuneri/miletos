@@ -15,6 +15,7 @@ import (
 	executionmodel "miletos-go/internal/features/workflow-runtime/execution/model"
 	"miletos-go/internal/features/workflow-runtime/execution/repository"
 	"miletos-go/internal/features/workflow-runtime/plugin"
+	"miletos-go/internal/features/workflow-runtime/pluginstate"
 	"miletos-go/internal/features/workflow-runtime/workflow"
 )
 
@@ -32,6 +33,8 @@ type Service struct {
 	workflowService *workflow.WorkflowService
 	executions      *execution.ExecutionService
 	registry        *plugin.NodeRegistry
+	state           *pluginstate.Repository
+	emitter         *execution.PluginEmitter
 }
 
 type CreateRequest struct {
@@ -42,6 +45,63 @@ type CreateRequest struct {
 	ResolvedMode  ResolvedMode
 }
 
+type scenarioStartInfrastructure struct {
+	service *Service
+	ctx     context.Context
+	request CreateRequest
+	created CreatedBinding
+}
+
+func newScenarioStartInfrastructure(
+	service *Service,
+	ctx context.Context,
+	request CreateRequest,
+) *scenarioStartInfrastructure {
+	return &scenarioStartInfrastructure{service: service, ctx: ctx, request: request}
+}
+
+func (infrastructure *scenarioStartInfrastructure) CreateHTTPURL(
+	method plugin.HTTPMethod,
+) (string, error) {
+	requestedMethod, err := normalizeMethod(infrastructure.request.Method)
+	validatedMethod, methodErr := normalizeMethod(string(method))
+	if err != nil || methodErr != nil || requestedMethod != validatedMethod {
+		return "", ErrInvalidTrigger
+	}
+	created, err := infrastructure.service.Create(infrastructure.ctx, infrastructure.request)
+	if err != nil {
+		return "", err
+	}
+	infrastructure.created = created
+	return created.PublicURL, nil
+}
+
+func (infrastructure *scenarioStartInfrastructure) OnRequest(plugin.HTTPRequestHandler) error {
+	return nil
+}
+
+func (infrastructure *scenarioStartInfrastructure) Result() CreatedBinding {
+	return infrastructure.created
+}
+
+type requestInfrastructure struct {
+	currentURL string
+	payload    any
+}
+
+func (infrastructure requestInfrastructure) CreateHTTPURL(plugin.HTTPMethod) (string, error) {
+	return "", ErrInvalidTrigger
+}
+
+func (infrastructure requestInfrastructure) OnRequest(
+	handler plugin.HTTPRequestHandler,
+) error {
+	if handler == nil {
+		return ErrInvalidTrigger
+	}
+	return handler(infrastructure.currentURL, infrastructure.payload)
+}
+
 func NewService(
 	publicBaseURL string,
 	triggers *Repository,
@@ -49,6 +109,8 @@ func NewService(
 	workflowService *workflow.WorkflowService,
 	executions *execution.ExecutionService,
 	registry *plugin.NodeRegistry,
+	state *pluginstate.Repository,
+	emitter *execution.PluginEmitter,
 ) *Service {
 	return &Service{
 		publicBaseURL:   strings.TrimRight(publicBaseURL, "/"),
@@ -57,7 +119,54 @@ func NewService(
 		workflowService: workflowService,
 		executions:      executions,
 		registry:        registry,
+		state:           state,
+		emitter:         emitter,
 	}
+}
+
+func (service *Service) StartScenario(
+	ctx context.Context,
+	request CreateRequest,
+) (CreatedBinding, error) {
+	rootNode, valid := rootNodeByID(request.Workflow, request.TriggerNodeID)
+	if !valid {
+		return CreatedBinding{}, ErrInvalidTrigger
+	}
+	registration, exists := service.registry.Get(rootNode.Type)
+	if !exists {
+		return CreatedBinding{}, fmt.Errorf(
+			"%w: node %q", plugin.ErrNodeRegistrationNotFound, rootNode.Type,
+		)
+	}
+	lifecycles := plugin.NewLifecycles()
+	httpInfrastructure := newScenarioStartInfrastructure(service, ctx, request)
+	infrastructure := plugin.Infrastructure{HTTP: httpInfrastructure}
+	if service.emitter != nil {
+		infrastructure.Emitter = service.emitter.ForContext(ctx, registration.Key)
+	}
+	pluginContext := plugin.NewContext(plugin.ContextOptions{
+		Runtime:       ctx,
+		Configuration: rootNode.Configuration,
+		CompanyID:     request.CompanyID,
+		Lifecycles:    lifecycles,
+		Storage: pluginstate.NewStorage(ctx, service.state, pluginstate.Scope{
+			CompanyID:        request.CompanyID,
+			WorkflowID:       request.Workflow.ID,
+			WorkflowRevision: request.Workflow.Revision,
+			NodeID:           rootNode.ID,
+		}),
+		Access: execution.NewNodeAccess(
+			request.Workflow, rootNode.ID, registration.RoutingMode,
+		),
+		Infrastructure: infrastructure,
+	})
+	if err := registration.Handler(pluginContext); err != nil {
+		return CreatedBinding{}, err
+	}
+	if err := lifecycles.InvokeScenarioStart(); err != nil {
+		return CreatedBinding{}, err
+	}
+	return httpInfrastructure.Result(), nil
 }
 
 func (service *Service) Create(
@@ -126,16 +235,12 @@ func validateTriggerRoot(
 	method string,
 	registry *plugin.NodeRegistry,
 ) error {
-	rootNode, valid := singleRootNode(definition)
+	rootNode, valid := rootNodeByID(definition, triggerNodeID)
 	if !valid {
-		return ErrInvalidTrigger
-	}
-	if rootNode.ID != triggerNodeID {
 		return ErrInvalidTrigger
 	}
 	if !registry.DeclaresExecutionSource(
 		rootNode.Type,
-		rootNode.Version,
 		string(executionmodel.ExecutionOriginHTTPWebhook),
 	) {
 		return ErrInvalidTrigger
@@ -143,12 +248,13 @@ func validateTriggerRoot(
 	return validateBindingConfiguration(rootNode.Configuration, method)
 }
 
-func singleRootNode(definition workflow.Workflow) (workflow.WorkflowNode, bool) {
-	rootNodes := workflow.Roots(definition)
-	if len(rootNodes) != 1 {
-		return workflow.WorkflowNode{}, false
+func rootNodeByID(definition workflow.Workflow, triggerNodeID string) (workflow.WorkflowNode, bool) {
+	for _, rootNode := range workflow.Roots(definition) {
+		if rootNode.ID == triggerNodeID {
+			return rootNode, true
+		}
 	}
-	return rootNodes[0], true
+	return workflow.WorkflowNode{}, false
 }
 
 func validateBindingConfiguration(configuration map[string]any, method string) error {
@@ -169,12 +275,15 @@ func (service *Service) Get(
 	return binding, err
 }
 
-func (service *Service) GetActiveByWorkflow(
+func (service *Service) GetActiveByWorkflowAndNode(
 	ctx context.Context,
 	companyID string,
 	workflowID string,
+	triggerNodeID string,
 ) (Binding, error) {
-	binding, err := service.triggers.FindActiveByWorkflow(ctx, companyID, workflowID)
+	binding, err := service.triggers.FindActiveByWorkflowAndNode(
+		ctx, companyID, workflowID, triggerNodeID,
+	)
 	binding.TokenHash = nil
 	return binding, err
 }
@@ -237,6 +346,11 @@ func (service *Service) Invoke(
 	); err != nil {
 		return execution.ExecutionOutcome{}, "", ErrBindingInvariant
 	}
+	if err := service.dispatchRequest(
+		ctx, snapshot.Workflow, binding, payload,
+	); err != nil {
+		return execution.ExecutionOutcome{}, "", err
+	}
 	key := externalIdempotencyKey
 	if key == "" {
 		key, err = secureID("hook_call_")
@@ -253,11 +367,50 @@ func (service *Service) Invoke(
 	return outcome, "", err
 }
 
-// stableFingerprintPayload keeps only the logical values of a webhook call.
-// Request identifiers, correlation identifiers, secrets, and transport/hop-by-hop
-// headers are excluded so a retry of the same logical call replays instead of
-// conflicting. Accepted non-transport headers (for example Content-Type and
-// caller-defined safe custom headers) remain part of request identity.
+func (service *Service) dispatchRequest(
+	ctx context.Context,
+	definition workflow.Workflow,
+	binding Binding,
+	payload map[string]any,
+) error {
+	node, exists := rootNodeByID(definition, binding.TriggerNodeID)
+	if !exists {
+		return ErrBindingInvariant
+	}
+	registration, exists := service.registry.Get(node.Type)
+	if !exists {
+		return ErrBindingInvariant
+	}
+	lifecycles := plugin.NewLifecycles()
+	infrastructure := plugin.Infrastructure{
+		HTTP: requestInfrastructure{
+			currentURL: "/hooks/{redacted}",
+			payload:    payload,
+		},
+	}
+	if service.emitter != nil {
+		infrastructure.Emitter = service.emitter.ForContext(ctx, registration.Key)
+	}
+	pluginContext := plugin.NewContext(plugin.ContextOptions{
+		Runtime:       ctx,
+		Configuration: node.Configuration,
+		CompanyID:     binding.CompanyID,
+		Lifecycles:    lifecycles,
+		Storage: pluginstate.NewStorage(ctx, service.state, pluginstate.Scope{
+			CompanyID:        binding.CompanyID,
+			WorkflowID:       binding.WorkflowID,
+			WorkflowRevision: binding.WorkflowRevision,
+			NodeID:           binding.TriggerNodeID,
+		}),
+		Access: execution.NewNodeAccess(
+			definition, binding.TriggerNodeID, registration.RoutingMode,
+		),
+		Infrastructure: infrastructure,
+		Payload:        payload,
+	})
+	return registration.Handler(pluginContext)
+}
+
 func stableFingerprintPayload(payload map[string]any) map[string]any {
 	stable := make(map[string]any, 4)
 	if method, present := payload["method"]; present {

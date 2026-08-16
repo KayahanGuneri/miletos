@@ -9,6 +9,7 @@ import (
 
 	"miletos-go/internal/features/workflow-runtime/execution"
 	"miletos-go/internal/features/workflow-runtime/execution/repository"
+	"miletos-go/internal/features/workflow-runtime/plugin"
 	"miletos-go/internal/features/workflow-runtime/workflow"
 	runtimev1 "miletos-go/internal/shared/grpc/generated/runtimev1"
 	"miletos-go/internal/shared/requestcontext"
@@ -30,9 +31,8 @@ func (grpcService *GRPCService) CreateHTTPTrigger(
 	if request == nil || request.Definition == nil {
 		return nil, status.Error(codes.InvalidArgument, "workflow definition is required")
 	}
-	created, err := grpcService.service.Create(
-		ctx, mapCreateRequest(request, requestcontext.CompanyID(ctx)),
-	)
+	createRequest := mapCreateRequest(request, requestcontext.CompanyID(ctx))
+	created, err := grpcService.service.StartScenario(ctx, createRequest)
 	if err != nil {
 		return nil, mapTriggerGRPCError(err)
 	}
@@ -59,8 +59,11 @@ func (grpcService *GRPCService) GetActiveHTTPTriggerByWorkflow(
 	if request == nil || request.GetWorkflowId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "workflow id is required")
 	}
-	binding, err := grpcService.service.GetActiveByWorkflow(
-		ctx, requestcontext.CompanyID(ctx), request.GetWorkflowId(),
+	if request.GetTriggerNodeId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "trigger node id is required")
+	}
+	binding, err := grpcService.service.GetActiveByWorkflowAndNode(
+		ctx, requestcontext.CompanyID(ctx), request.GetWorkflowId(), request.GetTriggerNodeId(),
 	)
 	if err != nil {
 		return nil, mapTriggerGRPCError(err)
@@ -82,6 +85,10 @@ func (grpcService *GRPCService) DisableHTTPTrigger(
 }
 
 func mapTriggerGRPCError(err error) error {
+	var nodeError *plugin.NodeError
+	if errors.As(err, &nodeError) && nodeError.Category == "VALIDATION" {
+		return status.Error(codes.InvalidArgument, "HTTP trigger request is invalid")
+	}
 	switch {
 	case errors.Is(err, context.Canceled),
 		errors.Is(err, context.DeadlineExceeded):
@@ -91,7 +98,9 @@ func mapTriggerGRPCError(err error) error {
 	case errors.Is(err, workflow.ErrInvalidWorkflow):
 		return execution.WorkflowValidationGRPCStatus(err)
 	case errors.Is(err, ErrInvalidTrigger),
-		errors.Is(err, ErrMethodNotAllowed):
+		errors.Is(err, ErrMethodNotAllowed),
+		errors.Is(err, plugin.ErrNodeRegistrationNotFound),
+		errors.Is(err, plugin.ErrScenarioStartUnavailable):
 		return status.Error(codes.InvalidArgument, "HTTP trigger request is invalid")
 	case errors.Is(err, ErrBindingInvariant),
 		errors.Is(err, repository.ErrStateTransition):

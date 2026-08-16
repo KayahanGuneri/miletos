@@ -39,25 +39,21 @@ public class WorkflowTriggerManagementService {
   public WorkflowRuntimeResponse createHTTPTrigger(
       User user, Long workflowId, String triggerNodeId, HttpHeaders browserHeaders) {
     ActiveWorkflow activeWorkflow = loadActiveWorkflow(user, workflowId);
-    List<WorkflowNode> rootNodes = activeWorkflow.trusted().roots();
-    if (rootNodes.size() != 1) {
-      throw domain(ErrorCode.WORKFLOW_TRIGGER_ROOT_REQUIRED, HttpStatus.UNPROCESSABLE_ENTITY);
-    }
     WorkflowNode triggerNode =
         activeWorkflow
             .trusted()
             .findNode(triggerNodeId)
             .orElseThrow(
-                () ->
-                    domain(ErrorCode.WORKFLOW_TRIGGER_NODE_NOT_FOUND, HttpStatus.BAD_REQUEST));
-    if (!rootNodes.getFirst().getNodeId().equals(triggerNode.getNodeId())) {
+                () -> domain(ErrorCode.WORKFLOW_TRIGGER_NODE_NOT_FOUND, HttpStatus.BAD_REQUEST));
+    if (!isRootNode(activeWorkflow.trusted(), triggerNode.getNodeId())) {
       throw domain(ErrorCode.WORKFLOW_TRIGGER_ROOT_REQUIRED, HttpStatus.UNPROCESSABLE_ENTITY);
     }
     if (!isCompatibleTriggerPlugin(
         triggerNode, "HTTP_WEBHOOK", activeWorkflow.companyId(), browserHeaders)) {
       throw domain(ErrorCode.WORKFLOW_TRIGGER_TYPE_INVALID, HttpStatus.UNPROCESSABLE_ENTITY);
     }
-    String method = resolveHTTPMethod(activeWorkflow.trusted().configuration(triggerNode.getNodeId()));
+    String method =
+        resolveHTTPMethod(activeWorkflow.trusted().configuration(triggerNode.getNodeId()));
     if (!isAsyncTrigger(TrustedTriggerType.HTTP_WEBHOOK)) {
       throw domain(ErrorCode.WORKFLOW_TRIGGER_TYPE_INVALID, HttpStatus.CONFLICT);
     }
@@ -82,10 +78,11 @@ public class WorkflowTriggerManagementService {
 
   @Transactional(readOnly = true)
   public WorkflowRuntimeResponse getActiveHTTPTrigger(
-      User user, Long workflowId, HttpHeaders browserHeaders) {
+      User user, Long workflowId, String triggerNodeId, HttpHeaders browserHeaders) {
     OwnedWorkflow ownedWorkflow = loadOwnedWorkflow(user, workflowId);
-    return runtimeClient.getActiveHTTPTriggerByWorkflow(
+    return runtimeClient.getActiveHTTPTriggerByWorkflowAndNode(
         ownedWorkflow.workflow().getId().toString(),
+        triggerNodeId,
         ownedWorkflow.companyId(),
         browserHeaders);
   }
@@ -114,8 +111,7 @@ public class WorkflowTriggerManagementService {
             .trusted()
             .findNode(triggerNodeId)
             .orElseThrow(
-                () ->
-                    domain(ErrorCode.WORKFLOW_TRIGGER_NODE_NOT_FOUND, HttpStatus.BAD_REQUEST));
+                () -> domain(ErrorCode.WORKFLOW_TRIGGER_NODE_NOT_FOUND, HttpStatus.BAD_REQUEST));
     if (!rootNodes.getFirst().getNodeId().equals(triggerNode.getNodeId())) {
       throw domain(ErrorCode.WORKFLOW_TRIGGER_ROOT_REQUIRED, HttpStatus.UNPROCESSABLE_ENTITY);
     }
@@ -153,9 +149,7 @@ public class WorkflowTriggerManagementService {
       User user, Long workflowId, HttpHeaders browserHeaders) {
     OwnedWorkflow ownedWorkflow = loadOwnedWorkflow(user, workflowId);
     return runtimeClient.getActiveCronTriggerByWorkflow(
-        ownedWorkflow.workflow().getId().toString(),
-        ownedWorkflow.companyId(),
-        browserHeaders);
+        ownedWorkflow.workflow().getId().toString(), ownedWorkflow.companyId(), browserHeaders);
   }
 
   @Transactional(readOnly = true)
@@ -223,6 +217,10 @@ public class WorkflowTriggerManagementService {
     return new CronConfiguration(expression, timezone);
   }
 
+  private boolean isRootNode(TrustedWorkflowDefinition trusted, String nodeId) {
+    return trusted.roots().stream().anyMatch(root -> root.getNodeId().equals(nodeId));
+  }
+
   private boolean isCompatibleTriggerPlugin(
       WorkflowNode triggerNode,
       String requiredOrigin,
@@ -231,7 +229,6 @@ public class WorkflowTriggerManagementService {
     Plugin plugin =
         runtimeClient.listPluginDescriptors(companyId, browserHeaders).stream()
             .filter(candidate -> candidate.getType().equals(triggerNode.getPluginType()))
-            .filter(candidate -> candidate.getVersion().equals(triggerNode.getPluginVersion()))
             .findFirst()
             .orElse(null);
     return plugin != null && plugin.getAllowedRootOriginsList().contains(requiredOrigin);

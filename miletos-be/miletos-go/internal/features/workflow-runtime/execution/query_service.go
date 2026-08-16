@@ -7,6 +7,7 @@ import (
 
 	"miletos-go/internal/features/workflow-runtime/execution/model"
 	"miletos-go/internal/features/workflow-runtime/execution/repository"
+	"miletos-go/internal/features/workflow-runtime/plugin"
 	"miletos-go/internal/features/workflow-runtime/workflow"
 )
 
@@ -31,6 +32,7 @@ func ParseExecutionStatus(raw string) (model.ExecutionStatus, error) {
 type ExecutionQueryService struct {
 	executions   *repository.ExecutionRepository
 	workflows    *workflow.WorkflowRepository
+	registry     *plugin.NodeRegistry
 	observations map[model.ObservationResource]observationStrategy
 }
 
@@ -41,8 +43,11 @@ type observationStrategy func(
 func NewExecutionQueryService(
 	executions *repository.ExecutionRepository,
 	workflows *workflow.WorkflowRepository,
+	registry *plugin.NodeRegistry,
 ) *ExecutionQueryService {
-	service := &ExecutionQueryService{executions: executions, workflows: workflows}
+	service := &ExecutionQueryService{
+		executions: executions, workflows: workflows, registry: registry,
+	}
 	service.observations = map[model.ObservationResource]observationStrategy{
 		model.ObservationNodes:  service.listNodes,
 		model.ObservationEvents: service.listEvents,
@@ -122,6 +127,12 @@ func (service *ExecutionQueryService) loadNodes(
 		configurationByNode[node.ID] = node.Configuration
 	}
 	for index := range page.Items {
+		page.Items[index], err = decodeNodeExecutionOutcome(
+			page.Items[index], service.registry,
+		)
+		if err != nil {
+			return model.Page[model.NodeExecution]{}, err
+		}
 		page.Items[index].Configuration = redactObject(configurationByNode[page.Items[index].NodeID])
 		page.Items[index].Input = redactObject(page.Items[index].Input)
 		page.Items[index].Output = redactObject(page.Items[index].Output)

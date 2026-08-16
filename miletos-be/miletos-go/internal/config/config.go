@@ -40,6 +40,9 @@ type Config struct {
 	CronPollInterval                time.Duration
 	CronBatchSize                   int
 	OutputDirectory                 string
+	InputDirectory                  string
+	InputPostgreSQLURL              string
+	SecretsAESKey                   string
 }
 
 func Load() (Config, error) {
@@ -122,6 +125,11 @@ func Load() (Config, error) {
 	if outputDirectory == "" {
 		return Config{}, fmt.Errorf("MILETOS_RUNTIME_OUTPUT_DIRECTORY must not be blank")
 	}
+	inputDirectory := getEnv("MILETOS_RUNTIME_INPUT_DIRECTORY", "input")
+	if inputDirectory == "" {
+		return Config{}, fmt.Errorf("MILETOS_RUNTIME_INPUT_DIRECTORY must not be blank")
+	}
+	inputPostgreSQLURL := strings.TrimSpace(os.Getenv("MILETOS_RUNTIME_INPUT_POSTGRES_URL"))
 
 	configuration := Config{
 		ServiceName:          getEnv("MILETOS_RUNTIME_SERVICE_NAME", "miletos-go"),
@@ -133,6 +141,9 @@ func Load() (Config, error) {
 		PublicTriggerBaseURL: publicTriggerBaseURL,
 		PostgreSQLURL:        postgresqlURL,
 		OutputDirectory:      outputDirectory,
+		InputDirectory:       inputDirectory,
+		InputPostgreSQLURL:   inputPostgreSQLURL,
+		SecretsAESKey:        strings.TrimSpace(os.Getenv("MILETOS_SECRETS_AES_KEY")),
 		KafkaEnabled:         kafkaEnabled,
 		KafkaBrokers:         getEnvStrings("MILETOS_RUNTIME_KAFKA_BROKERS", "127.0.0.1:9092"),
 		KafkaClientID: getEnv(

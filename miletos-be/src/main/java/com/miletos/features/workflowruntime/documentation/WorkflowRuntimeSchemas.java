@@ -218,7 +218,6 @@ public final class WorkflowRuntimeSchemas {
       @Schema(
               allowableValues = {
                 "PLUGIN_NOT_FOUND",
-                "PLUGIN_VERSION_NOT_FOUND",
                 "UNKNOWN_OUTPUT_PORT",
                 "UNKNOWN_INPUT_PORT",
                 "INPUT_EDGE_COUNT_BELOW_MINIMUM",

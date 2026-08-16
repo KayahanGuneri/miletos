@@ -1,4 +1,8 @@
+"use client";
+
+import { useMemo, useState } from "react";
 import { Box } from "@/components/lib/box/Box";
+import { Input } from "@/components/lib/input/Input";
 import { Typography } from "@/components/lib/typography/Typography";
 import { workflowMessages } from "@/app/(panel)/_modules/workflows/messages/workflow-messages";
 import { type WorkflowPlugin } from "@/app/(panel)/_modules/workflows/types/workflow-types";
@@ -49,6 +53,11 @@ function groupPlugins(plugins: WorkflowPlugin[]) {
 }
 
 function PluginPaletteCard({ plugin, readOnly }: PluginPaletteCardProps) {
+  const categoryLabel = PLUGIN_CATEGORY_LABELS[resolvePluginCategory(plugin.type, plugin.category)];
+  const cardTitle = readOnly
+    ? workflowMessages.pluginPalette.readOnlyCardTitle
+    : `${workflowMessages.pluginPalette.draggableCardTitle}. ${plugin.description}`;
+
   return (
     <article
       className={styles.workflowEditor__pluginCard}
@@ -60,11 +69,7 @@ function PluginPaletteCard({ plugin, readOnly }: PluginPaletteCardProps) {
           ? workflowMessages.pluginPalette.readOnlyCardLabel(plugin.displayName)
           : workflowMessages.pluginPalette.draggableCardLabel(plugin.displayName)
       }
-      title={
-        readOnly
-          ? workflowMessages.pluginPalette.readOnlyCardTitle
-          : workflowMessages.pluginPalette.draggableCardTitle
-      }
+      title={cardTitle}
       onDragStart={(event) => {
         if (readOnly) {
           event.preventDefault();
@@ -79,61 +84,96 @@ function PluginPaletteCard({ plugin, readOnly }: PluginPaletteCardProps) {
       </Typography>
       <Typography as="p">{plugin.description}</Typography>
       <Typography as="small">
+        {categoryLabel} ·{" "}
         {workflowMessages.pluginPalette.portSummary(
           plugin.inputPorts.length,
           plugin.outputPorts.length,
         )}
-      </Typography>
-      <Typography as="small">
-        {readOnly
-          ? workflowMessages.pluginPalette.readOnlyHint
-          : workflowMessages.pluginPalette.dragHint}
       </Typography>
     </article>
   );
 }
 
 export function PluginPalette({ plugins, isLoading, errorMessage, readOnly }: PluginPaletteProps) {
-  const groups = groupPlugins(plugins);
+  const [search, setSearch] = useState("");
+  const normalizedSearch = search.trim().toLowerCase();
+  const filteredPlugins = useMemo(() => {
+    if (!normalizedSearch) {
+      return plugins;
+    }
+
+    return plugins.filter((plugin) => {
+      const category = resolvePluginCategory(plugin.type, plugin.category);
+      const categoryLabel = PLUGIN_CATEGORY_LABELS[category];
+      return (
+        plugin.displayName.toLowerCase().includes(normalizedSearch) ||
+        plugin.type.toLowerCase().includes(normalizedSearch) ||
+        category.toLowerCase().includes(normalizedSearch) ||
+        categoryLabel.toLowerCase().includes(normalizedSearch)
+      );
+    });
+  }, [normalizedSearch, plugins]);
+  const groups = groupPlugins(filteredPlugins);
 
   return (
     <section className={styles.workflowEditor__sidePanel}>
-      <Typography as="p" className={styles.workflowEditor__eyebrow}>
-        {workflowMessages.pluginPalette.eyebrow}
-      </Typography>
-      <Typography as="h2">{workflowMessages.pluginPalette.title}</Typography>
-      <Typography as="p" className={styles.workflowEditor__muted}>
-        {workflowMessages.pluginPalette.description}
-      </Typography>
-      {isLoading ? <Typography as="p">{workflowMessages.pluginPalette.loading}</Typography> : null}
-      {errorMessage ? (
-        <Typography as="p" className={styles.workflowEditor__fieldError} role="alert">
-          {errorMessage}
+      <Box className={styles.workflowEditor__sideHeader}>
+        <Typography as="p" className={styles.workflowEditor__eyebrow}>
+          {workflowMessages.pluginPalette.eyebrow}
         </Typography>
-      ) : null}
-      {!isLoading && !errorMessage && plugins.length === 0 ? (
-        <Typography as="p" className={styles.workflowEditor__muted}>
-          {workflowMessages.pluginPalette.empty}
-        </Typography>
-      ) : null}
-      {!isLoading && !errorMessage ? (
-        <Box className={styles.workflowEditor__pluginGroups}>
-          {groups.map((group) => (
-            <section key={group.category} className={styles.workflowEditor__pluginGroup}>
-              <Typography as="h3">{PLUGIN_CATEGORY_LABELS[group.category]}</Typography>
-              <Box className={styles.workflowEditor__pluginList}>
-                {group.plugins.map((plugin) => (
-                  <PluginPaletteCard
-                    key={`${plugin.type}:${plugin.version}`}
-                    plugin={plugin}
-                    readOnly={readOnly}
-                  />
-                ))}
-              </Box>
-            </section>
-          ))}
-        </Box>
-      ) : null}
+        <Typography as="h2">{workflowMessages.pluginPalette.title}</Typography>
+        <label className={styles.workflowEditor__pluginSearch}>
+          <Typography as="span" className={styles.workflowEditor__eyebrow}>
+            {workflowMessages.pluginPalette.searchLabel}
+          </Typography>
+          <Input
+            className={styles.workflowEditor__searchInput}
+            type="search"
+            value={search}
+            placeholder={workflowMessages.pluginPalette.searchPlaceholder}
+            aria-label={workflowMessages.pluginPalette.searchLabel}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </label>
+      </Box>
+      <Box className={styles.workflowEditor__sideScroll}>
+        {isLoading ? (
+          <Typography as="p">{workflowMessages.pluginPalette.loading}</Typography>
+        ) : null}
+        {errorMessage ? (
+          <Typography as="p" className={styles.workflowEditor__fieldError} role="alert">
+            {errorMessage}
+          </Typography>
+        ) : null}
+        {!isLoading && !errorMessage && plugins.length === 0 ? (
+          <Typography as="p" className={styles.workflowEditor__muted}>
+            {workflowMessages.pluginPalette.empty}
+          </Typography>
+        ) : null}
+        {!isLoading && !errorMessage && plugins.length > 0 && filteredPlugins.length === 0 ? (
+          <Typography as="p" className={styles.workflowEditor__muted}>
+            {workflowMessages.pluginPalette.emptyFiltered}
+          </Typography>
+        ) : null}
+        {!isLoading && !errorMessage ? (
+          <Box className={styles.workflowEditor__pluginGroups}>
+            {groups.map((group) => (
+              <section key={group.category} className={styles.workflowEditor__pluginGroup}>
+                <Typography as="h3">{PLUGIN_CATEGORY_LABELS[group.category]}</Typography>
+                <Box className={styles.workflowEditor__pluginList}>
+                  {group.plugins.map((plugin) => (
+                    <PluginPaletteCard
+                      key={`${plugin.type}:${plugin.version}`}
+                      plugin={plugin}
+                      readOnly={readOnly}
+                    />
+                  ))}
+                </Box>
+              </section>
+            ))}
+          </Box>
+        ) : null}
+      </Box>
     </section>
   );
 }

@@ -51,8 +51,7 @@ func (service *WorkflowService) CreateWorkflow(
 func (service *WorkflowService) Validate(workflow Workflow) error {
 	if err := ValidateWorkflowDefinition(
 		workflow,
-		service.registry.Definition,
-		service.registry.HasType,
+		service.registry.Get,
 		service.registry.ValidateConfiguration,
 	); err != nil {
 		var validationError *WorkflowDefinitionValidationError

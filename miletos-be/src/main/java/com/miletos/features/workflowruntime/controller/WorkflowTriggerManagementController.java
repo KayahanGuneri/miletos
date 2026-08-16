@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -44,9 +45,12 @@ public class WorkflowTriggerManagementController {
   @GetMapping("/triggers/http")
   public ResponseEntity<byte[]> getActiveHTTPTrigger(
       @PathVariable Long workflowId,
+      @RequestParam String triggerNodeId,
       @CurrentUser User user,
       @RequestHeader HttpHeaders browserHeaders) {
-    return response(triggerManagementService.getActiveHTTPTrigger(user, workflowId, browserHeaders));
+    return response(
+        triggerManagementService.getActiveHTTPTrigger(
+            user, workflowId, triggerNodeId, browserHeaders));
   }
 
   @Authorize(RequiredRole.COMPANY_ADMIN)
@@ -89,7 +93,8 @@ public class WorkflowTriggerManagementController {
       @PathVariable Long workflowId,
       @CurrentUser User user,
       @RequestHeader HttpHeaders browserHeaders) {
-    return response(triggerManagementService.getActiveCronTrigger(user, workflowId, browserHeaders));
+    return response(
+        triggerManagementService.getActiveCronTrigger(user, workflowId, browserHeaders));
   }
 
   @Authorize(RequiredRole.COMPANY_ADMIN)
@@ -121,7 +126,8 @@ public class WorkflowTriggerManagementController {
       @RequestBody(required = false) JsonNode request,
       @CurrentUser User user,
       @RequestHeader HttpHeaders browserHeaders) {
-    return response(triggerManagementService.runWorkflow(user, workflowId, request, browserHeaders));
+    return response(
+        triggerManagementService.runWorkflow(user, workflowId, request, browserHeaders));
   }
 
   private ResponseEntity<byte[]> response(WorkflowRuntimeResponse response) {

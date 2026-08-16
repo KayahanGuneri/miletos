@@ -79,6 +79,12 @@ export function WorkflowListPage() {
         </Box>
       ) : (
         <section className={styles.workflowList__panel}>
+          <Box className={styles.workflowList__directoryHeader}>
+            <Typography as="p" className={styles.workflowList__eyebrow}>
+              {workflowMessages.list.directoryEyebrow}
+            </Typography>
+            <Typography as="h2">{workflowMessages.list.directoryTitle}</Typography>
+          </Box>
           <header className={styles.workflowList__toolbar}>
             <form
               className={styles.workflowList__searchForm}

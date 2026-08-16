@@ -15,17 +15,18 @@ import { PluginPalette } from "@/app/(panel)/_modules/workflows/components/Plugi
 import { WorkflowCanvas } from "@/app/(panel)/_modules/workflows/components/WorkflowCanvas";
 import { WorkflowDeleteConfirmation } from "@/app/(panel)/_modules/workflows/components/WorkflowDeleteConfirmation";
 import { WorkflowLifecycleActions } from "@/app/(panel)/_modules/workflows/components/WorkflowLifecycleActions";
+import { WorkflowRuntimeActions } from "@/app/(panel)/_modules/workflows/components/WorkflowRuntimeActions";
 import { workflowMessages } from "@/app/(panel)/_modules/workflows/messages/workflow-messages";
 import {
   useCreateWorkflowMutation,
   useDeleteWorkflowMutation,
   useUpdateWorkflowMutation,
+  useUploadWorkflowInputFileMutation,
 } from "@/app/(panel)/_modules/workflows/query/workflow-mutations";
 import {
   useWorkflowPluginsQuery,
   useWorkflowQuery,
 } from "@/app/(panel)/_modules/workflows/query/workflow-queries";
-import { WorkflowRuntimeActions } from "@/app/(panel)/_modules/workflows/components/WorkflowRuntimeActions";
 import {
   type SaveWorkflowRequest,
   type Workflow,
@@ -55,6 +56,13 @@ interface WorkflowEditorPageProps {
 
 const INVALID_CONFIGURATION_MESSAGE = workflowMessages.editor.invalidConfiguration;
 
+function pluginForWorkflowNode(node: WorkflowNode | null, plugins: WorkflowPlugin[] | undefined) {
+  if (!node) {
+    return undefined;
+  }
+  return plugins?.find((plugin) => plugin.type === node.pluginType);
+}
+
 function toEditableRequest(workflow: Workflow): SaveWorkflowRequest {
   return {
     name: workflow.name.trim(),
@@ -80,6 +88,7 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
   const createMutation = useCreateWorkflowMutation();
   const updateMutation = useUpdateWorkflowMutation();
   const deleteMutation = useDeleteWorkflowMutation();
+  const uploadMutation = useUploadWorkflowInputFileMutation();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [nodes, setNodes] = useState<WorkflowNode[]>([]);
@@ -127,30 +136,16 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
     () => nodes.find((node) => node.nodeId === selectedNodeId) ?? null,
     [nodes, selectedNodeId],
   );
-  const selectedPlugin = useMemo(
-    () =>
-      selectedNode
-        ? plugins.data?.items.find(
-            (plugin) =>
-              plugin.type === selectedNode.pluginType &&
-              plugin.version === selectedNode.pluginVersion,
-          )
-        : undefined,
-    [plugins.data?.items, selectedNode],
-  );
   const configurationNode = useMemo(
     () => nodes.find((node) => node.nodeId === configurationNodeId) ?? null,
     [configurationNodeId, nodes],
   );
+  const selectedPlugin = useMemo(
+    () => pluginForWorkflowNode(selectedNode, plugins.data?.items),
+    [plugins.data?.items, selectedNode],
+  );
   const configurationPlugin = useMemo(
-    () =>
-      configurationNode
-        ? plugins.data?.items.find(
-            (plugin) =>
-              plugin.type === configurationNode.pluginType &&
-              plugin.version === configurationNode.pluginVersion,
-          )
-        : undefined,
+    () => pluginForWorkflowNode(configurationNode, plugins.data?.items),
     [configurationNode, plugins.data?.items],
   );
   const hasInvalidStoredConfiguration = useMemo(
@@ -209,6 +204,7 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
       ...current,
       {
         nodeId,
+        displayName: plugin.displayName,
         pluginType: plugin.type,
         pluginVersion: plugin.version,
         configuration,
@@ -357,6 +353,7 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
 
   return (
     <PageShell
+      variant="workbench"
       eyebrow={workflowMessages.common.eyebrow}
       title={
         isNew ? workflowMessages.editor.createTitle : name || workflowMessages.editor.fallbackTitle
@@ -389,138 +386,161 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
               }}
             />
           ) : null}
+          <Button
+            type="button"
+            disabled={readOnly || saving || !metadataValid || !configurationValid}
+            onClick={() => void saveWorkflow()}
+          >
+            {saving ? workflowMessages.editor.saving : workflowMessages.editor.save}
+          </Button>
+          {!isNew && detail.data && detail.data.status !== "ACTIVE" ? (
+            <Button
+              type="button"
+              variant={ButtonVariant.Danger}
+              onClick={() => {
+                setShowDelete(true);
+                deleteMutation.reset();
+              }}
+            >
+              {workflowMessages.editor.delete}
+            </Button>
+          ) : null}
         </>
       }
     >
-      <section className={styles.workflowEditor__metadataPanel}>
-        <Box className={styles.workflowEditor__formGrid}>
-          <label className={styles.workflowEditor__field}>
-            <Typography as="span">{workflowMessages.editor.nameLabel}</Typography>
-            <Input
-              maxLength={120}
-              readOnly={readOnly}
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-            />
-          </label>
-          <label className={styles.workflowEditor__field}>
-            <Typography as="span">{workflowMessages.editor.descriptionLabel}</Typography>
-            <textarea
-              maxLength={1000}
-              rows={3}
-              readOnly={readOnly}
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-            />
-          </label>
-        </Box>
-        {readOnly ? (
-          <Typography as="p" className={styles.workflowEditor__readOnlyNotice}>
-            {workflowMessages.editor.readOnlyNotice}
-          </Typography>
-        ) : null}
-        {localError || mutationError ? (
-          <Typography as="p" className={styles.workflowEditor__fieldError} role="alert">
-            {localError ?? mutationError}
-          </Typography>
-        ) : null}
-        {successMessage ? (
-          <Typography as="p" className={styles.workflowEditor__success} role="status">
-            {successMessage}
-          </Typography>
-        ) : null}
-      </section>
+      <div className={styles.workflowEditor}>
+        <section className={styles.workflowEditor__toolbar}>
+          <Box className={styles.workflowEditor__toolbarHeader}>
+            <Typography as="p" className={styles.workflowEditor__eyebrow}>
+              {workflowMessages.editor.detailsEyebrow}
+            </Typography>
+            <Typography as="h2">{workflowMessages.editor.detailsTitle}</Typography>
+          </Box>
+          <Box className={styles.workflowEditor__formGrid}>
+            <label className={styles.workflowEditor__field}>
+              <Typography as="span">{workflowMessages.editor.nameLabel}</Typography>
+              <Input
+                className={styles.workflowEditor__nameInput}
+                maxLength={120}
+                readOnly={readOnly}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+              />
+            </label>
+            <label className={styles.workflowEditor__field}>
+              <Typography as="span">{workflowMessages.editor.descriptionLabel}</Typography>
+              <textarea
+                maxLength={1000}
+                rows={4}
+                readOnly={readOnly}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+              />
+            </label>
+          </Box>
+          {readOnly ? (
+            <Typography as="p" className={styles.workflowEditor__readOnlyNotice}>
+              {workflowMessages.editor.readOnlyNotice}
+            </Typography>
+          ) : null}
+          {localError || mutationError ? (
+            <Typography as="p" className={styles.workflowEditor__fieldError} role="alert">
+              {localError ?? mutationError}
+            </Typography>
+          ) : null}
+          {successMessage ? (
+            <Typography as="p" className={styles.workflowEditor__success} role="status">
+              {successMessage}
+            </Typography>
+          ) : null}
+        </section>
 
-      {detail.data ? (
-        <WorkflowRuntimeActions
-          workflow={detail.data}
-          plugins={plugins.data?.items ?? []}
-          canManage={isAllowed}
-        />
-      ) : null}
-
-      <Box className={styles.workflowEditor__workspace}>
-        <PluginPalette
-          plugins={plugins.data?.items ?? []}
-          isLoading={plugins.isPending}
-          errorMessage={plugins.error?.message}
-          readOnly={readOnly || !configurationValid}
-        />
-        <WorkflowCanvas
-          workflowNodes={nodes}
-          workflowEdges={edges}
-          plugins={plugins.data?.items ?? []}
-          readOnly={readOnly}
-          selectionLocked={!configurationValid}
-          selectedNodeId={selectedNodeId}
-          onSelectNode={selectNode}
-          onMoveNode={(nodeId, x, y) =>
-            setNodes((current) =>
-              current.map((node) =>
-                node.nodeId === nodeId ? { ...node, position: { x, y } } : node,
-              ),
-            )
-          }
-          onAddEdge={(edge) => setEdges((current) => [...current, edge])}
-          onDropPlugin={dropPlugin}
-          onDeleteNodes={deleteNodes}
-          onDeleteEdges={(edgeIds) => {
-            const ids = new Set(edgeIds);
-            setEdges((current) => current.filter((edge) => !ids.has(edge.edgeId)));
-          }}
-        />
-        <NodePropertiesPanel
-          node={selectedNode}
-          plugin={selectedPlugin}
-          readOnly={readOnly}
-          onConfigure={() => {
-            if (!selectedNode) {
-              return;
+        <Box className={styles.workflowEditor__workspace}>
+          <PluginPalette
+            plugins={plugins.data?.items ?? []}
+            isLoading={plugins.isPending}
+            errorMessage={plugins.error?.message}
+            readOnly={readOnly || !configurationValid}
+          />
+          <WorkflowCanvas
+            workflowNodes={nodes}
+            workflowEdges={edges}
+            plugins={plugins.data?.items ?? []}
+            readOnly={readOnly}
+            selectionLocked={!configurationValid}
+            selectedNodeId={selectedNodeId}
+            onSelectNode={selectNode}
+            onMoveNode={(nodeId, x, y) =>
+              setNodes((current) =>
+                current.map((node) =>
+                  node.nodeId === nodeId ? { ...node, position: { x, y } } : node,
+                ),
+              )
             }
-            setConfigurationNodeId(selectedNode.nodeId);
-            setConfigurationValid(
-              isPluginConfigurationValid(selectedNode.pluginType, selectedNode.configuration),
-            );
-          }}
-          onDelete={() => {
-            if (selectedNodeId) deleteNodes([selectedNodeId]);
-          }}
-        />
-      </Box>
-
-      <section className={styles.workflowEditor__advancedPanel}>
-        <Typography as="h2">{workflowMessages.editor.advancedMetadataTitle}</Typography>
-        <JsonObjectEditor
-          label={workflowMessages.editor.metadataLabel}
-          value={metadata}
-          readOnly={readOnly}
-          resetKey={editorResetVersion}
-          onChange={setMetadata}
-          onValidityChange={metadataValidityChange}
-        />
-      </section>
-
-      <footer className={styles.workflowEditor__footer}>
-        <Button
-          type="button"
-          disabled={readOnly || saving || !metadataValid || !configurationValid}
-          onClick={() => void saveWorkflow()}
-        >
-          {saving ? workflowMessages.editor.saving : workflowMessages.editor.save}
-        </Button>
-        {!isNew && detail.data && detail.data.status !== "ACTIVE" ? (
-          <Button
-            type="button"
-            variant={ButtonVariant.Secondary}
-            onClick={() => {
-              setShowDelete(true);
-              deleteMutation.reset();
+            onAddEdge={(edge) => setEdges((current) => [...current, edge])}
+            onDropPlugin={dropPlugin}
+            onDeleteNodes={deleteNodes}
+            onDeleteEdges={(edgeIds) => {
+              const ids = new Set(edgeIds);
+              setEdges((current) => current.filter((edge) => !ids.has(edge.edgeId)));
             }}
-          >
-            {workflowMessages.editor.delete}
-          </Button>
+          />
+          <NodePropertiesPanel
+            node={selectedNode}
+            plugin={selectedPlugin}
+            readOnly={readOnly}
+            workflowId={detail.data?.id}
+            workflowStatus={detail.data?.status}
+            canManageTriggers={isAllowed}
+            onDisplayNameChange={(displayName) =>
+              setNodes((current) =>
+                current.map((node) =>
+                  node.nodeId === selectedNode?.nodeId ? { ...node, displayName } : node,
+                ),
+              )
+            }
+            onConfigure={() => {
+              if (!selectedNode) {
+                return;
+              }
+              setConfigurationNodeId(selectedNode.nodeId);
+              setConfigurationValid(
+                isPluginConfigurationValid(selectedNode.pluginType, selectedNode.configuration),
+              );
+            }}
+            onDelete={() => {
+              if (selectedNodeId) deleteNodes([selectedNodeId]);
+            }}
+          />
+        </Box>
+
+        {detail.data ? (
+          <details className={styles.workflowEditor__secondaryPanel}>
+            <summary>{workflowMessages.runtime.title}</summary>
+            <Box className={styles.workflowEditor__secondaryBody}>
+              <WorkflowRuntimeActions
+                workflow={detail.data}
+                plugins={plugins.data?.items ?? []}
+                canManage={isAllowed}
+              />
+            </Box>
+          </details>
         ) : null}
-      </footer>
+
+        <details className={styles.workflowEditor__secondaryPanel}>
+          <summary>{workflowMessages.editor.advancedMetadataTitle}</summary>
+          <Box className={styles.workflowEditor__secondaryBody}>
+            <JsonObjectEditor
+              label={workflowMessages.editor.metadataLabel}
+              value={metadata}
+              readOnly={readOnly}
+              resetKey={editorResetVersion}
+              onChange={setMetadata}
+              onValidityChange={metadataValidityChange}
+            />
+          </Box>
+        </details>
+      </div>
 
       {showDelete && detail.data ? (
         <WorkflowDeleteConfirmation
@@ -547,6 +567,13 @@ export function WorkflowEditorPage({ workflowId }: WorkflowEditorPageProps) {
           pluginVersion={configurationNode.pluginVersion}
           configuration={configurationNode.configuration}
           readOnly={readOnly}
+          uploadPending={uploadMutation.isPending}
+          uploadError={uploadMutation.isError}
+          onUploadFile={async (file) => {
+            uploadMutation.reset();
+            const uploaded = await uploadMutation.mutateAsync(file);
+            return uploaded.fileName;
+          }}
           onValidityChange={configurationValidityChange}
           onClose={() => {
             setConfigurationNodeId(null);

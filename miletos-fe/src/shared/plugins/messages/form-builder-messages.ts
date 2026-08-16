@@ -1,0 +1,20 @@
+export const formBuilderMessages = {
+  required: (label: string) => `${label} is required.`,
+  mustBeString: (label: string) => `${label} must be text.`,
+  mustBeNumber: (label: string) => `${label} must be a number.`,
+  mustBeBoolean: (label: string) => `${label} must be true or false.`,
+  invalidOption: (label: string) => `Select a valid option for ${label}.`,
+  selectPlaceholder: "Select...",
+  numberTooSmall: (label: string, min: number) => `${label} must be at least ${min}.`,
+  numberTooLarge: (label: string, max: number) => `${label} must be at most ${max}.`,
+  persistedTypeMismatch: (key: string, expected: string) =>
+    `The persisted value for ${key} is not a ${expected}.`,
+  fileUploadHint: "Choose a file to upload.",
+  fileUploadChoose: "Choose file",
+  fileUploadNoFileSelected: "No file selected",
+  fileUploadAcceptedTypes: (types: string) => `Accepted file types: ${types}.`,
+  fileUploadPending: "Uploading...",
+  fileUploadFailed: "The file could not be uploaded. Try again.",
+  fileUploaded: (fileName: string) => `Uploaded as ${fileName}`,
+  passwordUnset: "Leave blank to keep the current secret.",
+};

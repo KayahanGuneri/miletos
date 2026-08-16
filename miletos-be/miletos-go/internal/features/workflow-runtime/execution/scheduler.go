@@ -111,8 +111,7 @@ func (scheduler *Scheduler) scheduleReady(
 	if scheduler.registry != nil {
 		if err := workflowfeature.ValidateWorkflowDefinition(
 			workflow,
-			scheduler.registry.Definition,
-			scheduler.registry.HasType,
+			scheduler.registry.Get,
 			scheduler.registry.ValidateConfiguration,
 		); err != nil {
 			var validationError *workflowfeature.WorkflowDefinitionValidationError
@@ -128,43 +127,64 @@ func (scheduler *Scheduler) scheduleReady(
 	}
 	byNodeID := make(map[string]model.NodeExecution, len(states))
 	for _, state := range states {
-		byNodeID[state.NodeID] = state
+		decoded, decodeErr := decodeNodeExecutionOutcome(state, scheduler.registry)
+		if decodeErr != nil {
+			return 0, decodeErr
+		}
+		byNodeID[state.NodeID] = decoded
 	}
 	scheduled := 0
-	for _, node := range workflow.Nodes {
-		state := byNodeID[node.ID]
-		predecessors := workflowfeature.Predecessors(workflow, node.ID)
-		if state.Status != model.NodePending {
-			continue
-		}
-		ready := true
-		for _, predecessorID := range predecessors {
-			if byNodeID[predecessorID].Status != model.NodeSucceeded {
-				ready = false
-				break
+	for {
+		skipped := false
+		outcomes := nodeOutcomes(byNodeID)
+		for _, node := range workflow.Nodes {
+			state := byNodeID[node.ID]
+			if state.Status != model.NodePending {
+				continue
 			}
+			readiness := resolveNodeRoutes(workflow, node.ID, outcomes)
+			if readiness.failed || (!readiness.ready && !readiness.inactive) {
+				continue
+			}
+			if readiness.inactive {
+				if err := scheduler.executions.MarkNodeSkipped(
+					ctx, execution.CompanyID, execution.ID, node.ID,
+					string(model.SkipReasonNoActiveRoute),
+				); err != nil {
+					return scheduled, err
+				}
+				state.Status = model.NodeSkipped
+				byNodeID[node.ID] = state
+				outcomes[node.ID] = nodeOutcome{
+					status: model.NodeSkipped, skipReason: model.SkipReasonNoActiveRoute,
+				}
+				skipped = true
+				continue
+			}
+			payload := buildExecutionNodeInput(
+				workflow, node.ID, readiness.edgePayloads, scheduler.registry, startInput,
+				execution.Origin,
+			)
+			queued, changed, err := scheduler.executions.QueueNodeCommand(
+				ctx,
+				execution,
+				node.ID,
+				payload,
+				scheduler.topic,
+			)
+			if err != nil {
+				return scheduled, err
+			}
+			if !changed {
+				continue
+			}
+			byNodeID[node.ID] = queued
+			outcomes[node.ID] = nodeOutcome{status: model.NodeQueued}
+			scheduled++
 		}
-		if !ready {
-			continue
+		if !skipped {
+			break
 		}
-		payload := buildExecutionNodeInput(
-			workflow, node.ID, nodeOutputs(byNodeID), scheduler.registry, startInput,
-			execution.Origin,
-		)
-		_, changed, err := scheduler.executions.QueueNodeCommand(
-			ctx,
-			execution,
-			node.ID,
-			payload,
-			scheduler.topic,
-		)
-		if err != nil {
-			return scheduled, err
-		}
-		if !changed {
-			continue
-		}
-		scheduled++
 	}
 	return scheduled, nil
 }
@@ -189,8 +209,12 @@ func (scheduler *Scheduler) Finalize(
 	failedNodeIDs := make([]string, 0)
 	byNodeID := make(map[string]model.NodeExecution, len(states))
 	for _, state := range states {
-		byNodeID[state.NodeID] = state
-		switch state.Status {
+		decoded, decodeErr := decodeNodeExecutionOutcome(state, scheduler.registry)
+		if decodeErr != nil {
+			return decodeErr
+		}
+		byNodeID[decoded.NodeID] = decoded
+		switch decoded.Status {
 		case model.NodeFailed, model.NodeTimedOut, model.NodeCancelled:
 			failed = true
 			failedNodeIDs = append(failedNodeIDs, state.NodeID)
@@ -225,6 +249,7 @@ func (scheduler *Scheduler) Finalize(
 			if blocked[state.NodeID] {
 				if err := scheduler.executions.MarkNodeSkipped(
 					ctx, execution.CompanyID, execution.ID, state.NodeID,
+					string(model.SkipReasonDependencyFailed),
 				); err != nil {
 					return err
 				}
@@ -249,14 +274,6 @@ func (scheduler *Scheduler) Finalize(
 		ctx, execution.CompanyID, execution.ID,
 		model.ExecutionSucceeded, outputs, nil,
 	)
-}
-
-func nodeOutputs(states map[string]model.NodeExecution) map[string]any {
-	outputs := make(map[string]any, len(states))
-	for nodeID, state := range states {
-		outputs[nodeID] = state.Output
-	}
-	return outputs
 }
 
 func terminalOutputs(

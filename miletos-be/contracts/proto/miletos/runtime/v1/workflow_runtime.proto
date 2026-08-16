@@ -315,6 +315,7 @@ message GetHTTPTriggerRequest {
 
 message GetActiveHTTPTriggerByWorkflowRequest {
   string workflow_id = 1;
+  string trigger_node_id = 2;
 }
 
 message DisableHTTPTriggerRequest {

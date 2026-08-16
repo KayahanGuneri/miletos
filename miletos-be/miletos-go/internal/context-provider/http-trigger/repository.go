@@ -35,6 +35,19 @@ func (triggerRepository *Repository) Create(
 		return fmt.Errorf("begin HTTP trigger activation: %w", err)
 	}
 	defer transaction.Rollback(ctx)
+	now := binding.CreatedAt
+	if err := transaction.DB(ctx).
+		Table("workflow_runtime.http_trigger_bindings").
+		Where(
+			"company_id = ? AND workflow_id = ? AND trigger_node_id = ? AND status = ?",
+			binding.CompanyID, binding.WorkflowID, binding.TriggerNodeID, StatusActive,
+		).
+		Updates(map[string]any{
+			"status": StatusDisabled, "disabled_at": now, "updated_at": now,
+			"lock_version": gorm.Expr("lock_version + 1"),
+		}).Error; err != nil {
+		return fmt.Errorf("disable previous HTTP trigger for node: %w", err)
+	}
 	snapshot := map[string]any{
 		"snapshot_id": binding.SnapshotID, "company_id": binding.CompanyID,
 		"workflow_id": binding.WorkflowID, "workflow_revision": binding.WorkflowRevision,
@@ -93,21 +106,24 @@ func (triggerRepository *Repository) FindActiveByTokenHash(
 	return bindingFromRecord(records[0]), nil
 }
 
-func (triggerRepository *Repository) FindActiveByWorkflow(
+func (triggerRepository *Repository) FindActiveByWorkflowAndNode(
 	ctx context.Context,
 	companyID string,
 	workflowID string,
+	triggerNodeID string,
 ) (Binding, error) {
 	var records []triggerBindingRecord
 	result := triggerRepository.dbClient.DB(ctx).
 		Table("workflow_runtime.http_trigger_bindings").
 		Where(
-			"company_id = ? AND workflow_id = ? AND status = ?",
-			companyID, workflowID, StatusActive,
+			"company_id = ? AND workflow_id = ? AND trigger_node_id = ? AND status = ?",
+			companyID, workflowID, triggerNodeID, StatusActive,
 		).
 		Limit(1).Find(&records)
 	if result.Error != nil {
-		return Binding{}, fmt.Errorf("find active HTTP trigger by workflow: %w", result.Error)
+		return Binding{}, fmt.Errorf(
+			"find active HTTP trigger by workflow and node: %w", result.Error,
+		)
 	}
 	if result.RowsAffected == 0 {
 		return Binding{}, repository.ErrNotFound

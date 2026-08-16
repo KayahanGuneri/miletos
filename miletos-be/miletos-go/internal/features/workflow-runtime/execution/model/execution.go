@@ -32,7 +32,13 @@ const (
 	NodeSkipped      NodeStatus = "SKIPPED"
 	NodeCancelled    NodeStatus = "CANCELLED"
 	NodeTimedOut     NodeStatus = "TIMED_OUT"
+
+	SkipReasonOutOfTriggerScope SkipReason = "OUT_OF_TRIGGER_SCOPE"
+	SkipReasonDependencyFailed  SkipReason = "DEPENDENCY_FAILED"
+	SkipReasonNoActiveRoute     SkipReason = "NO_ACTIVE_ROUTE"
 )
+
+type SkipReason string
 
 const (
 	FailureCategoryValidation FailureCategory = "VALIDATION"
@@ -89,26 +95,27 @@ type Execution struct {
 }
 
 type NodeExecution struct {
-	ID            string         `json:"nodeExecutionId"`
-	ExecutionID   string         `json:"workflowExecutionId"`
-	CompanyID     string         `json:"-"`
-	NodeID        string         `json:"nodeId"`
-	Type          string         `json:"pluginType"`
-	Version       string         `json:"pluginVersion"`
-	Configuration map[string]any `json:"configuration,omitempty"`
-	Status        NodeStatus     `json:"status"`
-	Attempt       int            `json:"attempt"`
-	CreatedAt     time.Time      `json:"createdAt"`
-	ReadyAt       *time.Time     `json:"readyAt,omitempty"`
-	QueuedAt      *time.Time     `json:"queuedAt,omitempty"`
-	StartedAt     *time.Time     `json:"startedAt,omitempty"`
-	FinishedAt    *time.Time     `json:"finishedAt,omitempty"`
-	NextAttemptAt *time.Time     `json:"nextAttemptAt,omitempty"`
-	UpdatedAt     time.Time      `json:"updatedAt"`
-	Input         map[string]any `json:"inputSummary,omitempty"`
-	Output        map[string]any `json:"outputSummary,omitempty"`
-	Failure       map[string]any `json:"failureSummary,omitempty"`
-	LockVersion   int64          `json:"-"`
+	ID            string             `json:"nodeExecutionId"`
+	ExecutionID   string             `json:"workflowExecutionId"`
+	CompanyID     string             `json:"-"`
+	NodeID        string             `json:"nodeId"`
+	Type          string             `json:"pluginType"`
+	Version       string             `json:"pluginVersion"`
+	Configuration map[string]any     `json:"configuration,omitempty"`
+	Status        NodeStatus         `json:"status"`
+	Attempt       int                `json:"attempt"`
+	CreatedAt     time.Time          `json:"createdAt"`
+	ReadyAt       *time.Time         `json:"readyAt,omitempty"`
+	QueuedAt      *time.Time         `json:"queuedAt,omitempty"`
+	StartedAt     *time.Time         `json:"startedAt,omitempty"`
+	FinishedAt    *time.Time         `json:"finishedAt,omitempty"`
+	NextAttemptAt *time.Time         `json:"nextAttemptAt,omitempty"`
+	UpdatedAt     time.Time          `json:"updatedAt"`
+	Input         map[string]any     `json:"inputSummary,omitempty"`
+	Output        map[string]any     `json:"outputSummary,omitempty"`
+	Failure       map[string]any     `json:"failureSummary,omitempty"`
+	Routing       NodeRoutingOutcome `json:"-"`
+	LockVersion   int64              `json:"-"`
 }
 
 const (

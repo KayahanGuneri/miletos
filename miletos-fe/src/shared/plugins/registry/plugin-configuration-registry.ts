@@ -6,8 +6,11 @@ import type {
   RegisteredPluginConfigurationDefinition,
 } from "@/shared/plugins/contracts/plugin-configuration-interfaces";
 import { csvOutputConfigurationDefinition } from "@/shared/plugins/editors/csv-output/CsvOutputConfiguration";
+import { databaseInputConfigurationDefinition } from "@/shared/plugins/editors/database-input/DatabaseInputConfiguration";
 import { databaseOutputConfigurationDefinition } from "@/shared/plugins/editors/database-output/DatabaseOutputConfiguration";
 import { delayConfigurationDefinition } from "@/shared/plugins/editors/delay/DelayConfiguration";
+import { excelInputConfigurationDefinition } from "@/shared/plugins/editors/excel-input/ExcelInputConfiguration";
+import { fileInputConfigurationDefinition } from "@/shared/plugins/editors/file-input/FileInputConfiguration";
 import { httpTriggerConfigurationDefinition } from "@/shared/plugins/editors/http-trigger/HttpTriggerConfiguration";
 import { cronTriggerConfigurationDefinition } from "@/shared/plugins/editors/cron-trigger/CronTriggerConfiguration";
 import { joinConfigurationDefinition } from "@/shared/plugins/editors/join/JoinConfiguration";
@@ -24,12 +27,12 @@ function registerDefinition<TValues>(
     pluginType: definition.pluginType,
     dialogDescription: definition.dialogDescription,
     dialogSize: definition.dialogSize,
+    formSchema: definition.formSchema,
     createDefaultConfiguration: definition.createDefaultConfiguration,
     deserialize: definition.deserialize,
     validate: (values) => definition.validate(values as TValues),
     serialize: (values) => definition.serialize(values as TValues),
-    // Runtime lookup erases TValues; deserialize and Editor always originate from this same definition.
-    Editor: definition.Editor as ComponentType<PluginConfigurationEditorProps<unknown>>,
+    Editor: definition.Editor as ComponentType<PluginConfigurationEditorProps<unknown>> | undefined,
   };
 }
 
@@ -42,6 +45,9 @@ const DEFINITIONS: RegisteredPluginConfigurationDefinition[] = [
   registerDefinition(restOutputConfigurationDefinition),
   registerDefinition(databaseOutputConfigurationDefinition),
   registerDefinition(csvOutputConfigurationDefinition),
+  registerDefinition(fileInputConfigurationDefinition),
+  registerDefinition(excelInputConfigurationDefinition),
+  registerDefinition(databaseInputConfigurationDefinition),
   registerDefinition(passThroughConfigurationDefinition),
   registerDefinition(staticInputConfigurationDefinition),
   registerDefinition(terminalConfigurationDefinition),
