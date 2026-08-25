@@ -29,7 +29,11 @@ func (grpcService *GRPCService) CreateHTTPTrigger(
 	request *runtimev1.CreateHTTPTriggerRequest,
 ) (*runtimev1.CreateHTTPTriggerResponse, error) {
 	if request == nil || request.Definition == nil {
-		return nil, status.Error(codes.InvalidArgument, "workflow definition is required")
+		return nil, execution.StatusWithErrorInfo(
+			codes.InvalidArgument,
+			string(execution.ErrorReasonInvalidWorkflowDefinition),
+			execution.ErrorReasonInvalidWorkflowDefinition,
+		)
 	}
 	createRequest := mapCreateRequest(request, requestcontext.CompanyID(ctx))
 	created, err := grpcService.service.StartScenario(ctx, createRequest)
@@ -57,10 +61,18 @@ func (grpcService *GRPCService) GetActiveHTTPTriggerByWorkflow(
 	request *runtimev1.GetActiveHTTPTriggerByWorkflowRequest,
 ) (*runtimev1.HTTPTriggerResponse, error) {
 	if request == nil || request.GetWorkflowId() == "" {
-		return nil, status.Error(codes.InvalidArgument, "workflow id is required")
+		return nil, execution.StatusWithErrorInfo(
+			codes.InvalidArgument,
+			string(execution.ErrorReasonInvalidExecutionRequest),
+			execution.ErrorReasonInvalidExecutionRequest,
+		)
 	}
 	if request.GetTriggerNodeId() == "" {
-		return nil, status.Error(codes.InvalidArgument, "trigger node id is required")
+		return nil, execution.StatusWithErrorInfo(
+			codes.InvalidArgument,
+			string(execution.ErrorReasonInvalidExecutionRequest),
+			execution.ErrorReasonInvalidExecutionRequest,
+		)
 	}
 	binding, err := grpcService.service.GetActiveByWorkflowAndNode(
 		ctx, requestcontext.CompanyID(ctx), request.GetWorkflowId(), request.GetTriggerNodeId(),

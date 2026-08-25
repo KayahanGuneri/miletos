@@ -15,15 +15,6 @@ func RegisterBuiltinNodes(registry *NodeRegistry) error {
 	return nil
 }
 
-func onRunHandler(run func(*Context) (any, error)) NodeHandler {
-	return func(ctx *Context) error {
-		ctx.Lifecycles.OnRun(func() (any, error) {
-			return run(ctx)
-		})
-		return nil
-	}
-}
-
 func standardInputPorts() []Port {
 	return []Port{{Name: "input"}}
 }

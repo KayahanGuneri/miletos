@@ -76,66 +76,73 @@ func validateRESTOutput(configuration map[string]any) error {
 }
 
 func restOutputNodeHandler(client *http.Client) NodeHandler {
-	return onRunHandler(func(nodeContext *Context) (any, error) {
-		configuration := nodeContext.configuration
-		input, err := objectPayload(
-			nodeContext.Payload,
-			"REST_OUTPUT_PAYLOAD_INVALID",
-			"REST output requires a JSON object payload.",
-		)
-		if err != nil {
-			return nil, err
+	return func(nodeContext *Context) error {
+		nodeContext.Lifecycles.OnRun(func() (any, error) {
+			return restOutputNode(client, nodeContext)
+		})
+		return nil
+	}
+}
+
+func restOutputNode(client *http.Client, nodeContext *Context) (any, error) {
+	configuration := nodeContext.configuration
+	input, err := objectPayload(
+		nodeContext.Payload,
+		"REST_OUTPUT_PAYLOAD_INVALID",
+		"REST output requires a JSON object payload.",
+	)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateRESTOutput(configuration); err != nil {
+		return nil, err
+	}
+	rawURL := strings.TrimSpace(configuration["url"].(string))
+	method, _ := configuration["method"].(string)
+	method = strings.ToUpper(strings.TrimSpace(method))
+	if method == "" {
+		method = http.MethodPost
+	}
+	encoded, err := json.Marshal(input)
+	if err != nil {
+		return nil, &NodeError{
+			Category: "VALIDATION",
+			Code:     "REST_OUTPUT_PAYLOAD_INVALID",
+			Message:  "Incoming payload could not be serialized as JSON.",
 		}
-		if err := validateRESTOutput(configuration); err != nil {
-			return nil, err
+	}
+	request, err := http.NewRequestWithContext(
+		nodeContext.runtime, method, rawURL, bytes.NewReader(encoded),
+	)
+	if err != nil {
+		return nil, &NodeError{
+			Category: "EXECUTION",
+			Code:     "REST_OUTPUT_REQUEST_FAILED",
+			Message:  "The REST output request could not be created.",
 		}
-		rawURL := strings.TrimSpace(configuration["url"].(string))
-		method, _ := configuration["method"].(string)
-		method = strings.ToUpper(strings.TrimSpace(method))
-		if method == "" {
-			method = http.MethodPost
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response, err := client.Do(request)
+	if err != nil {
+		return nil, &NodeError{
+			Category: "EXECUTION",
+			Code:     "REST_OUTPUT_TRANSPORT_FAILED",
+			Message:  "The REST output request failed.",
+			CanRetry: isRetryableRESTTransportError(err),
+			Cause:    err,
 		}
-		encoded, err := json.Marshal(input)
-		if err != nil {
-			return nil, &NodeError{
-				Category: "VALIDATION",
-				Code:     "REST_OUTPUT_PAYLOAD_INVALID",
-				Message:  "Incoming payload could not be serialized as JSON.",
-			}
+	}
+	defer response.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 1<<20))
+	if response.StatusCode < 200 || response.StatusCode > 299 {
+		return nil, &NodeError{
+			Category: "EXECUTION",
+			Code:     "REST_OUTPUT_HTTP_STATUS",
+			Message:  fmt.Sprintf("REST output received HTTP status %d.", response.StatusCode),
+			CanRetry: response.StatusCode >= 500 || response.StatusCode == http.StatusTooManyRequests,
 		}
-		request, err := http.NewRequestWithContext(
-			nodeContext.runtime, method, rawURL, bytes.NewReader(encoded),
-		)
-		if err != nil {
-			return nil, &NodeError{
-				Category: "EXECUTION",
-				Code:     "REST_OUTPUT_REQUEST_FAILED",
-				Message:  "The REST output request could not be created.",
-			}
-		}
-		request.Header.Set("Content-Type", "application/json")
-		response, err := client.Do(request)
-		if err != nil {
-			return nil, &NodeError{
-				Category: "EXECUTION",
-				Code:     "REST_OUTPUT_TRANSPORT_FAILED",
-				Message:  "The REST output request failed.",
-				CanRetry: isRetryableRESTTransportError(err),
-				Cause:    err,
-			}
-		}
-		defer response.Body.Close()
-		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 1<<20))
-		if response.StatusCode < 200 || response.StatusCode > 299 {
-			return nil, &NodeError{
-				Category: "EXECUTION",
-				Code:     "REST_OUTPUT_HTTP_STATUS",
-				Message:  fmt.Sprintf("REST output received HTTP status %d.", response.StatusCode),
-				CanRetry: response.StatusCode >= 500 || response.StatusCode == http.StatusTooManyRequests,
-			}
-		}
-		return map[string]any{"statusCode": response.StatusCode}, nil
-	})
+	}
+	return map[string]any{"statusCode": response.StatusCode}, nil
 }
 
 func isRetryableRESTTransportError(err error) bool {

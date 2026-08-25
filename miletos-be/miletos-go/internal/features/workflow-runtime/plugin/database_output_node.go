@@ -158,65 +158,72 @@ func resolveDatabaseOutputConfiguration(
 }
 
 func databaseOutputNodeHandler() NodeHandler {
-	return onRunHandler(func(nodeContext *Context) (any, error) {
-		configuration := nodeContext.configuration
-		input, err := objectPayload(
-			nodeContext.Payload,
-			"DATABASE_OUTPUT_PAYLOAD_INVALID",
-			"Database output requires a JSON object payload.",
-		)
-		if err != nil {
-			return nil, err
+	return func(nodeContext *Context) error {
+		nodeContext.Lifecycles.OnRun(func() (any, error) {
+			return databaseOutputNode(nodeContext)
+		})
+		return nil
+	}
+}
+
+func databaseOutputNode(nodeContext *Context) (any, error) {
+	configuration := nodeContext.configuration
+	input, err := objectPayload(
+		nodeContext.Payload,
+		"DATABASE_OUTPUT_PAYLOAD_INVALID",
+		"Database output requires a JSON object payload.",
+	)
+	if err != nil {
+		return nil, err
+	}
+	resolved, err := resolveDatabaseOutputConfiguration(configuration)
+	if err != nil {
+		return nil, err
+	}
+	encoded, err := json.Marshal(input)
+	if err != nil {
+		return nil, &NodeError{
+			Category: "VALIDATION",
+			Code:     "DATABASE_OUTPUT_PAYLOAD_INVALID",
+			Message:  "Incoming payload could not be serialized as JSON.",
 		}
-		resolved, err := resolveDatabaseOutputConfiguration(configuration)
-		if err != nil {
-			return nil, err
+	}
+	query, arguments, err := databaseOutputStatement(resolved, input, string(encoded))
+	if err != nil {
+		return nil, err
+	}
+	connection, err := openDatabaseConnection(
+		nodeContext.runtime,
+		nodeContext.Infra.Database,
+		nodeContext.Infra.Secrets,
+		configuration,
+		"DATABASE_OUTPUT",
+	)
+	if err != nil {
+		return nil, databaseOutputExecError(err)
+	}
+	defer connection.Close()
+	result, err := connection.Exec(nodeContext.runtime, query, arguments...)
+	if err != nil {
+		return nil, databaseOutputExecError(err)
+	}
+	if result == nil {
+		return nil, &NodeError{
+			Category: "INTERNAL",
+			Code:     "DATABASE_OUTPUT_RESULT_INVALID",
+			Message:  "The database output capability returned an invalid result.",
 		}
-		encoded, err := json.Marshal(input)
-		if err != nil {
-			return nil, &NodeError{
-				Category: "VALIDATION",
-				Code:     "DATABASE_OUTPUT_PAYLOAD_INVALID",
-				Message:  "Incoming payload could not be serialized as JSON.",
-			}
-		}
-		query, arguments, err := databaseOutputStatement(resolved, input, string(encoded))
-		if err != nil {
-			return nil, err
-		}
-		connection, err := openDatabaseConnection(
-			nodeContext.runtime,
-			nodeContext.Infra.Database,
-			nodeContext.Infra.Secrets,
-			configuration,
-			"DATABASE_OUTPUT",
-		)
-		if err != nil {
-			return nil, databaseOutputExecError(err)
-		}
-		defer connection.Close()
-		result, err := connection.Exec(nodeContext.runtime, query, arguments...)
-		if err != nil {
-			return nil, databaseOutputExecError(err)
-		}
-		if result == nil {
-			return nil, &NodeError{
-				Category: "INTERNAL",
-				Code:     "DATABASE_OUTPUT_RESULT_INVALID",
-				Message:  "The database output capability returned an invalid result.",
-			}
-		}
-		rowsAffected, err := result.RowsAffected()
-		if err != nil {
-			return nil, databaseOutputExecError(err)
-		}
-		return map[string]any{
-			"operation":    resolved.Operation,
-			"rowsAffected": rowsAffected,
-			"schema":       resolved.Schema,
-			"table":        resolved.Table,
-		}, nil
-	})
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return nil, databaseOutputExecError(err)
+	}
+	return map[string]any{
+		"operation":    resolved.Operation,
+		"rowsAffected": rowsAffected,
+		"schema":       resolved.Schema,
+		"table":        resolved.Table,
+	}, nil
 }
 
 func databaseOutputStatement(

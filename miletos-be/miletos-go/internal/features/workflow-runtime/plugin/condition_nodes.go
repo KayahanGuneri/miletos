@@ -34,7 +34,7 @@ func ifRegistration() NodeRegistration {
 		InputEdgeConstraint: fixedEdgeConstraint(1),
 		RoutingMode:         OutputRoutingExplicit,
 		Validator:           validateConditionConfiguration,
-		Handler:             onRunHandler(ifNode),
+		Handler:             ifNodeHandler,
 	}
 }
 
@@ -47,8 +47,22 @@ func filterRegistration() NodeRegistration {
 		InputEdgeConstraint: fixedEdgeConstraint(1),
 		RoutingMode:         OutputRoutingExplicit,
 		Validator:           validateConditionConfiguration,
-		Handler:             onRunHandler(filterNode),
+		Handler:             filterNodeHandler,
 	}
+}
+
+func ifNodeHandler(nodeContext *Context) error {
+	nodeContext.Lifecycles.OnRun(func() (any, error) {
+		return ifNode(nodeContext)
+	})
+	return nil
+}
+
+func filterNodeHandler(nodeContext *Context) error {
+	nodeContext.Lifecycles.OnRun(func() (any, error) {
+		return filterNode(nodeContext)
+	})
+	return nil
 }
 
 func validateConditionConfiguration(configuration map[string]any) error {

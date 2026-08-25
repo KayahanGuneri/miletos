@@ -19,8 +19,15 @@ func mapRegistration() NodeRegistration {
 		OutputEdgeConstraint: EdgeConstraint{},
 		RoutingMode:          OutputRoutingBroadcast,
 		Validator:            validateMap,
-		Handler:              onRunHandler(mapNode),
+		Handler:              mapNodeHandler,
 	}
+}
+
+func mapNodeHandler(nodeContext *Context) error {
+	nodeContext.Lifecycles.OnRun(func() (any, error) {
+		return mapNode(nodeContext)
+	})
+	return nil
 }
 
 type fieldMapping struct {

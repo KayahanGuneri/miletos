@@ -9,8 +9,15 @@ func terminalRegistration() NodeRegistration {
 		OutputEdgeConstraint:    fixedEdgeConstraint(0),
 		RoutingMode:             OutputRoutingBroadcast,
 		AllowedExecutionSources: []string{"MANUAL_DIRECT"},
-		Handler:                 onRunHandler(terminal),
+		Handler:                 terminalNodeHandler,
 	}
+}
+
+func terminalNodeHandler(nodeContext *Context) error {
+	nodeContext.Lifecycles.OnRun(func() (any, error) {
+		return terminal(nodeContext)
+	})
+	return nil
 }
 
 func terminal(nodeContext *Context) (any, error) {

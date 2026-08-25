@@ -23,7 +23,11 @@ func NewGRPCService(service *Service) *GRPCService { return &GRPCService{service
 
 func (server *GRPCService) CreateCronTrigger(ctx context.Context, request *runtimev1.CreateCronTriggerRequest) (*runtimev1.CreateCronTriggerResponse, error) {
 	if request == nil || request.Definition == nil {
-		return nil, status.Error(codes.InvalidArgument, "workflow definition is required")
+		return nil, execution.StatusWithErrorInfo(
+			codes.InvalidArgument,
+			string(execution.ErrorReasonInvalidWorkflowDefinition),
+			execution.ErrorReasonInvalidWorkflowDefinition,
+		)
 	}
 	binding, err := server.service.Create(ctx, mapCreateRequest(request, requestcontext.CompanyID(ctx)))
 	if err != nil {
@@ -33,7 +37,11 @@ func (server *GRPCService) CreateCronTrigger(ctx context.Context, request *runti
 }
 func (server *GRPCService) GetCronTrigger(ctx context.Context, request *runtimev1.GetCronTriggerRequest) (*runtimev1.CronTriggerResponse, error) {
 	if request == nil {
-		return nil, status.Error(codes.InvalidArgument, "request is required")
+		return nil, execution.StatusWithErrorInfo(
+			codes.InvalidArgument,
+			string(execution.ErrorReasonInvalidExecutionRequest),
+			execution.ErrorReasonInvalidExecutionRequest,
+		)
 	}
 	binding, err := server.service.Get(ctx, requestcontext.CompanyID(ctx), request.GetTriggerId())
 	if err != nil {
@@ -46,10 +54,18 @@ func (server *GRPCService) GetActiveCronTriggerByWorkflow(
 	request *runtimev1.GetActiveCronTriggerByWorkflowRequest,
 ) (*runtimev1.CronTriggerResponse, error) {
 	if request == nil || request.GetWorkflowId() == "" {
-		return nil, status.Error(codes.InvalidArgument, "workflow id is required")
+		return nil, execution.StatusWithErrorInfo(
+			codes.InvalidArgument,
+			string(execution.ErrorReasonInvalidExecutionRequest),
+			execution.ErrorReasonInvalidExecutionRequest,
+		)
 	}
 	if request.GetTriggerNodeId() == "" {
-		return nil, status.Error(codes.InvalidArgument, "trigger node id is required")
+		return nil, execution.StatusWithErrorInfo(
+			codes.InvalidArgument,
+			string(execution.ErrorReasonInvalidExecutionRequest),
+			execution.ErrorReasonInvalidExecutionRequest,
+		)
 	}
 	binding, err := server.service.GetActiveByWorkflowAndNode(
 		ctx, requestcontext.CompanyID(ctx), request.GetWorkflowId(), request.GetTriggerNodeId(),
@@ -61,7 +77,11 @@ func (server *GRPCService) GetActiveCronTriggerByWorkflow(
 }
 func (server *GRPCService) DisableCronTrigger(ctx context.Context, request *runtimev1.DisableCronTriggerRequest) (*runtimev1.CronTriggerResponse, error) {
 	if request == nil {
-		return nil, status.Error(codes.InvalidArgument, "request is required")
+		return nil, execution.StatusWithErrorInfo(
+			codes.InvalidArgument,
+			string(execution.ErrorReasonInvalidExecutionRequest),
+			execution.ErrorReasonInvalidExecutionRequest,
+		)
 	}
 	binding, err := server.service.Disable(ctx, requestcontext.CompanyID(ctx), request.GetTriggerId())
 	if err != nil {

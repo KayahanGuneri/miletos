@@ -94,7 +94,7 @@ func (service *Service) Activate(ctx context.Context, definition workflow.Workfl
 	if err := service.bindings.Activate(ctx, snapshot, bindings); err != nil {
 		return err
 	}
-	service.clearWorkflowIncompatibilities(definition.CompanyID, definition.ID)
+	service.clearBindingIncompatibilitiesForWorkflow(definition.CompanyID, definition.ID)
 	select {
 	case service.wake <- struct{}{}:
 	default:
@@ -111,7 +111,7 @@ func (service *Service) DisableWorkflow(
 	if err != nil {
 		return 0, err
 	}
-	service.clearWorkflowIncompatibilities(companyID, workflowID)
+	service.clearBindingIncompatibilitiesForWorkflow(companyID, workflowID)
 	return disabled, nil
 }
 
@@ -171,7 +171,7 @@ func (service *Service) rememberBindingIncompatibility(binding Binding, code str
 	return true
 }
 
-func (service *Service) clearWorkflowIncompatibilities(companyID, workflowID string) {
+func (service *Service) clearBindingIncompatibilitiesForWorkflow(companyID, workflowID string) {
 	service.incompatibleMutex.Lock()
 	defer service.incompatibleMutex.Unlock()
 	for key := range service.incompatibleBindings {

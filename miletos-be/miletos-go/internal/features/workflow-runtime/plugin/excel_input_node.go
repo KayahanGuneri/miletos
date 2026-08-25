@@ -71,16 +71,19 @@ func validateExcelInput(configuration map[string]any) error {
 }
 
 func excelInputNodeHandler(runtime InputNodeRuntime) NodeHandler {
-	return onRunHandler(func(nodeContext *Context) (any, error) {
-		configuration := nodeContext.configuration
-		if err := validateExcelInput(configuration); err != nil {
-			return nil, err
-		}
-		if payload, arrived := dataArrivalPayload(nodeContext.Payload); arrived {
-			return requireSourceObject(payload, "EXCEL_INPUT_ARRIVAL_INVALID")
-		}
-		return nil, sourceDispatchRequired("EXCEL_INPUT")
-	})
+	return func(nodeContext *Context) error {
+		nodeContext.Lifecycles.OnRun(func() (any, error) {
+			configuration := nodeContext.configuration
+			if err := validateExcelInput(configuration); err != nil {
+				return nil, err
+			}
+			if payload, arrived := dataArrivalPayload(nodeContext.Payload); arrived {
+				return requireSourceObject(payload, "EXCEL_INPUT_ARRIVAL_INVALID")
+			}
+			return nil, sourceDispatchRequired("EXCEL_INPUT")
+		})
+		return nil
+	}
 }
 
 func excelInputRecordMaterializer(runtime InputNodeRuntime) RecordMaterializer {

@@ -51,8 +51,15 @@ func mergeRegistration() NodeRegistration {
 		RoutingMode:          OutputRoutingExplicit,
 		Validator:            validateMerge,
 		RecordSourceRelation: mergeRecordSourceRelation,
-		Handler:              onRunHandler(mergeNode),
+		Handler:              mergeNodeHandler,
 	}
+}
+
+func mergeNodeHandler(nodeContext *Context) error {
+	nodeContext.Lifecycles.OnRun(func() (any, error) {
+		return mergeNode(nodeContext)
+	})
+	return nil
 }
 
 func mergeRecordSourceRelation(

@@ -64,16 +64,19 @@ func validateFileInput(configuration map[string]any) error {
 }
 
 func fileInputNodeHandler(runtime InputNodeRuntime) NodeHandler {
-	return onRunHandler(func(nodeContext *Context) (any, error) {
-		configuration := nodeContext.configuration
-		if err := validateFileInput(configuration); err != nil {
-			return nil, err
-		}
-		if payload, arrived := dataArrivalPayload(nodeContext.Payload); arrived {
-			return requireSourceObject(payload, "FILE_INPUT_ARRIVAL_INVALID")
-		}
-		return nil, sourceDispatchRequired("FILE_INPUT")
-	})
+	return func(nodeContext *Context) error {
+		nodeContext.Lifecycles.OnRun(func() (any, error) {
+			configuration := nodeContext.configuration
+			if err := validateFileInput(configuration); err != nil {
+				return nil, err
+			}
+			if payload, arrived := dataArrivalPayload(nodeContext.Payload); arrived {
+				return requireSourceObject(payload, "FILE_INPUT_ARRIVAL_INVALID")
+			}
+			return nil, sourceDispatchRequired("FILE_INPUT")
+		})
+		return nil
+	}
 }
 
 func fileInputRecordMaterializer(runtime InputNodeRuntime) RecordMaterializer {

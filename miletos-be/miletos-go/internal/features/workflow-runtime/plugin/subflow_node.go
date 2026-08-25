@@ -15,8 +15,15 @@ func subflowRegistration() NodeRegistration {
 		OutputEdgeConstraint: EdgeConstraint{},
 		RoutingMode:          OutputRoutingBroadcast,
 		Validator:            validateSubflow,
-		Handler:              onRunHandler(subflowNode),
+		Handler:              subflowNodeHandler,
 	}
+}
+
+func subflowNodeHandler(nodeContext *Context) error {
+	nodeContext.Lifecycles.OnRun(func() (any, error) {
+		return subflowNode(nodeContext)
+	})
+	return nil
 }
 
 func validateSubflow(configuration map[string]any) error {

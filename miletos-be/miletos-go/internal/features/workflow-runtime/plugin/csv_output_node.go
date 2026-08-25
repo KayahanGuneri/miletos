@@ -74,38 +74,45 @@ func resolveCSVOutputDestinationType(configuration map[string]any) string {
 }
 
 func csvOutputNodeHandler() NodeHandler {
-	return onRunHandler(func(nodeContext *Context) (any, error) {
-		if err := validateCSVOutput(nodeContext.configuration); err != nil {
-			return nil, err
-		}
-		object, err := objectPayload(
-			nodeContext.Payload,
-			"CSV_OUTPUT_PAYLOAD_INVALID",
-			"CSV output requires a JSON object payload.",
-		)
-		if err != nil {
-			return nil, err
-		}
-		row, columns, err := csvRowFromObject(object)
-		if err != nil {
-			return nil, err
-		}
-		sftpConfig, err := resolveSFTPConfig(
-			nodeContext.Infra.Secrets, nodeContext.configuration, "CSV_OUTPUT",
-		)
-		if err != nil {
-			return nil, err
-		}
-		fileName := configString(nodeContext.configuration, "fileName")
-		if err := appendSFTPCSVRecord(
-			nodeContext.runtime, sftpConfig, fileName, columns, row,
-		); err != nil {
-			return nil, err
-		}
-		return map[string]any{
-			"destinationType": "SFTP", "fileName": fileName, "rowsWritten": 1,
-		}, nil
-	})
+	return func(nodeContext *Context) error {
+		nodeContext.Lifecycles.OnRun(func() (any, error) {
+			return csvOutputNode(nodeContext)
+		})
+		return nil
+	}
+}
+
+func csvOutputNode(nodeContext *Context) (any, error) {
+	if err := validateCSVOutput(nodeContext.configuration); err != nil {
+		return nil, err
+	}
+	object, err := objectPayload(
+		nodeContext.Payload,
+		"CSV_OUTPUT_PAYLOAD_INVALID",
+		"CSV output requires a JSON object payload.",
+	)
+	if err != nil {
+		return nil, err
+	}
+	row, columns, err := csvRowFromObject(object)
+	if err != nil {
+		return nil, err
+	}
+	sftpConfig, err := resolveSFTPConfig(
+		nodeContext.Infra.Secrets, nodeContext.configuration, "CSV_OUTPUT",
+	)
+	if err != nil {
+		return nil, err
+	}
+	fileName := configString(nodeContext.configuration, "fileName")
+	if err := appendSFTPCSVRecord(
+		nodeContext.runtime, sftpConfig, fileName, columns, row,
+	); err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"destinationType": "SFTP", "fileName": fileName, "rowsWritten": 1,
+	}, nil
 }
 
 func csvRowFromObject(object map[string]any) (map[string]string, []string, error) {

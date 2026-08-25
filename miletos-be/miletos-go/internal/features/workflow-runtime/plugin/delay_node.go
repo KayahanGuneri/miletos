@@ -17,8 +17,15 @@ func delayRegistration() NodeRegistration {
 		RoutingMode:             OutputRoutingBroadcast,
 		Validator:               validateDelay,
 		AllowedExecutionSources: []string{"MANUAL_DIRECT"},
-		Handler:                 onRunHandler(delay),
+		Handler:                 delayNodeHandler,
 	}
+}
+
+func delayNodeHandler(nodeContext *Context) error {
+	nodeContext.Lifecycles.OnRun(func() (any, error) {
+		return delay(nodeContext)
+	})
+	return nil
 }
 
 func validateDelay(configuration map[string]any) error {

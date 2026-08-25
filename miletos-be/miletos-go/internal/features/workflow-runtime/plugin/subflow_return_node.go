@@ -9,8 +9,15 @@ func subflowReturnRegistration() NodeRegistration {
 		OutputEdgeConstraint:   fixedEdgeConstraint(0),
 		RoutingMode:            OutputRoutingBroadcast,
 		ProvidesWorkflowResult: true,
-		Handler:                onRunHandler(subflowReturnNode),
+		Handler:                subflowReturnNodeHandler,
 	}
+}
+
+func subflowReturnNodeHandler(nodeContext *Context) error {
+	nodeContext.Lifecycles.OnRun(func() (any, error) {
+		return subflowReturnNode(nodeContext)
+	})
+	return nil
 }
 
 func subflowReturnNode(nodeContext *Context) (any, error) {
